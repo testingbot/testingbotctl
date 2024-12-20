@@ -1,0 +1,5 @@
+!jest.config.js
+dist
+coverage
+node_modules
+.DS_Store
