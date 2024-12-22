@@ -9,7 +9,7 @@
     "clean": "rm -rf dist",
     "start": "node dist/index.js",
     "format": "prettier --write '**/*.{js,ts}'",
-    "test": "jest --detectOpenHandles",
+    "test": "jest",
     "release": "release-it --github.release",
     "release:ci": "npm run release -- --ci --npm.skipChecks --no-git.requireCleanWorkingDir",
     "release:patch": "npm run release -- patch",
