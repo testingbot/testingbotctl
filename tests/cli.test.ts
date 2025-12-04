@@ -1,6 +1,6 @@
 import program from './../src/cli';
 import logger from './../src/logger';
-import auth from './../src/auth';
+import Auth from './../src/auth';
 import Espresso from './../src/providers/espresso';
 import XCUITest from './../src/providers/xcuitest';
 import Maestro from './../src/providers/maestro';
@@ -11,7 +11,7 @@ jest.mock('./../src/providers/espresso');
 jest.mock('./../src/providers/xcuitest');
 jest.mock('./../src/providers/maestro');
 
-const mockGetCredentials = auth.getCredentials as jest.Mock;
+const mockGetCredentials = Auth.getCredentials as jest.Mock;
 
 describe('TestingBotCTL CLI', () => {
   let mockEspressoRun: jest.Mock;
@@ -60,7 +60,23 @@ describe('TestingBotCTL CLI', () => {
     expect(mockEspressoRun).toHaveBeenCalledWith();
   });
 
-  test('maestro command should call maestro.run() with valid options', async () => {
+  test('maestro command should call maestro.run() with positional arguments', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'device-1',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('maestro command should call maestro.run() with named options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 
     await program.parseAsync([
@@ -71,9 +87,37 @@ describe('TestingBotCTL CLI', () => {
       'app.apk',
       '--device',
       'device-1',
-      '--test-app',
-      'test-app.apk',
+      '--flows',
+      './flows',
     ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('maestro command should accept include-tags and exclude-tags', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'device-1',
+      '--include-tags',
+      'smoke,regression',
+      '--exclude-tags',
+      'flaky',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('maestro command should work without --device (optional)', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync(['node', 'cli', 'maestro', 'app.apk', './flows']);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
   });
@@ -117,7 +161,7 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'Espresso error: Please specify credentials',
+      'Espresso error: Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
     );
   });
 
@@ -131,16 +175,14 @@ describe('TestingBotCTL CLI', () => {
       'node',
       'cli',
       'maestro',
-      '--app',
       'app.apk',
+      './flows',
       '--device',
       'device-1',
-      '--test-app',
-      'test-app.apk',
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'Maestro error: Please specify credentials',
+      'Maestro error: Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
     );
   });
 
@@ -163,7 +205,7 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'XCUITest error: Please specify credentials',
+      'XCUITest error: Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
     );
   });
 
