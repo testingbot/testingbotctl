@@ -2,22 +2,23 @@ import logger from '../logger';
 import Credentials from '../models/credentials';
 import axios from 'axios';
 import fs from 'node:fs';
-import path from 'node:path';
-import FormData from 'form-data';
 import TestingBotError from '../models/testingbot_error';
 import XCUITestOptions from '../models/xcuitest_options';
 import utils from '../utils';
+import Upload from '../upload';
 
 export default class XCUITest {
   private readonly URL = 'https://api.testingbot.com/v1/app-automate/xcuitest';
   private credentials: Credentials;
   private options: XCUITestOptions;
+  private upload: Upload;
 
   private appId: number | undefined = undefined;
 
   public constructor(credentials: Credentials, options: XCUITestOptions) {
     this.credentials = credentials;
     this.options = options;
+    this.upload = new Upload();
   }
 
   private async validate(): Promise<boolean> {
@@ -70,59 +71,26 @@ export default class XCUITest {
   }
 
   private async uploadApp() {
-    const fileName = path.basename(this.options.app);
-    const fileStream = fs.createReadStream(this.options.app);
-
-    const formData = new FormData();
-    formData.append('file', fileStream);
-    const response = await axios.post(`${this.URL}/app`, formData, {
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename=${fileName}`,
-        'User-Agent': utils.getUserAgent(),
-      },
-      auth: {
-        username: this.credentials.userName,
-        password: this.credentials.accessKey,
-      },
+    const result = await this.upload.upload({
+      filePath: this.options.app,
+      url: `${this.URL}/app`,
+      credentials: this.credentials,
+      contentType: 'application/octet-stream',
+      showProgress: true,
     });
 
-    const result = response.data;
-    if (result.id) {
-      this.appId = result.id;
-    } else {
-      throw new TestingBotError(`Uploading app failed: ${result.error}`);
-    }
-
+    this.appId = result.id;
     return true;
   }
 
   private async uploadTestApp() {
-    const fileName = path.basename(this.options.testApp);
-    const fileStream = fs.createReadStream(this.options.testApp);
-
-    const formData = new FormData();
-    formData.append('file', fileStream);
-    const response = await axios.post(
-      `${this.URL}/${this.appId}/tests`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'application/zip',
-          'Content-Disposition': `attachment; filename=${fileName}`,
-          'User-Agent': utils.getUserAgent(),
-        },
-        auth: {
-          username: this.credentials.userName,
-          password: this.credentials.accessKey,
-        },
-      },
-    );
-
-    const result = response.data;
-    if (!result.id) {
-      throw new TestingBotError(`Uploading test app failed: ${result.error}`);
-    }
+    await this.upload.upload({
+      filePath: this.options.testApp,
+      url: `${this.URL}/${this.appId}/tests`,
+      credentials: this.credentials,
+      contentType: 'application/zip',
+      showProgress: true,
+    });
 
     return true;
   }

@@ -7,12 +7,18 @@ import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
 
 jest.mock('axios');
-jest.mock('../../src/utils');
+jest.mock('../../src/utils', () => ({
+  __esModule: true,
+  default: {
+    getUserAgent: jest.fn().mockReturnValue('TestingBot-CTL-test'),
+  },
+}));
 jest.mock('node:fs', () => ({
   ...jest.requireActual('fs'),
   promises: {
     ...jest.requireActual('fs').promises,
     access: jest.fn(),
+    stat: jest.fn(),
   },
 }));
 
@@ -47,11 +53,13 @@ describe('Espresso', () => {
       const mockFileStream = new Readable();
       mockFileStream._read = jest.fn();
 
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
       fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
 
       const mockResponse = {
         data: {
-          id: '1234',
+          id: 1234,
         },
       };
 
@@ -62,11 +70,18 @@ describe('Espresso', () => {
     });
 
     it('should throw an error if app upload fails', async () => {
+      const mockFileStream = new Readable();
+      mockFileStream._read = jest.fn();
+
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
+      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+
       const mockResponse = { data: { error: 'Upload failed' } };
       axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
 
       await expect(espresso['uploadApp']()).rejects.toThrow(
-        new TestingBotError('Uploading app failed: Upload failed'),
+        new TestingBotError('Upload failed: Upload failed'),
       );
     });
   });
@@ -76,11 +91,13 @@ describe('Espresso', () => {
       const mockFileStream = new Readable();
       mockFileStream._read = jest.fn();
 
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
       fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
 
       const mockResponse = {
         data: {
-          id: '1234',
+          id: 1234,
         },
       };
 
@@ -91,13 +108,18 @@ describe('Espresso', () => {
     });
 
     it('should throw an error if test app upload fails', async () => {
+      const mockFileStream = new Readable();
+      mockFileStream._read = jest.fn();
+
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
+      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+
       const mockResponse = { data: { error: 'Test app upload failed' } };
       axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
 
       await expect(espresso['uploadTestApp']()).rejects.toThrow(
-        new TestingBotError(
-          'Uploading test app failed: Test app upload failed',
-        ),
+        new TestingBotError('Upload failed: Test app upload failed'),
       );
     });
   });
