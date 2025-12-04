@@ -30,7 +30,7 @@ describe('TestingBotCTL CLI', () => {
 
     jest
       .spyOn(process, 'exit')
-      .mockImplementation((code?: number | undefined) => {
+      .mockImplementation((code?: string | number | null) => {
         throw new Error(`process.exit called with code: ${code}`);
       });
   });
@@ -170,7 +170,7 @@ describe('TestingBotCTL CLI', () => {
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')
-      .mockImplementation((code?: number | undefined) => {
+      .mockImplementation((code?: string | number | null) => {
         throw new Error(`process.exit called with code: ${code}`);
       });
 
