@@ -68,8 +68,8 @@ export default class Maestro {
 
       logger.info('Running Maestro Tests');
       await this.runTests();
-    } catch (error: any) {
-      logger.error(error.message);
+    } catch (error) {
+      logger.error(error instanceof Error ? error.message : error);
     }
   }
 
@@ -112,7 +112,7 @@ export default class Maestro {
       formData,
       {
         headers: {
-          'Content-Type': 'application/zip,',
+          'Content-Type': 'application/zip',
           'Content-Disposition': `attachment; filename=${fileName}`,
           'User-Agent': utils.getUserAgent(),
         },

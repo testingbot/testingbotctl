@@ -41,8 +41,10 @@ program
       }
       const espresso = new Espresso(credentials, options);
       await espresso.run();
-    } catch (err: any) {
-      logger.error(`Espresso error: ${err.message}`);
+    } catch (err) {
+      logger.error(
+        `Espresso error: ${err instanceof Error ? err.message : err}`,
+      );
     }
   })
   .showHelpAfterError(true);
@@ -68,10 +70,12 @@ program
       if (credentials === null) {
         throw new Error('Please specify credentials');
       }
-      const maestto = new Maestro(credentials, options);
-      await maestto.run();
-    } catch (err: any) {
-      logger.error(`Maestro error: ${err.message}`);
+      const maestro = new Maestro(credentials, options);
+      await maestro.run();
+    } catch (err) {
+      logger.error(
+        `Maestro error: ${err instanceof Error ? err.message : err}`,
+      );
     }
   })
   .showHelpAfterError(true);
@@ -91,8 +95,10 @@ program
       }
       const xcuitest = new XCUITest(credentials, options);
       await xcuitest.run();
-    } catch (err: any) {
-      logger.error(`XCUITest error: ${err.message}`);
+    } catch (err) {
+      logger.error(
+        `XCUITest error: ${err instanceof Error ? err.message : err}`,
+      );
     }
   });
 

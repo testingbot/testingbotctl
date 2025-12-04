@@ -6,6 +6,7 @@ import path from 'node:path';
 import FormData from 'form-data';
 import TestingBotError from '../models/testingbot_error';
 import XCUITestOptions from '../models/xcuitest_options';
+import utils from '../utils';
 
 export default class XCUITest {
   private readonly URL = 'https://api.testingbot.com/v1/app-automate/xcuitest';
@@ -64,7 +65,7 @@ export default class XCUITest {
       logger.info('Running XCUITests');
       await this.runTests();
     } catch (error) {
-      logger.error(error);
+      logger.error(error instanceof Error ? error.message : error);
     }
   }
 
@@ -78,6 +79,7 @@ export default class XCUITest {
       headers: {
         'Content-Type': 'application/octet-stream',
         'Content-Disposition': `attachment; filename=${fileName}`,
+        'User-Agent': utils.getUserAgent(),
       },
       auth: {
         username: this.credentials.userName,
@@ -106,8 +108,9 @@ export default class XCUITest {
       formData,
       {
         headers: {
-          'Content-Type': 'application/zip,',
+          'Content-Type': 'application/zip',
           'Content-Disposition': `attachment; filename=${fileName}`,
+          'User-Agent': utils.getUserAgent(),
         },
         auth: {
           username: this.credentials.userName,
@@ -138,6 +141,7 @@ export default class XCUITest {
         {
           headers: {
             'Content-Type': 'application/json',
+            'User-Agent': utils.getUserAgent(),
           },
           auth: {
             username: this.credentials.userName,
