@@ -9,15 +9,17 @@ import packageJson from '../package.json';
 import MaestroOptions, {
   Orientation,
   ThrottleNetwork,
+  ReportFormat,
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 
 const program = new Command();
 
 program
-  .version(packageJson.version)
+  .name('testingbot')
+  .version(packageJson.version, '-v, --version', 'Show version number')
   .description(
-    'TestingBotCTL is a CLI-tool to run Espresso, XCUITest and Maestro tests in the TestingBot cloud',
+    'CLI tool to run Espresso, XCUITest and Maestro tests on TestingBot cloud',
   );
 
 program
@@ -59,7 +61,7 @@ program
   })
   .showHelpAfterError(true);
 
-program
+const maestroCommand = program
   .command('maestro')
   .description('Run Maestro flows on TestingBot.')
   .argument(
@@ -72,30 +74,30 @@ program
   )
   // App and flows options
   .option(
-    '--app <string>',
+    '--app <path>',
     'Path to application under test (.apk, .ipa, .app, or .zip).',
   )
   .option(
-    '--flows <string>',
+    '--flows <path>',
     'Path to flow file (.yaml/.yml), directory of flows, .zip file or glob pattern.',
   )
   // Device configuration
   .option(
     '--device <device>',
-    'Device name to use for testing (e.g., "Pixel 8", "iPhone 15"). If not specified, uses "*" for any available device.',
+    'Device name to use for testing (e.g., "Pixel 9", "iPhone 17").',
   )
   .option(
     '--platform <platform>',
     'Platform name: Android or iOS.',
     (val) => val as 'Android' | 'iOS',
   )
-  .option('--version <version>', 'OS version (e.g., "14", "17.2").')
+  .option('--deviceVersion <version>', 'OS version (e.g., "14", "17.2").')
   .option(
     '--orientation <orientation>',
     'Screen orientation: PORTRAIT or LANDSCAPE.',
     (val) => val.toUpperCase() as Orientation,
   )
-  .option('--locale <locale>', 'Device locale (e.g., "en_US", "de_DE").')
+  .option('--device-locale <locale>', 'Device locale (e.g., "en_US", "de_DE").')
   .option(
     '--timezone <timezone>',
     'Device timezone (e.g., "America/New_York", "Europe/London").',
@@ -134,6 +136,30 @@ program
     },
     [] as string[],
   )
+  // Maestro configuration
+  .option(
+    '--maestro-version <version>',
+    'Maestro version to use (e.g., "2.0.10").',
+  )
+  // Execution mode
+  .option(
+    '-q, --quiet',
+    'Quieter console output without progress updates.',
+  )
+  .option(
+    '--async',
+    'Start tests and exit immediately without waiting for results.',
+  )
+  // Report options
+  .option(
+    '--report <format>',
+    'Download test report after completion: html or junit.',
+    (val) => val.toLowerCase() as ReportFormat,
+  )
+  .option(
+    '--report-output-dir <path>',
+    'Directory to save test reports (required when --report is used).',
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -143,15 +169,9 @@ program
       const app = appFileArg || args.app;
       const flows = flowsArg || args.flows;
 
-      if (!app) {
-        throw new Error(
-          'App file is required. Provide it as first argument or use --app option.',
-        );
-      }
-      if (!flows) {
-        throw new Error(
-          'Flows path is required. Provide it as second argument or use --flows option.',
-        );
+      if (!app || !flows) {
+        maestroCommand.help();
+        return;
       }
 
       // Parse environment variables from -e KEY=VALUE format
@@ -169,15 +189,20 @@ program
         includeTags: args.includeTags,
         excludeTags: args.excludeTags,
         platformName: args.platform,
-        version: args.version,
+        version: args.deviceVersion,
         name: args.name,
         build: args.build,
         orientation: args.orientation,
-        locale: args.locale,
+        locale: args.deviceLocale,
         timeZone: args.timezone,
         throttleNetwork: args.throttleNetwork,
         geoCountryCode: args.geoCountryCode,
         env: Object.keys(env).length > 0 ? env : undefined,
+        maestroVersion: args.maestroVersion,
+        quiet: args.quiet,
+        async: args.async,
+        report: args.report,
+        reportOutputDir: args.reportOutputDir,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
@@ -189,11 +214,15 @@ program
         );
       }
       const maestro = new Maestro(credentials, options);
-      await maestro.run();
+      const result = await maestro.run();
+      if (!result.success) {
+        process.exitCode = 1;
+      }
     } catch (err) {
       logger.error(
         `Maestro error: ${err instanceof Error ? err.message : err}`,
       );
+      process.exitCode = 1;
     }
   })
   .showHelpAfterError(true);

@@ -18,6 +18,9 @@ describe('MaestroOptions', () => {
       expect(options.throttleNetwork).toBeUndefined();
       expect(options.geoCountryCode).toBeUndefined();
       expect(options.env).toBeUndefined();
+      expect(options.maestroVersion).toBeUndefined();
+      expect(options.quiet).toBe(false);
+      expect(options.async).toBe(false);
     });
 
     it('should create options with all optional fields', () => {
@@ -34,6 +37,9 @@ describe('MaestroOptions', () => {
         throttleNetwork: '3G',
         geoCountryCode: 'DE',
         env: { API_URL: 'https://api.example.com', API_KEY: 'secret' },
+        maestroVersion: '2.0.10',
+        quiet: true,
+        async: true,
       });
 
       expect(options.app).toBe('app.apk');
@@ -54,6 +60,17 @@ describe('MaestroOptions', () => {
         API_URL: 'https://api.example.com',
         API_KEY: 'secret',
       });
+      expect(options.maestroVersion).toBe('2.0.10');
+      expect(options.quiet).toBe(true);
+      expect(options.async).toBe(true);
+    });
+
+    it('should default async to false when not specified', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+      });
+
+      expect(options.async).toBe(false);
     });
   });
 
@@ -351,6 +368,77 @@ describe('MaestroOptions', () => {
       expect(maestroOpts).not.toHaveProperty('platformName');
       expect(maestroOpts).not.toHaveProperty('version');
       expect(maestroOpts).not.toHaveProperty('name');
+    });
+
+    it('should return maestroVersion when set', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        maestroVersion: '2.0.10',
+      });
+      const maestroOpts = options.getMaestroOptions();
+
+      expect(maestroOpts).toEqual({
+        version: '2.0.10',
+      });
+    });
+
+    it('should return maestroVersion along with other options', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        includeTags: ['smoke'],
+        excludeTags: ['flaky'],
+        env: { API_KEY: 'secret' },
+        maestroVersion: '2.0.10',
+      });
+      const maestroOpts = options.getMaestroOptions();
+
+      expect(maestroOpts).toEqual({
+        includeTags: ['smoke'],
+        excludeTags: ['flaky'],
+        env: { API_KEY: 'secret' },
+        version: '2.0.10',
+      });
+    });
+  });
+
+  describe('report options', () => {
+    it('should have undefined report and reportOutputDir by default', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.report).toBeUndefined();
+      expect(options.reportOutputDir).toBeUndefined();
+    });
+
+    it('should store report format when provided', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        report: 'junit',
+      });
+
+      expect(options.report).toBe('junit');
+    });
+
+    it('should store html report format', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        report: 'html',
+      });
+
+      expect(options.report).toBe('html');
+    });
+
+    it('should store reportOutputDir when provided', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        reportOutputDir: './reports',
+      });
+
+      expect(options.reportOutputDir).toBe('./reports');
+    });
+
+    it('should store both report and reportOutputDir', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        report: 'junit',
+        reportOutputDir: '/path/to/reports',
+      });
+
+      expect(options.report).toBe('junit');
+      expect(options.reportOutputDir).toBe('/path/to/reports');
     });
   });
 });

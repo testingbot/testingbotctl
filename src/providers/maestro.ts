@@ -13,8 +13,35 @@ import utils from '../utils';
 import Upload from '../upload';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
 
+export interface MaestroRunInfo {
+  id: number;
+  status: 'WAITING' | 'READY' | 'DONE' | 'FAILED';
+  capabilities: {
+    deviceName: string;
+    platformName: string;
+    version?: string;
+  };
+  success: number;
+  report?: string;
+  options?: Record<string, unknown>;
+}
+
+export interface MaestroStatusResponse {
+  runs: MaestroRunInfo[];
+  success: boolean;
+  completed: boolean;
+}
+
+export interface MaestroResult {
+  success: boolean;
+  runs: MaestroRunInfo[];
+}
+
 export default class Maestro {
   private readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
+  private readonly POLL_INTERVAL_MS = 5000;
+  private readonly MAX_POLL_ATTEMPTS = 720; // 1 hour max with 5s interval
+
   private credentials: Credentials;
   private options: MaestroOptions;
   private upload: Upload;
@@ -62,7 +89,48 @@ export default class Maestro {
 
     // Device is optional - will be inferred from app file type if not provided
 
+    // Validate report options
+    if (this.options.report && !this.options.reportOutputDir) {
+      throw new TestingBotError(
+        `--report-output-dir is required when --report is specified`,
+      );
+    }
+
+    if (this.options.reportOutputDir) {
+      await this.ensureOutputDirectory(this.options.reportOutputDir);
+    }
+
     return true;
+  }
+
+  private async ensureOutputDirectory(dirPath: string): Promise<void> {
+    try {
+      const stat = await fs.promises.stat(dirPath);
+      if (!stat.isDirectory()) {
+        throw new TestingBotError(
+          `Report output path exists but is not a directory: ${dirPath}`,
+        );
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Directory doesn't exist, try to create it
+        try {
+          await fs.promises.mkdir(dirPath, { recursive: true });
+        } catch (mkdirError) {
+          throw new TestingBotError(
+            `Failed to create report output directory: ${dirPath}`,
+            { cause: mkdirError },
+          );
+        }
+      } else if (error instanceof TestingBotError) {
+        throw error;
+      } else {
+        throw new TestingBotError(
+          `Failed to access report output directory: ${dirPath}`,
+          { cause: error },
+        );
+      }
+    }
   }
 
   /**
@@ -75,9 +143,9 @@ export default class Maestro {
     return detectPlatformFromFile(appPath);
   }
 
-  public async run() {
+  public async run(): Promise<MaestroResult> {
     if (!(await this.validate())) {
-      return;
+      return { success: false, runs: [] };
     }
     try {
       // Detect platform from file content if not explicitly provided
@@ -85,16 +153,36 @@ export default class Maestro {
         this.detectedPlatform = await this.detectPlatform();
       }
 
-      logger.info('Uploading Maestro App');
+      if (!this.options.quiet) {
+        logger.info('Uploading Maestro App');
+      }
       await this.uploadApp();
 
-      logger.info('Uploading Maestro Flows');
+      if (!this.options.quiet) {
+        logger.info('Uploading Maestro Flows');
+      }
       await this.uploadFlows();
 
-      logger.info('Running Maestro Tests');
+      if (!this.options.quiet) {
+        logger.info('Running Maestro Tests');
+      }
       await this.runTests();
+
+      if (this.options.async) {
+        if (!this.options.quiet) {
+          logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
+        }
+        return { success: true, runs: [] };
+      }
+
+      if (!this.options.quiet) {
+        logger.info('Waiting for test results...');
+      }
+      const result = await this.waitForCompletion();
+      return result;
     } catch (error) {
       logger.error(error instanceof Error ? error.message : error);
+      return { success: false, runs: [] };
     }
   }
 
@@ -121,7 +209,7 @@ export default class Maestro {
       url: `${this.URL}/app`,
       credentials: this.credentials,
       contentType,
-      showProgress: true,
+      showProgress: !this.options.quiet,
     });
 
     this.appId = result.id;
@@ -181,7 +269,7 @@ export default class Maestro {
         url: `${this.URL}/${this.appId}/tests`,
         credentials: this.credentials,
         contentType: 'application/zip',
-        showProgress: true,
+        showProgress: !this.options.quiet,
       });
     } finally {
       if (shouldCleanup) {
@@ -390,5 +478,142 @@ export default class Maestro {
         cause: error,
       });
     }
+  }
+
+  private async getStatus(): Promise<MaestroStatusResponse> {
+    try {
+      const response = await axios.get(`${this.URL}/${this.appId}`, {
+        headers: {
+          'User-Agent': utils.getUserAgent(),
+        },
+        auth: {
+          username: this.credentials.userName,
+          password: this.credentials.accessKey,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      throw new TestingBotError(`Failed to get Maestro test status`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async waitForCompletion(): Promise<MaestroResult> {
+    let attempts = 0;
+
+    while (attempts < this.MAX_POLL_ATTEMPTS) {
+      const status = await this.getStatus();
+
+      // Log current status of runs (unless quiet mode)
+      if (!this.options.quiet) {
+        for (const run of status.runs) {
+          const statusEmoji = this.getStatusEmoji(run.status);
+          logger.info(
+            `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${run.status}`,
+          );
+        }
+      }
+
+      if (status.completed) {
+        const allSucceeded = status.runs.every((run) => run.success === 1);
+
+        if (allSucceeded) {
+          if (!this.options.quiet) {
+            logger.info('All tests completed successfully!');
+          }
+        } else {
+          const failedRuns = status.runs.filter((run) => run.success !== 1);
+          logger.error(`${failedRuns.length} test run(s) failed:`);
+          for (const run of failedRuns) {
+            logger.error(`  - Run ${run.id} (${run.capabilities.deviceName})`);
+          }
+        }
+
+        // Fetch reports if requested
+        if (this.options.report && this.options.reportOutputDir) {
+          await this.fetchReports(status.runs);
+        }
+
+        return {
+          success: status.success,
+          runs: status.runs,
+        };
+      }
+
+      attempts++;
+      await this.sleep(this.POLL_INTERVAL_MS);
+    }
+
+    throw new TestingBotError(
+      `Test timed out after ${(this.MAX_POLL_ATTEMPTS * this.POLL_INTERVAL_MS) / 1000 / 60} minutes`,
+    );
+  }
+
+  private async fetchReports(runs: MaestroRunInfo[]): Promise<void> {
+    const reportFormat = this.options.report;
+    const outputDir = this.options.reportOutputDir;
+
+    if (!reportFormat || !outputDir) {
+      return;
+    }
+
+    if (!this.options.quiet) {
+      logger.info(`Fetching ${reportFormat} reports...`);
+    }
+
+    for (const run of runs) {
+      try {
+        const reportEndpoint =
+          reportFormat === 'junit' ? 'junit_report' : 'html_report';
+        const response = await axios.get(
+          `${this.URL}/${this.appId}/${run.id}/${reportEndpoint}`,
+          {
+            headers: {
+              'User-Agent': utils.getUserAgent(),
+            },
+            auth: {
+              username: this.credentials.userName,
+              password: this.credentials.accessKey,
+            },
+            responseType: 'arraybuffer',
+          },
+        );
+
+        const fileExtension = reportFormat === 'junit' ? 'xml' : 'html';
+        const fileName = `report_run_${run.id}.${fileExtension}`;
+        const filePath = path.join(outputDir, fileName);
+
+        await fs.promises.writeFile(filePath, response.data);
+
+        if (!this.options.quiet) {
+          logger.info(`  Saved report for run ${run.id}: ${filePath}`);
+        }
+      } catch (error) {
+        logger.error(
+          `Failed to fetch report for run ${run.id}: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+  }
+
+  private getStatusEmoji(status: MaestroRunInfo['status']): string {
+    switch (status) {
+      case 'WAITING':
+        return '⏳';
+      case 'READY':
+        return '🔄';
+      case 'DONE':
+        return '✅';
+      case 'FAILED':
+        return '❌';
+      default:
+        return '❓';
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

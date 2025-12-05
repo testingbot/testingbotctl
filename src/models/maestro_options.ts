@@ -7,6 +7,7 @@ export interface MaestroConfig {
 
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane' | 'disable';
+export type ReportFormat = 'html' | 'junit';
 
 export interface MaestroCapabilities {
   platformName?: 'Android' | 'iOS';
@@ -25,6 +26,7 @@ export interface MaestroRunOptions {
   includeTags?: string[];
   excludeTags?: string[];
   env?: Record<string, string>;
+  version?: string;
 }
 
 export default class MaestroOptions {
@@ -43,6 +45,11 @@ export default class MaestroOptions {
   private _throttleNetwork?: ThrottleNetwork;
   private _geoCountryCode?: string;
   private _env?: Record<string, string>;
+  private _maestroVersion?: string;
+  private _quiet: boolean;
+  private _async: boolean;
+  private _report?: ReportFormat;
+  private _reportOutputDir?: string;
 
   public constructor(
     app: string,
@@ -61,6 +68,11 @@ export default class MaestroOptions {
       throttleNetwork?: ThrottleNetwork;
       geoCountryCode?: string;
       env?: Record<string, string>;
+      maestroVersion?: string;
+      quiet?: boolean;
+      async?: boolean;
+      report?: ReportFormat;
+      reportOutputDir?: string;
     },
   ) {
     this._app = app;
@@ -78,6 +90,11 @@ export default class MaestroOptions {
     this._throttleNetwork = options?.throttleNetwork;
     this._geoCountryCode = options?.geoCountryCode;
     this._env = options?.env;
+    this._maestroVersion = options?.maestroVersion;
+    this._quiet = options?.quiet ?? false;
+    this._async = options?.async ?? false;
+    this._report = options?.report;
+    this._reportOutputDir = options?.reportOutputDir;
   }
 
   public get app(): string {
@@ -140,6 +157,26 @@ export default class MaestroOptions {
     return this._env;
   }
 
+  public get maestroVersion(): string | undefined {
+    return this._maestroVersion;
+  }
+
+  public get quiet(): boolean {
+    return this._quiet;
+  }
+
+  public get async(): boolean {
+    return this._async;
+  }
+
+  public get report(): ReportFormat | undefined {
+    return this._report;
+  }
+
+  public get reportOutputDir(): string | undefined {
+    return this._reportOutputDir;
+  }
+
   public getMaestroOptions(): MaestroRunOptions | undefined {
     const opts: MaestroRunOptions = {};
 
@@ -151,6 +188,9 @@ export default class MaestroOptions {
     }
     if (this._env && Object.keys(this._env).length > 0) {
       opts.env = this._env;
+    }
+    if (this._maestroVersion) {
+      opts.version = this._maestroVersion;
     }
 
     return Object.keys(opts).length > 0 ? opts : undefined;
