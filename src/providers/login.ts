@@ -85,7 +85,7 @@ export default class Login {
         5 * 60 * 1000,
       );
 
-      this.server?.on('request', (req, res) => {
+      this.server?.on('request', async (req, res) => {
         if (!req.url) {
           res.writeHead(400);
           res.end('Bad request');
@@ -95,30 +95,80 @@ export default class Login {
         const url = new URL(req.url, `http://127.0.0.1:${this.port}`);
 
         if (url.pathname === '/callback') {
-          const key = url.searchParams.get('key');
-          const secret = url.searchParams.get('secret');
-          const error = url.searchParams.get('error');
+          try {
+            // Try to get credentials from query params (GET) or body (POST)
+            let key = url.searchParams.get('key');
+            let secret = url.searchParams.get('secret');
+            let error = url.searchParams.get('error');
 
-          if (error) {
-            clearTimeout(timeout);
-            this.sendErrorResponse(res, error);
-            reject(new Error(error));
-            return;
-          }
+            // If not in query params and this is a POST request, parse the body
+            if (!key && !secret && !error && req.method === 'POST') {
+              const body = await this.parseRequestBody(req);
+              key = body.get('key');
+              secret = body.get('secret');
+              error = body.get('error');
+            }
 
-          if (key && secret) {
-            clearTimeout(timeout);
-            this.sendSuccessResponse(res);
-            resolve({ key, secret });
-          } else {
+            if (error) {
+              clearTimeout(timeout);
+              this.sendErrorResponse(res, error);
+              reject(new Error(error));
+              return;
+            }
+
+            if (key && secret) {
+              clearTimeout(timeout);
+              this.sendSuccessResponse(res);
+              resolve({ key, secret });
+            } else {
+              res.writeHead(400);
+              res.end('Missing credentials');
+            }
+          } catch (err) {
             res.writeHead(400);
-            res.end('Missing credentials');
+            res.end('Failed to parse request');
           }
         } else {
           res.writeHead(404);
           res.end('Not found');
         }
       });
+    });
+  }
+
+  private parseRequestBody(
+    req: http.IncomingMessage,
+  ): Promise<URLSearchParams> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      req.on('end', () => {
+        const body = Buffer.concat(chunks).toString();
+        const contentType = req.headers['content-type'] || '';
+
+        if (contentType.includes('application/json')) {
+          // Parse JSON body
+          try {
+            const json = JSON.parse(body);
+            const params = new URLSearchParams();
+            if (json.key) params.set('key', json.key);
+            if (json.secret) params.set('secret', json.secret);
+            if (json.error) params.set('error', json.error);
+            resolve(params);
+          } catch {
+            reject(new Error('Invalid JSON body'));
+          }
+        } else {
+          // Parse URL-encoded body (application/x-www-form-urlencoded)
+          resolve(new URLSearchParams(body));
+        }
+      });
+
+      req.on('error', reject);
     });
   }
 
