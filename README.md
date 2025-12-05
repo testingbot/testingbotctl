@@ -1,3 +1,5 @@
+[![Run Tests](https://github.com/testingbot/testingbotctl/actions/workflows/test.yml/badge.svg)](https://github.com/testingbot/testingbotctl/actions/workflows/test.yml)
+
 # TestingBot CLI
 
 CLI tool to run Espresso, XCUITest and Maestro tests on [TestingBot's](https://testingbot.com) cloud infrastructure.
