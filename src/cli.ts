@@ -12,6 +12,7 @@ import MaestroOptions, {
   ReportFormat,
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
+import Login from './providers/login';
 
 const program = new Command();
 
@@ -142,10 +143,7 @@ const maestroCommand = program
     'Maestro version to use (e.g., "2.0.10").',
   )
   // Execution mode
-  .option(
-    '-q, --quiet',
-    'Quieter console output without progress updates.',
-  )
+  .option('-q, --quiet', 'Quieter console output without progress updates.')
   .option(
     '--async',
     'Start tests and exit immediately without waiting for results.',
@@ -253,6 +251,22 @@ program
       logger.error(
         `XCUITest error: ${err instanceof Error ? err.message : err}`,
       );
+    }
+  });
+
+program
+  .command('login')
+  .description('Authenticate with TestingBot via browser.')
+  .action(async () => {
+    try {
+      const login = new Login();
+      const result = await login.run();
+      if (!result.success) {
+        process.exitCode = 1;
+      }
+    } catch (err) {
+      logger.error(`Login error: ${err instanceof Error ? err.message : err}`);
+      process.exitCode = 1;
     }
   });
 

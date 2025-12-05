@@ -13,6 +13,9 @@ jest.mock('../../src/utils', () => ({
   __esModule: true,
   default: {
     getUserAgent: jest.fn().mockReturnValue('TestingBot-CTL-test'),
+    getCurrentVersion: jest.fn().mockReturnValue('1.0.0'),
+    compareVersions: jest.fn().mockReturnValue(0),
+    checkForUpdate: jest.fn(),
   },
 }));
 jest.mock('glob', () => ({
@@ -811,7 +814,10 @@ describe('Maestro', () => {
           'Pixel 6',
           { report: 'junit' },
         );
-        const maestroWithReport = new Maestro(mockCredentials, optionsWithReport);
+        const maestroWithReport = new Maestro(
+          mockCredentials,
+          optionsWithReport,
+        );
 
         fs.promises.access = jest
           .fn()
@@ -909,7 +915,9 @@ describe('Maestro', () => {
         const enoentError = new Error('ENOENT') as NodeJS.ErrnoException;
         enoentError.code = 'ENOENT';
         fs.promises.stat = jest.fn().mockRejectedValue(enoentError);
-        fs.promises.mkdir = jest.fn().mockRejectedValue(new Error('Permission denied'));
+        fs.promises.mkdir = jest
+          .fn()
+          .mockRejectedValue(new Error('Permission denied'));
 
         await expect(maestroWithBoth['validate']()).rejects.toThrow(
           /Failed to create report output directory: \/readonly\/reports/,
@@ -929,7 +937,10 @@ describe('Maestro', () => {
           'Pixel 6',
           { report: 'junit', reportOutputDir: '/tmp/reports' },
         );
-        const maestroWithReport = new Maestro(mockCredentials, optionsWithReport);
+        const maestroWithReport = new Maestro(
+          mockCredentials,
+          optionsWithReport,
+        );
         maestroWithReport['appId'] = 1234;
 
         const mockRuns = [
@@ -970,7 +981,10 @@ describe('Maestro', () => {
           'Pixel 6',
           { report: 'html', reportOutputDir: '/tmp/reports' },
         );
-        const maestroWithReport = new Maestro(mockCredentials, optionsWithReport);
+        const maestroWithReport = new Maestro(
+          mockCredentials,
+          optionsWithReport,
+        );
         maestroWithReport['appId'] = 1234;
 
         const mockRuns = [
@@ -1005,7 +1019,10 @@ describe('Maestro', () => {
           'Pixel 6',
           { report: 'junit', reportOutputDir: '/tmp/reports' },
         );
-        const maestroWithReport = new Maestro(mockCredentials, optionsWithReport);
+        const maestroWithReport = new Maestro(
+          mockCredentials,
+          optionsWithReport,
+        );
         maestroWithReport['appId'] = 1234;
 
         const mockRuns = [
@@ -1048,7 +1065,10 @@ describe('Maestro', () => {
           'Pixel 6',
           { report: 'junit', reportOutputDir: '/tmp/reports' },
         );
-        const maestroWithReport = new Maestro(mockCredentials, optionsWithReport);
+        const maestroWithReport = new Maestro(
+          mockCredentials,
+          optionsWithReport,
+        );
         maestroWithReport['appId'] = 1234;
 
         const mockRuns = [
@@ -1112,7 +1132,10 @@ describe('Maestro', () => {
           'Pixel 6',
           { report: 'junit', reportOutputDir: '/tmp/reports' },
         );
-        const maestroWithReport = new Maestro(mockCredentials, optionsWithReport);
+        const maestroWithReport = new Maestro(
+          mockCredentials,
+          optionsWithReport,
+        );
 
         // Mock validation - access is called for app and flows
         fs.promises.access = jest

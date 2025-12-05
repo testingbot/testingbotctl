@@ -465,6 +465,10 @@ export default class Maestro {
         },
       );
 
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
+
       const result = response.data;
       if (result.success === false) {
         throw new TestingBotError(`Running Maestro test failed`, {

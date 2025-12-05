@@ -11,6 +11,9 @@ jest.mock('../../src/utils', () => ({
   __esModule: true,
   default: {
     getUserAgent: jest.fn().mockReturnValue('TestingBot-CTL-test'),
+    getCurrentVersion: jest.fn().mockReturnValue('1.0.0'),
+    compareVersions: jest.fn().mockReturnValue(0),
+    checkForUpdate: jest.fn(),
   },
 }));
 jest.mock('node:fs', () => ({

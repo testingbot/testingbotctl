@@ -122,6 +122,10 @@ export default class Espresso {
         },
       );
 
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
+
       const result = response.data;
       if (result.success === false) {
         throw new TestingBotError(`Running Espresso test failed`, {
