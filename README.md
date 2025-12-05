@@ -12,11 +12,21 @@ npm install -g testingbotctl
 
 ## Authentication
 
-The CLI requires TestingBot API credentials. You can provide them in three ways:
+The CLI requires TestingBot API credentials. You can authenticate in several ways:
 
-1. **Command-line options**: `--api-key` and `--api-secret`
-2. **Environment variables**: `TB_KEY` and `TB_SECRET`
-3. **Config file**: Create `~/.testingbot` with content `key:secret`
+### Browser Login (Recommended)
+
+```sh
+testingbot login
+```
+
+This opens your browser for authentication. After logging in, your credentials are saved to `~/.testingbot`.
+
+### Other Methods
+
+- **Command-line options**: `--api-key` and `--api-secret`
+- **Environment variables**: `TB_KEY` and `TB_SECRET`
+- **Config file**: Create `~/.testingbot` with content `key:secret`
 
 ## Commands
 
