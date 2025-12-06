@@ -1214,4 +1214,115 @@ describe('Maestro', () => {
       });
     });
   });
+
+  describe('Stop Run', () => {
+    beforeEach(() => {
+      maestro['appId'] = 1234;
+    });
+
+    it('should call stop API for a specific run', async () => {
+      axios.post = jest.fn().mockResolvedValue({ data: { success: true } });
+
+      await maestro['stopRun'](5678);
+
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/stop',
+        {},
+        expect.objectContaining({
+          auth: {
+            username: 'testUser',
+            password: 'testKey',
+          },
+        }),
+      );
+    });
+
+    it('should stop multiple active runs', async () => {
+      axios.post = jest.fn().mockResolvedValue({ data: { success: true } });
+      maestro['activeRunIds'] = [5678, 9012];
+
+      await maestro['stopActiveRuns']();
+
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/stop',
+        {},
+        expect.any(Object),
+      );
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/9012/stop',
+        {},
+        expect.any(Object),
+      );
+    });
+
+    it('should not call stop API when no active runs', async () => {
+      axios.post = jest.fn();
+      maestro['activeRunIds'] = [];
+
+      await maestro['stopActiveRuns']();
+
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('should not call stop API when appId is not set', async () => {
+      axios.post = jest.fn();
+      maestro['appId'] = undefined;
+      maestro['activeRunIds'] = [5678];
+
+      await maestro['stopActiveRuns']();
+
+      expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it('should continue stopping other runs when one fails', async () => {
+      axios.post = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce({ data: { success: true } });
+      maestro['activeRunIds'] = [5678, 9012];
+
+      // Should not throw
+      await maestro['stopActiveRuns']();
+
+      expect(axios.post).toHaveBeenCalledTimes(2);
+    });
+
+    it('should filter active run IDs correctly', () => {
+      const runs = [
+        {
+          id: 5678,
+          status: 'WAITING' as const,
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: 0,
+        },
+        {
+          id: 9012,
+          status: 'READY' as const,
+          capabilities: { deviceName: 'Pixel 8', platformName: 'Android' },
+          success: 0,
+        },
+        {
+          id: 1111,
+          status: 'DONE' as const,
+          capabilities: { deviceName: 'Pixel 7', platformName: 'Android' },
+          success: 1,
+        },
+        {
+          id: 2222,
+          status: 'FAILED' as const,
+          capabilities: { deviceName: 'Pixel 5', platformName: 'Android' },
+          success: 0,
+        },
+      ];
+
+      // Simulate what waitForCompletion does to track active runs
+      const activeRunIds = runs
+        .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
+        .map((run) => run.id);
+
+      // Only WAITING and READY runs should be tracked
+      expect(activeRunIds).toEqual([5678, 9012]);
+    });
+  });
 });

@@ -48,6 +48,9 @@ export default class Maestro {
 
   private appId: number | undefined = undefined;
   private detectedPlatform: 'Android' | 'iOS' | undefined = undefined;
+  private activeRunIds: number[] = [];
+  private isShuttingDown = false;
+  private signalHandler: (() => void) | null = null;
 
   public constructor(credentials: Credentials, options: MaestroOptions) {
     this.credentials = credentials;
@@ -175,12 +178,22 @@ export default class Maestro {
         return { success: true, runs: [] };
       }
 
+      // Set up signal handlers before waiting for completion
+      this.setupSignalHandlers();
+
       if (!this.options.quiet) {
         logger.info('Waiting for test results...');
       }
       const result = await this.waitForCompletion();
+
+      // Clean up signal handlers
+      this.removeSignalHandlers();
+
       return result;
     } catch (error) {
+      // Clean up signal handlers on error
+      this.removeSignalHandlers();
+
       logger.error(error instanceof Error ? error.message : error);
       // Display the cause if available
       if (error instanceof Error && error.cause) {
@@ -522,7 +535,17 @@ export default class Maestro {
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
 
     while (attempts < this.MAX_POLL_ATTEMPTS) {
+      // Check if we're shutting down
+      if (this.isShuttingDown) {
+        throw new TestingBotError('Test run cancelled by user');
+      }
+
       const status = await this.getStatus();
+
+      // Track active run IDs for graceful shutdown
+      this.activeRunIds = status.runs
+        .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
+        .map((run) => run.id);
 
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
@@ -759,5 +782,93 @@ export default class Maestro {
     }
 
     return null;
+  }
+
+  private setupSignalHandlers(): void {
+    this.signalHandler = () => {
+      this.handleShutdown();
+    };
+
+    process.on('SIGINT', this.signalHandler);
+    process.on('SIGTERM', this.signalHandler);
+  }
+
+  private removeSignalHandlers(): void {
+    if (this.signalHandler) {
+      process.removeListener('SIGINT', this.signalHandler);
+      process.removeListener('SIGTERM', this.signalHandler);
+      this.signalHandler = null;
+    }
+  }
+
+  private handleShutdown(): void {
+    if (this.isShuttingDown) {
+      // Already shutting down, force exit on second signal
+      logger.warn('Force exiting...');
+      process.exit(1);
+    }
+
+    this.isShuttingDown = true;
+    this.clearLine();
+    logger.warn('Received interrupt signal, stopping test runs...');
+
+    // Stop all active runs
+    this.stopActiveRuns()
+      .then(() => {
+        logger.info('All test runs have been stopped.');
+        process.exit(1);
+      })
+      .catch((error) => {
+        logger.error(
+          `Failed to stop some test runs: ${error instanceof Error ? error.message : error}`,
+        );
+        process.exit(1);
+      });
+  }
+
+  private async stopActiveRuns(): Promise<void> {
+    if (!this.appId || this.activeRunIds.length === 0) {
+      return;
+    }
+
+    const stopPromises = this.activeRunIds.map((runId) =>
+      this.stopRun(runId).catch((error) => {
+        logger.error(
+          `Failed to stop run ${runId}: ${error instanceof Error ? error.message : error}`,
+        );
+      }),
+    );
+
+    await Promise.all(stopPromises);
+  }
+
+  private async stopRun(runId: number): Promise<void> {
+    if (!this.appId) {
+      return;
+    }
+
+    try {
+      await axios.post(
+        `${this.URL}/${this.appId}/${runId}/stop`,
+        {},
+        {
+          headers: {
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+        },
+      );
+
+      if (!this.options.quiet) {
+        logger.info(`  Stopped run ${runId}`);
+      }
+    } catch (error) {
+      throw new TestingBotError(`Failed to stop run ${runId}`, {
+        cause: error,
+      });
+    }
   }
 }
