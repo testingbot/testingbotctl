@@ -124,7 +124,7 @@ export default class Login {
               res.writeHead(400);
               res.end('Missing credentials');
             }
-          } catch (err) {
+          } catch {
             res.writeHead(400);
             res.end('Failed to parse request');
           }

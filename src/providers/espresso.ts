@@ -28,7 +28,7 @@ export default class Espresso {
 
     try {
       await fs.promises.access(this.options.app, fs.constants.R_OK);
-    } catch (err) {
+    } catch {
       throw new TestingBotError(
         `Provided app path does not exist ${this.options.app}`,
       );
@@ -40,7 +40,7 @@ export default class Espresso {
 
     try {
       await fs.promises.access(this.options.testApp, fs.constants.R_OK);
-    } catch (err) {
+    } catch {
       throw new TestingBotError(
         `testApp path does not exist ${this.options.testApp}`,
       );
