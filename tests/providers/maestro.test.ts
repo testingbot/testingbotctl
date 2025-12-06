@@ -952,8 +952,10 @@ describe('Maestro', () => {
           },
         ];
 
-        const mockReportContent = Buffer.from('<xml>junit report</xml>');
-        axios.get = jest.fn().mockResolvedValue({ data: mockReportContent });
+        const mockReportXml = '<?xml version="1.0"?><testsuites></testsuites>';
+        axios.get = jest
+          .fn()
+          .mockResolvedValue({ data: { junit_report: mockReportXml } });
         fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
 
         await maestroWithReport['fetchReports'](mockRuns);
@@ -965,12 +967,12 @@ describe('Maestro', () => {
               username: 'testUser',
               password: 'testKey',
             },
-            responseType: 'arraybuffer',
           }),
         );
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
           '/tmp/reports/report_run_5678.xml',
-          mockReportContent,
+          mockReportXml,
+          'utf-8',
         );
       });
 
@@ -996,8 +998,10 @@ describe('Maestro', () => {
           },
         ];
 
-        const mockReportContent = Buffer.from('<html>report</html>');
-        axios.get = jest.fn().mockResolvedValue({ data: mockReportContent });
+        const mockReportHtml = '<html><body>Test Report</body></html>';
+        axios.get = jest
+          .fn()
+          .mockResolvedValue({ data: { html_report: mockReportHtml } });
         fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
 
         await maestroWithReport['fetchReports'](mockRuns);
@@ -1008,7 +1012,8 @@ describe('Maestro', () => {
         );
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
           '/tmp/reports/report_run_5678.html',
-          mockReportContent,
+          mockReportHtml,
+          'utf-8',
         );
       });
 
@@ -1040,8 +1045,10 @@ describe('Maestro', () => {
           },
         ];
 
-        const mockReportContent = Buffer.from('<xml>report</xml>');
-        axios.get = jest.fn().mockResolvedValue({ data: mockReportContent });
+        const mockReportXml = '<?xml version="1.0"?><testsuites></testsuites>';
+        axios.get = jest
+          .fn()
+          .mockResolvedValue({ data: { junit_report: mockReportXml } });
         fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
 
         await maestroWithReport['fetchReports'](mockRuns);
@@ -1050,11 +1057,13 @@ describe('Maestro', () => {
         expect(fs.promises.writeFile).toHaveBeenCalledTimes(2);
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
           '/tmp/reports/report_run_5678.xml',
-          mockReportContent,
+          mockReportXml,
+          'utf-8',
         );
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
           '/tmp/reports/report_run_9012.xml',
-          mockReportContent,
+          mockReportXml,
+          'utf-8',
         );
       });
 
@@ -1086,11 +1095,11 @@ describe('Maestro', () => {
           },
         ];
 
-        const mockReportContent = Buffer.from('<xml>report</xml>');
+        const mockReportXml = '<?xml version="1.0"?><testsuites></testsuites>';
         axios.get = jest
           .fn()
           .mockRejectedValueOnce(new Error('Network error'))
-          .mockResolvedValueOnce({ data: mockReportContent });
+          .mockResolvedValueOnce({ data: { junit_report: mockReportXml } });
         fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
 
         await maestroWithReport['fetchReports'](mockRuns);
@@ -1100,7 +1109,8 @@ describe('Maestro', () => {
         expect(fs.promises.writeFile).toHaveBeenCalledTimes(1);
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
           '/tmp/reports/report_run_9012.xml',
-          mockReportContent,
+          mockReportXml,
+          'utf-8',
         );
       });
 
@@ -1185,11 +1195,11 @@ describe('Maestro', () => {
         };
 
         // Mock report fetch
-        const mockReportContent = Buffer.from('<xml>junit report</xml>');
+        const mockReportXml = '<?xml version="1.0"?><testsuites></testsuites>';
         axios.get = jest
           .fn()
           .mockResolvedValueOnce(completedResponse) // getStatus
-          .mockResolvedValueOnce({ data: mockReportContent }); // fetchReport
+          .mockResolvedValueOnce({ data: { junit_report: mockReportXml } }); // fetchReport
 
         fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
 
@@ -1198,7 +1208,8 @@ describe('Maestro', () => {
         expect(result.success).toBe(true);
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
           '/tmp/reports/report_run_5678.xml',
-          mockReportContent,
+          mockReportXml,
+          'utf-8',
         );
       });
     });

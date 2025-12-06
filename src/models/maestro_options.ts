@@ -20,6 +20,7 @@ export interface MaestroCapabilities {
   timeZone?: string;
   throttleNetwork?: ThrottleNetwork;
   geoCountryCode?: string;
+  realDevice?: string;
 }
 
 export interface MaestroRunOptions {
@@ -50,6 +51,7 @@ export default class MaestroOptions {
   private _async: boolean;
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
+  private _realDevice: boolean;
 
   public constructor(
     app: string,
@@ -73,6 +75,7 @@ export default class MaestroOptions {
       async?: boolean;
       report?: ReportFormat;
       reportOutputDir?: string;
+      realDevice?: boolean;
     },
   ) {
     this._app = app;
@@ -95,6 +98,7 @@ export default class MaestroOptions {
     this._async = options?.async ?? false;
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
+    this._realDevice = options?.realDevice ?? false;
   }
 
   public get app(): string {
@@ -177,6 +181,10 @@ export default class MaestroOptions {
     return this._reportOutputDir;
   }
 
+  public get realDevice(): boolean {
+    return this._realDevice;
+  }
+
   public getMaestroOptions(): MaestroRunOptions | undefined {
     const opts: MaestroRunOptions = {};
 
@@ -228,6 +236,7 @@ export default class MaestroOptions {
     if (this._timeZone) caps.timeZone = this._timeZone;
     if (this._throttleNetwork) caps.throttleNetwork = this._throttleNetwork;
     if (this._geoCountryCode) caps.geoCountryCode = this._geoCountryCode;
+    if (this._realDevice) caps.realDevice = 'true';
 
     return caps;
   }

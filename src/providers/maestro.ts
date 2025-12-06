@@ -182,6 +182,13 @@ export default class Maestro {
       return result;
     } catch (error) {
       logger.error(error instanceof Error ? error.message : error);
+      // Display the cause if available
+      if (error instanceof Error && error.cause) {
+        const causeMessage = this.extractErrorMessage(error.cause);
+        if (causeMessage) {
+          logger.error(`  Reason: ${causeMessage}`);
+        }
+      }
       return { success: false, runs: [] };
     }
   }
@@ -446,7 +453,6 @@ export default class Maestro {
     try {
       const capabilities = this.options.getCapabilities(this.detectedPlatform);
       const maestroOptions = this.options.getMaestroOptions();
-
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
@@ -471,13 +477,19 @@ export default class Maestro {
 
       const result = response.data;
       if (result.success === false) {
+        // API returns errors as an array
+        const errorMessage =
+          result.errors?.join('\n') || result.error || 'Unknown error';
         throw new TestingBotError(`Running Maestro test failed`, {
-          cause: result.error,
+          cause: errorMessage,
         });
       }
 
       return true;
     } catch (error) {
+      if (error instanceof TestingBotError) {
+        throw error;
+      }
       throw new TestingBotError(`Running Maestro test failed`, {
         cause: error,
       });
@@ -506,21 +518,31 @@ export default class Maestro {
 
   private async waitForCompletion(): Promise<MaestroResult> {
     let attempts = 0;
+    const startTime = Date.now();
+    const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
 
     while (attempts < this.MAX_POLL_ATTEMPTS) {
       const status = await this.getStatus();
 
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
-        for (const run of status.runs) {
-          const statusEmoji = this.getStatusEmoji(run.status);
-          logger.info(
-            `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${run.status}`,
-          );
-        }
+        this.displayRunStatus(status.runs, startTime, previousStatus);
       }
 
       if (status.completed) {
+        // Clear the updating line and print final status
+        if (!this.options.quiet) {
+          this.clearLine();
+          for (const run of status.runs) {
+            const statusEmoji = run.success === 1 ? '✅' : '❌';
+            const statusText =
+              run.success === 1 ? 'Test completed successfully' : 'Test failed';
+            console.log(
+              `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusText}`,
+            );
+          }
+        }
+
         const allSucceeded = status.runs.every((run) => run.success === 1);
 
         if (allSucceeded) {
@@ -531,7 +553,9 @@ export default class Maestro {
           const failedRuns = status.runs.filter((run) => run.success !== 1);
           logger.error(`${failedRuns.length} test run(s) failed:`);
           for (const run of failedRuns) {
-            logger.error(`  - Run ${run.id} (${run.capabilities.deviceName})`);
+            logger.error(
+              `  - Run ${run.id} (${run.capabilities.deviceName}): ${run.report}`,
+            );
           }
         }
 
@@ -553,6 +577,75 @@ export default class Maestro {
     throw new TestingBotError(
       `Test timed out after ${(this.MAX_POLL_ATTEMPTS * this.POLL_INTERVAL_MS) / 1000 / 60} minutes`,
     );
+  }
+
+  private displayRunStatus(
+    runs: MaestroRunInfo[],
+    startTime: number,
+    previousStatus: Map<number, MaestroRunInfo['status']>,
+  ): void {
+    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const elapsedStr = this.formatElapsedTime(elapsedSeconds);
+
+    for (const run of runs) {
+      const prevStatus = previousStatus.get(run.id);
+      const statusChanged = prevStatus !== run.status;
+
+      // If status changed from WAITING/READY to something else, clear the updating line
+      if (
+        statusChanged &&
+        prevStatus &&
+        (prevStatus === 'WAITING' || prevStatus === 'READY')
+      ) {
+        this.clearLine();
+      }
+
+      previousStatus.set(run.id, run.status);
+
+      const statusInfo = this.getStatusInfo(run.status);
+
+      if (run.status === 'WAITING' || run.status === 'READY') {
+        // Update the same line for WAITING and READY states
+        const message = `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text} (${elapsedStr})`;
+        process.stdout.write(`\r${message}`);
+      } else if (statusChanged) {
+        // For other states (DONE, FAILED), print on a new line only when status changes
+        console.log(
+          `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text}`,
+        );
+      }
+    }
+  }
+
+  private clearLine(): void {
+    process.stdout.write('\r\x1b[K');
+  }
+
+  private formatElapsedTime(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  private getStatusInfo(status: MaestroRunInfo['status']): {
+    emoji: string;
+    text: string;
+  } {
+    switch (status) {
+      case 'WAITING':
+        return { emoji: '⏳', text: 'Waiting for test to start' };
+      case 'READY':
+        return { emoji: '🔄', text: 'Running test' };
+      case 'DONE':
+        return { emoji: '✅', text: 'Test has finished running' };
+      case 'FAILED':
+        return { emoji: '❌', text: 'Test failed' };
+      default:
+        return { emoji: '❓', text: status };
+    }
   }
 
   private async fetchReports(runs: MaestroRunInfo[]): Promise<void> {
@@ -581,15 +674,24 @@ export default class Maestro {
               username: this.credentials.userName,
               password: this.credentials.accessKey,
             },
-            responseType: 'arraybuffer',
           },
         );
+
+        // Extract the report content from the JSON response
+        const reportKey =
+          reportFormat === 'junit' ? 'junit_report' : 'html_report';
+        const reportContent = response.data[reportKey];
+
+        if (!reportContent) {
+          logger.error(`No ${reportFormat} report found for run ${run.id}`);
+          continue;
+        }
 
         const fileExtension = reportFormat === 'junit' ? 'xml' : 'html';
         const fileName = `report_run_${run.id}.${fileExtension}`;
         const filePath = path.join(outputDir, fileName);
 
-        await fs.promises.writeFile(filePath, response.data);
+        await fs.promises.writeFile(filePath, reportContent, 'utf-8');
 
         if (!this.options.quiet) {
           logger.info(`  Saved report for run ${run.id}: ${filePath}`);
@@ -602,22 +704,60 @@ export default class Maestro {
     }
   }
 
-  private getStatusEmoji(status: MaestroRunInfo['status']): string {
-    switch (status) {
-      case 'WAITING':
-        return '⏳';
-      case 'READY':
-        return '🔄';
-      case 'DONE':
-        return '✅';
-      case 'FAILED':
-        return '❌';
-      default:
-        return '❓';
-    }
-  }
-
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private extractErrorMessage(cause: unknown): string | null {
+    if (typeof cause === 'string') {
+      return cause;
+    }
+
+    // Handle arrays of errors
+    if (Array.isArray(cause)) {
+      return cause.join('\n');
+    }
+
+    if (cause && typeof cause === 'object') {
+      // Handle axios errors which have response.data
+      const axiosError = cause as {
+        response?: {
+          data?: { error?: string; errors?: string[]; message?: string };
+        };
+        message?: string;
+      };
+      if (axiosError.response?.data?.errors) {
+        return axiosError.response.data.errors.join('\n');
+      }
+      if (axiosError.response?.data?.error) {
+        return axiosError.response.data.error;
+      }
+      if (axiosError.response?.data?.message) {
+        return axiosError.response.data.message;
+      }
+
+      // Handle standard Error objects
+      if (cause instanceof Error) {
+        return cause.message;
+      }
+
+      // Handle plain objects with errors array, error, or message property
+      const obj = cause as {
+        errors?: string[];
+        error?: string;
+        message?: string;
+      };
+      if (obj.errors) {
+        return obj.errors.join('\n');
+      }
+      if (obj.error) {
+        return obj.error;
+      }
+      if (obj.message) {
+        return obj.message;
+      }
+    }
+
+    return null;
   }
 }

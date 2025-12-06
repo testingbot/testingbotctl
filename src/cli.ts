@@ -94,6 +94,10 @@ const maestroCommand = program
   )
   .option('--deviceVersion <version>', 'OS version (e.g., "14", "17.2").')
   .option(
+    '--real-device',
+    'Use a real device instead of an emulator/simulator.',
+  )
+  .option(
     '--orientation <orientation>',
     'Screen orientation: PORTRAIT or LANDSCAPE.',
     (val) => val.toUpperCase() as Orientation,
@@ -201,6 +205,7 @@ const maestroCommand = program
         async: args.async,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        realDevice: args.realDevice,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,

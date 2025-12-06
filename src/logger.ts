@@ -3,7 +3,7 @@ import tracer from 'tracer';
 
 const logger = tracer.colorConsole({
   level: 'info',
-  format: '{{timestamp}} {{title}}: {{message}}',
+  format: '{{timestamp}} {{message}}',
   dateformat: 'HH:MM:ss.L',
   filters: [
     {

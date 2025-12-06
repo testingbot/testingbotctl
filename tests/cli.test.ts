@@ -122,6 +122,23 @@ describe('TestingBotCTL CLI', () => {
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
   });
 
+  test('maestro command should accept --real-device flag', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'Pixel 9',
+      '--real-device',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+  });
+
   test('xcuitest command should call xcuitest.run() with valid options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 

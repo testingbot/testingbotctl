@@ -441,4 +441,66 @@ describe('MaestroOptions', () => {
       expect(options.reportOutputDir).toBe('/path/to/reports');
     });
   });
+
+  describe('realDevice option', () => {
+    it('should have realDevice as false by default', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.realDevice).toBe(false);
+    });
+
+    it('should store realDevice when set to true', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        realDevice: true,
+      });
+
+      expect(options.realDevice).toBe(true);
+    });
+
+    it('should not include realDevice in capabilities when false', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+        realDevice: false,
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).toEqual({
+        deviceName: 'Pixel 8',
+        platformName: 'Android',
+      });
+      expect(caps).not.toHaveProperty('realDevice');
+    });
+
+    it('should include realDevice as "true" string in capabilities when enabled', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+        realDevice: true,
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).toEqual({
+        deviceName: 'Pixel 8',
+        platformName: 'Android',
+        realDevice: 'true',
+      });
+    });
+
+    it('should include realDevice along with other capabilities', () => {
+      const options = new MaestroOptions('app.ipa', './flows', 'iPhone 15', {
+        platformName: 'iOS',
+        version: '17.2',
+        name: 'Real Device Test',
+        realDevice: true,
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).toEqual({
+        deviceName: 'iPhone 15',
+        platformName: 'iOS',
+        version: '17.2',
+        name: 'Real Device Test',
+        realDevice: 'true',
+      });
+    });
+  });
 });
