@@ -6,6 +6,9 @@
   "bin": {
     "testingbot": "dist/index.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "lint": "prettier --check '**/*.{js,ts}' && eslint --ext ts src/",
     "build": "tsc",
