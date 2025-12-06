@@ -51,7 +51,6 @@
     "axios": "^1.13.2",
     "colors": "^1.4.0",
     "commander": "^14.0.2",
-    "figlet": "^1.9.4",
     "file-type": "^21.1.1",
     "form-data": "^4.0.5",
     "glob": "^13.0.0",
