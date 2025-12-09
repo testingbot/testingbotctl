@@ -1,4 +1,4 @@
-import Maestro from '../../src/providers/maestro';
+import Maestro, { MaestroSocketMessage } from '../../src/providers/maestro';
 import MaestroOptions from '../../src/models/maestro_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
@@ -8,6 +8,16 @@ import Credentials from '../../src/models/credentials';
 import * as fileTypeDetector from '../../src/utils/file-type-detector';
 
 jest.mock('axios');
+
+// Mock socket.io-client
+const mockSocket = {
+  on: jest.fn(),
+  emit: jest.fn(),
+  disconnect: jest.fn(),
+};
+jest.mock('socket.io-client', () => ({
+  io: jest.fn(() => mockSocket),
+}));
 jest.mock('../../src/utils/file-type-detector');
 jest.mock('../../src/utils', () => ({
   __esModule: true,
@@ -1323,6 +1333,206 @@ describe('Maestro', () => {
 
       // Only WAITING and READY runs should be tracked
       expect(activeRunIds).toEqual([5678, 9012]);
+    });
+  });
+
+  describe('Real-time Updates', () => {
+    const { io } = require('socket.io-client');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      mockSocket.on.mockReset();
+      mockSocket.emit.mockReset();
+      mockSocket.disconnect.mockReset();
+    });
+
+    it('should capture update_server and update_key from runTests response', async () => {
+      maestro['appId'] = 1234;
+
+      const mockResponse = {
+        data: {
+          success: true,
+          update_server: 'https://hub.testingbot.com:3031',
+          update_key: 'maestro_18724',
+        },
+      };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await maestro['runTests']();
+
+      expect(maestro['updateServer']).toBe('https://hub.testingbot.com:3031');
+      expect(maestro['updateKey']).toBe('maestro_18724');
+    });
+
+    it('should connect to update server when update_server and update_key are available', () => {
+      maestro['updateServer'] = 'https://hub.testingbot.com:3031';
+      maestro['updateKey'] = 'maestro_18724';
+
+      maestro['connectToUpdateServer']();
+
+      expect(io).toHaveBeenCalledWith('https://hub.testingbot.com:3031', {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        timeout: 10000,
+      });
+    });
+
+    it('should not connect when quiet mode is enabled', () => {
+      const quietOptions = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { quiet: true },
+      );
+      const quietMaestro = new Maestro(mockCredentials, quietOptions);
+      quietMaestro['updateServer'] = 'https://hub.testingbot.com:3031';
+      quietMaestro['updateKey'] = 'maestro_18724';
+
+      quietMaestro['connectToUpdateServer']();
+
+      expect(io).not.toHaveBeenCalled();
+    });
+
+    it('should not connect when update_server is missing', () => {
+      maestro['updateServer'] = null;
+      maestro['updateKey'] = 'maestro_18724';
+
+      maestro['connectToUpdateServer']();
+
+      expect(io).not.toHaveBeenCalled();
+    });
+
+    it('should not connect when update_key is missing', () => {
+      maestro['updateServer'] = 'https://hub.testingbot.com:3031';
+      maestro['updateKey'] = null;
+
+      maestro['connectToUpdateServer']();
+
+      expect(io).not.toHaveBeenCalled();
+    });
+
+    it('should join room on connect', () => {
+      maestro['updateServer'] = 'https://hub.testingbot.com:3031';
+      maestro['updateKey'] = 'maestro_18724';
+
+      // Capture the connect handler
+      let connectHandler: () => void = () => {};
+      mockSocket.on.mockImplementation((event: string, handler: () => void) => {
+        if (event === 'connect') {
+          connectHandler = handler;
+        }
+      });
+
+      maestro['connectToUpdateServer']();
+
+      // Simulate connect event
+      connectHandler();
+
+      expect(mockSocket.emit).toHaveBeenCalledWith('join', 'maestro_18724');
+    });
+
+    it('should register maestro_data and maestro_error event handlers', () => {
+      maestro['updateServer'] = 'https://hub.testingbot.com:3031';
+      maestro['updateKey'] = 'maestro_18724';
+
+      maestro['connectToUpdateServer']();
+
+      expect(mockSocket.on).toHaveBeenCalledWith(
+        'maestro_data',
+        expect.any(Function),
+      );
+      expect(mockSocket.on).toHaveBeenCalledWith(
+        'maestro_error',
+        expect.any(Function),
+      );
+    });
+
+    it('should disconnect from update server', () => {
+      maestro['socket'] = mockSocket as never;
+
+      maestro['disconnectFromUpdateServer']();
+
+      expect(mockSocket.disconnect).toHaveBeenCalled();
+      expect(maestro['socket']).toBeNull();
+    });
+
+    it('should handle maestro_data message and write to stdout', () => {
+      const stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation();
+
+      const message: MaestroSocketMessage = {
+        id: 12345,
+        payload: 'Running flow: login_test.yaml\n',
+      };
+
+      maestro['handleMaestroData'](JSON.stringify(message));
+
+      expect(stdoutSpy).toHaveBeenCalledWith('Running flow: login_test.yaml\n');
+
+      stdoutSpy.mockRestore();
+    });
+
+    it('should handle maestro_error message and write to stderr', () => {
+      const stderrSpy = jest
+        .spyOn(process.stderr, 'write')
+        .mockImplementation();
+
+      const message: MaestroSocketMessage = {
+        id: 12345,
+        payload: 'Error: Element not found\n',
+      };
+
+      maestro['handleMaestroError'](JSON.stringify(message));
+
+      expect(stderrSpy).toHaveBeenCalledWith('Error: Element not found\n');
+
+      stderrSpy.mockRestore();
+    });
+
+    it('should ignore invalid JSON in maestro_data', () => {
+      const stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation();
+
+      // Should not throw
+      maestro['handleMaestroData']('invalid json');
+
+      expect(stdoutSpy).not.toHaveBeenCalled();
+
+      stdoutSpy.mockRestore();
+    });
+
+    it('should ignore invalid JSON in maestro_error', () => {
+      const stderrSpy = jest
+        .spyOn(process.stderr, 'write')
+        .mockImplementation();
+
+      // Should not throw
+      maestro['handleMaestroError']('invalid json');
+
+      expect(stderrSpy).not.toHaveBeenCalled();
+
+      stderrSpy.mockRestore();
+    });
+
+    it('should ignore message with empty payload', () => {
+      const stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation();
+
+      const message: MaestroSocketMessage = {
+        id: 12345,
+        payload: '',
+      };
+
+      maestro['handleMaestroData'](JSON.stringify(message));
+
+      expect(stdoutSpy).not.toHaveBeenCalled();
+
+      stdoutSpy.mockRestore();
     });
   });
 });

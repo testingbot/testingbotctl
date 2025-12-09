@@ -8,6 +8,7 @@ import os from 'node:os';
 import { glob } from 'glob';
 import * as yaml from 'js-yaml';
 import archiver from 'archiver';
+import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import Upload from '../upload';
@@ -37,6 +38,11 @@ export interface MaestroResult {
   runs: MaestroRunInfo[];
 }
 
+export interface MaestroSocketMessage {
+  id: number;
+  payload: string;
+}
+
 export default class Maestro {
   private readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
   private readonly POLL_INTERVAL_MS = 5000;
@@ -51,6 +57,9 @@ export default class Maestro {
   private activeRunIds: number[] = [];
   private isShuttingDown = false;
   private signalHandler: (() => void) | null = null;
+  private socket: Socket | null = null;
+  private updateServer: string | null = null;
+  private updateKey: string | null = null;
 
   public constructor(credentials: Credentials, options: MaestroOptions) {
     this.credentials = credentials;
@@ -181,17 +190,22 @@ export default class Maestro {
       // Set up signal handlers before waiting for completion
       this.setupSignalHandlers();
 
+      // Connect to real-time update server (unless --quiet is specified)
+      this.connectToUpdateServer();
+
       if (!this.options.quiet) {
         logger.info('Waiting for test results...');
       }
       const result = await this.waitForCompletion();
 
-      // Clean up signal handlers
+      // Clean up
+      this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
 
       return result;
     } catch (error) {
-      // Clean up signal handlers on error
+      // Clean up on error
+      this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
 
       logger.error(error instanceof Error ? error.message : error);
@@ -489,6 +503,13 @@ export default class Maestro {
       utils.checkForUpdate(latestVersion);
 
       const result = response.data;
+
+      // Capture real-time update server info
+      if (result.update_server && result.update_key) {
+        this.updateServer = result.update_server;
+        this.updateKey = result.update_key;
+      }
+
       if (result.success === false) {
         // API returns errors as an array
         const errorMessage =
@@ -869,6 +890,78 @@ export default class Maestro {
       throw new TestingBotError(`Failed to stop run ${runId}`, {
         cause: error,
       });
+    }
+  }
+
+  private connectToUpdateServer(): void {
+    if (!this.updateServer || !this.updateKey || this.options.quiet) {
+      return;
+    }
+
+    try {
+      this.socket = io(this.updateServer, {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        timeout: 10000,
+      });
+
+      this.socket.on('connect', () => {
+        // Join the room for this test run
+        this.socket?.emit('join', this.updateKey);
+      });
+
+      this.socket.on('maestro_data', (data: string) => {
+        this.handleMaestroData(data);
+      });
+
+      this.socket.on('maestro_error', (data: string) => {
+        this.handleMaestroError(data);
+      });
+
+      this.socket.on('connect_error', () => {
+        // Silently fail - real-time updates are optional
+        this.disconnectFromUpdateServer();
+      });
+    } catch {
+      // Socket connection failed, continue without real-time updates
+      this.socket = null;
+    }
+  }
+
+  private disconnectFromUpdateServer(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
+
+  private handleMaestroData(data: string): void {
+    try {
+      const message: MaestroSocketMessage = JSON.parse(data);
+      if (message.payload) {
+        // Clear the status line before printing output
+        this.clearLine();
+        // Print the Maestro output, trimming trailing newlines
+        process.stdout.write(message.payload);
+      }
+    } catch {
+      // Invalid JSON, ignore
+    }
+  }
+
+  private handleMaestroError(data: string): void {
+    try {
+      const message: MaestroSocketMessage = JSON.parse(data);
+      if (message.payload) {
+        // Clear the status line before printing error
+        this.clearLine();
+        // Print the error output
+        process.stderr.write(message.payload);
+      }
+    } catch {
+      // Invalid JSON, ignore
     }
   }
 }
