@@ -2,7 +2,11 @@ import { Command } from 'commander';
 import logger from './logger';
 import Auth from './auth';
 import Espresso from './providers/espresso';
-import EspressoOptions from './models/espresso_options';
+import EspressoOptions, {
+  TestSize,
+  ReportFormat as EspressoReportFormat,
+  ThrottleNetwork as EspressoThrottleNetwork,
+} from './models/espresso_options';
 import XCUITestOptions from './models/xcuitest_options';
 import XCUITest from './providers/xcuitest';
 import packageJson from '../package.json';
@@ -23,26 +27,148 @@ program
     'CLI tool to run Espresso, XCUITest and Maestro tests on TestingBot cloud',
   );
 
-program
+const espressoCommand = program
   .command('espresso')
-  .description('Bootstrap an Espresso project.')
-  .requiredOption('--app <string>', 'Path to application under test.')
-  .requiredOption('--device <device>', 'Real device to use for testing.')
-  .requiredOption(
-    '--emulator <emulator>',
-    'Android emulator/device to use for testing.',
+  .description('Run Espresso tests on TestingBot.')
+  .argument('[appFile]', 'Path to application APK file')
+  .argument('[testAppFile]', 'Path to test APK file containing Espresso tests')
+  // App and test options
+  .option('--app <path>', 'Path to application APK file.')
+  .option(
+    '--test-app <path>',
+    'Path to test APK file containing Espresso tests.',
   )
-  .requiredOption('--test-app <string>', 'Path to test application.')
+  // Device configuration
+  .option(
+    '--device <device>',
+    'Device name to use for testing (e.g., "Pixel 6", "Samsung.*").',
+  )
+  .option(
+    '--platform-version <version>',
+    'Android OS version (e.g., "12", "13").',
+  )
+  .option('--real-device', 'Use a real device instead of an emulator.')
+  .option('--tablet-only', 'Only allocate tablet devices.')
+  .option('--phone-only', 'Only allocate phone devices.')
+  .option('--locale <locale>', 'Device locale (e.g., "en_US", "de_DE").')
+  .option(
+    '--timezone <timezone>',
+    'Device timezone (e.g., "America/New_York", "Europe/London").',
+  )
+  // Test metadata
+  .option('--name <name>', 'Test name for identification in dashboard.')
+  .option('--build <build>', 'Build identifier for grouping test runs.')
+  // Espresso-specific options
+  .option(
+    '--test-runner <runner>',
+    'Custom test instrumentation runner (e.g., "${packageName}/customTestRunner").',
+  )
+  .option(
+    '--class <classes>',
+    'Run tests in specific classes (comma-separated fully qualified names).',
+    (val) => val.split(',').map((c) => c.trim()),
+  )
+  .option(
+    '--not-class <classes>',
+    'Exclude tests in specific classes (comma-separated fully qualified names).',
+    (val) => val.split(',').map((c) => c.trim()),
+  )
+  .option(
+    '--package <packages>',
+    'Run tests in specific packages (comma-separated).',
+    (val) => val.split(',').map((p) => p.trim()),
+  )
+  .option(
+    '--not-package <packages>',
+    'Exclude tests in specific packages (comma-separated).',
+    (val) => val.split(',').map((p) => p.trim()),
+  )
+  .option(
+    '--annotation <annotations>',
+    'Run tests with specific annotations (comma-separated).',
+    (val) => val.split(',').map((a) => a.trim()),
+  )
+  .option(
+    '--not-annotation <annotations>',
+    'Exclude tests with specific annotations (comma-separated).',
+    (val) => val.split(',').map((a) => a.trim()),
+  )
+  .option(
+    '--size <sizes>',
+    'Run tests by size: small, medium, large (comma-separated).',
+    (val) => val.split(',').map((s) => s.trim().toLowerCase() as TestSize),
+  )
+  // Localization
+  .option(
+    '--language <lang>',
+    'App language (ISO 639-1 code, e.g., "en", "fr", "de").',
+  )
+  // Geolocation
+  .option(
+    '--geo-location <code>',
+    'Geographic IP location (ISO country code, e.g., "US", "DE").',
+  )
+  // Network throttling
+  .option(
+    '--throttle-network <speed>',
+    'Network throttling: 4G, 3G, Edge, or airplane.',
+    (val) => val as EspressoThrottleNetwork,
+  )
+  // Execution mode
+  .option('-q, --quiet', 'Quieter console output without progress updates.')
+  .option(
+    '--async',
+    'Start tests and exit immediately without waiting for results.',
+  )
+  // Report options
+  .option(
+    '--report <format>',
+    'Download test report after completion: html or junit.',
+    (val) => val.toLowerCase() as EspressoReportFormat,
+  )
+  .option(
+    '--report-output-dir <path>',
+    'Directory to save test reports (required when --report is used).',
+  )
+  // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
-  .action(async (args) => {
+  .action(async (appFileArg, testAppFileArg, args) => {
     try {
-      const options = new EspressoOptions(
-        args.app,
-        args.testApp,
-        args.device,
-        args.emulator,
-      );
+      // Positional arguments take precedence, fall back to options
+      const app = appFileArg || args.app;
+      const testApp = testAppFileArg || args.testApp;
+
+      if (!app || !testApp) {
+        espressoCommand.help();
+        return;
+      }
+
+      const options = new EspressoOptions(app, testApp, args.device, {
+        version: args.platformVersion,
+        realDevice: args.realDevice,
+        tabletOnly: args.tabletOnly,
+        phoneOnly: args.phoneOnly,
+        name: args.name,
+        build: args.build,
+        testRunner: args.testRunner,
+        class: args.class,
+        notClass: args.notClass,
+        package: args.package,
+        notPackage: args.notPackage,
+        annotation: args.annotation,
+        notAnnotation: args.notAnnotation,
+        size: args.size,
+        language: args.language,
+        locale: args.locale,
+        timeZone: args.timezone,
+        geoLocation: args.geoLocation,
+        throttleNetwork: args.throttleNetwork,
+        quiet: args.quiet,
+        async: args.async,
+        report: args.report,
+        reportOutputDir: args.reportOutputDir,
+      });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
         apiSecret: args.apiSecret,
@@ -53,11 +179,15 @@ program
         );
       }
       const espresso = new Espresso(credentials, options);
-      await espresso.run();
+      const result = await espresso.run();
+      if (!result.success) {
+        process.exitCode = 1;
+      }
     } catch (err) {
       logger.error(
         `Espresso error: ${err instanceof Error ? err.message : err}`,
       );
+      process.exitCode = 1;
     }
   })
   .showHelpAfterError(true);

@@ -41,6 +41,7 @@ describe('TestingBotCTL CLI', () => {
 
   test('espresso command should call espresso.run() with valid options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
 
     await program.parseAsync([
       'node',
@@ -49,15 +50,127 @@ describe('TestingBotCTL CLI', () => {
       '--app',
       'app.apk',
       '--device',
-      'device-1',
-      '--emulator',
-      'emulator-1',
+      'Pixel 6',
       '--test-app',
       'test-app.apk',
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
     expect(mockEspressoRun).toHaveBeenCalledWith();
+  });
+
+  test('espresso command should accept positional arguments', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      'app.apk',
+      'test-app.apk',
+      '--device',
+      'Pixel 6',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('espresso command should accept filtering options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '--device',
+      'Pixel 6',
+      '--class',
+      'com.example.LoginTest,com.example.HomeTest',
+      '--annotation',
+      'com.example.SmokeTest',
+      '--size',
+      'small,medium',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('espresso command should accept geolocation and network options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '--device',
+      'Pixel 6',
+      '--geo-location',
+      'DE',
+      '--throttle-network',
+      '3G',
+      '--language',
+      'de',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('espresso command should accept device configuration options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '--device',
+      'Pixel 6',
+      '--platform-version',
+      '14',
+      '--real-device',
+      '--locale',
+      'en_US',
+      '--timezone',
+      'America/New_York',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('espresso command should accept async and quiet modes', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '--device',
+      'Pixel 6',
+      '--async',
+      '--quiet',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
   });
 
   test('maestro command should call maestro.run() with positional arguments', async () => {
@@ -170,9 +283,7 @@ describe('TestingBotCTL CLI', () => {
       '--app',
       'app.apk',
       '--device',
-      'device-1',
-      '--emulator',
-      'emulator-1',
+      'Pixel 6',
       '--test-app',
       'test-app.apk',
     ]);
