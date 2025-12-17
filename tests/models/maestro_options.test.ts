@@ -6,7 +6,7 @@ describe('MaestroOptions', () => {
       const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
 
       expect(options.app).toBe('app.apk');
-      expect(options.flows).toBe('./flows');
+      expect(options.flows).toEqual(['./flows']);
       expect(options.device).toBe('Pixel 8');
       expect(options.platformName).toBeUndefined();
       expect(options.version).toBeUndefined();
@@ -43,7 +43,7 @@ describe('MaestroOptions', () => {
       });
 
       expect(options.app).toBe('app.apk');
-      expect(options.flows).toBe('./flows');
+      expect(options.flows).toEqual(['./flows']);
       expect(options.device).toBe('Pixel 8');
       expect(options.includeTags).toEqual(['smoke']);
       expect(options.excludeTags).toEqual(['flaky']);
@@ -71,6 +71,23 @@ describe('MaestroOptions', () => {
       });
 
       expect(options.async).toBe(false);
+    });
+
+    it('should accept multiple flow paths as an array', () => {
+      const options = new MaestroOptions(
+        'app.apk',
+        ['./flows1', './flows2', './flows3'],
+        'Pixel 8',
+      );
+
+      expect(options.flows).toEqual(['./flows1', './flows2', './flows3']);
+    });
+
+    it('should normalize single flow path to an array', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.flows).toEqual(['./flows']);
+      expect(Array.isArray(options.flows)).toBe(true);
     });
   });
 

@@ -200,8 +200,25 @@ describe('TestingBotCTL CLI', () => {
       'app.apk',
       '--device',
       'device-1',
-      '--flows',
       './flows',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('maestro command should accept multiple flow paths', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows1',
+      './flows2',
+      './flows3',
+      '--device',
+      'device-1',
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);

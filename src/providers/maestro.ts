@@ -80,22 +80,23 @@ export default class Maestro {
       );
     }
 
-    if (this.options.flows === undefined) {
+    if (this.options.flows === undefined || this.options.flows.length === 0) {
       throw new TestingBotError(`flows option is required`);
     }
 
-    // Check if flows path exists (can be a file, directory, or glob pattern)
-    const flowsPath = this.options.flows;
-    const isGlobPattern =
-      flowsPath.includes('*') ||
-      flowsPath.includes('?') ||
-      flowsPath.includes('{');
+    // Check if all flows paths exist (can be files, directories, or glob patterns)
+    for (const flowsPath of this.options.flows) {
+      const isGlobPattern =
+        flowsPath.includes('*') ||
+        flowsPath.includes('?') ||
+        flowsPath.includes('{');
 
-    if (!isGlobPattern) {
-      try {
-        await fs.promises.access(flowsPath, fs.constants.R_OK);
-      } catch {
-        throw new TestingBotError(`flows path does not exist ${flowsPath}`);
+      if (!isGlobPattern) {
+        try {
+          await fs.promises.access(flowsPath, fs.constants.R_OK);
+        } catch {
+          throw new TestingBotError(`flows path does not exist ${flowsPath}`);
+        }
       }
     }
 
@@ -251,51 +252,86 @@ export default class Maestro {
   }
 
   private async uploadFlows() {
-    const flowsPath = this.options.flows;
-    const stat = await fs.promises.stat(flowsPath).catch(() => null);
+    const flowsPaths = this.options.flows;
 
     let zipPath: string;
     let shouldCleanup = false;
 
-    if (stat?.isFile()) {
-      const ext = path.extname(flowsPath).toLowerCase();
-      if (ext === '.zip') {
-        // Already a zip file, upload directly
-        zipPath = flowsPath;
-      } else if (ext === '.yaml' || ext === '.yml') {
-        // Single flow file, create a zip
-        zipPath = await this.createFlowsZip([flowsPath]);
-        shouldCleanup = true;
-      } else {
-        throw new TestingBotError(
-          `Invalid flow file format. Expected .yaml, .yml, or .zip, got ${ext}`,
-        );
+    // Special case: single zip file - upload directly
+    if (flowsPaths.length === 1) {
+      const singlePath = flowsPaths[0];
+      const stat = await fs.promises.stat(singlePath).catch(() => null);
+      if (stat?.isFile() && path.extname(singlePath).toLowerCase() === '.zip') {
+        zipPath = singlePath;
+        // Upload the zip directly without cleanup
+        await this.upload.upload({
+          filePath: zipPath,
+          url: `${this.URL}/${this.appId}/tests`,
+          credentials: this.credentials,
+          contentType: 'application/zip',
+          showProgress: !this.options.quiet,
+        });
+        return true;
       }
-    } else if (stat?.isDirectory()) {
-      // Directory of flows
-      const flowFiles = await this.discoverFlows(flowsPath);
-      if (flowFiles.length === 0) {
-        throw new TestingBotError(
-          `No flow files (.yaml, .yml) found in directory ${flowsPath}`,
-        );
-      }
-      zipPath = await this.createFlowsZip(flowFiles, flowsPath);
-      shouldCleanup = true;
-    } else {
-      // Treat as glob pattern
-      const flowFiles = await glob(flowsPath);
-      const yamlFiles = flowFiles.filter((f) => {
-        const ext = path.extname(f).toLowerCase();
-        return ext === '.yaml' || ext === '.yml';
-      });
-      if (yamlFiles.length === 0) {
-        throw new TestingBotError(
-          `No flow files found matching pattern ${flowsPath}`,
-        );
-      }
-      zipPath = await this.createFlowsZip(yamlFiles);
-      shouldCleanup = true;
     }
+
+    // Collect all flow files from all paths
+    const allFlowFiles: string[] = [];
+    const baseDirs: string[] = [];
+
+    for (const flowsPath of flowsPaths) {
+      const stat = await fs.promises.stat(flowsPath).catch(() => null);
+
+      if (stat?.isFile()) {
+        const ext = path.extname(flowsPath).toLowerCase();
+        if (ext === '.yaml' || ext === '.yml') {
+          allFlowFiles.push(flowsPath);
+        } else if (ext === '.zip') {
+          throw new TestingBotError(
+            `Cannot combine .zip files with other flow paths. Use a single .zip file or provide directories/patterns.`,
+          );
+        } else {
+          throw new TestingBotError(
+            `Invalid flow file format. Expected .yaml, .yml, or .zip, got ${ext}`,
+          );
+        }
+      } else if (stat?.isDirectory()) {
+        // Directory of flows
+        const flowFiles = await this.discoverFlows(flowsPath);
+        if (flowFiles.length === 0 && flowsPaths.length === 1) {
+          throw new TestingBotError(
+            `No flow files (.yaml, .yml) found in directory ${flowsPath}`,
+          );
+        }
+        allFlowFiles.push(...flowFiles);
+        baseDirs.push(flowsPath);
+      } else {
+        // Treat as glob pattern
+        const flowFiles = await glob(flowsPath);
+        const yamlFiles = flowFiles.filter((f) => {
+          const ext = path.extname(f).toLowerCase();
+          return ext === '.yaml' || ext === '.yml';
+        });
+        if (yamlFiles.length === 0 && flowsPaths.length === 1) {
+          throw new TestingBotError(
+            `No flow files found matching pattern ${flowsPath}`,
+          );
+        }
+        allFlowFiles.push(...yamlFiles);
+      }
+    }
+
+    if (allFlowFiles.length === 0) {
+      throw new TestingBotError(
+        `No flow files (.yaml, .yml) found in the provided paths`,
+      );
+    }
+
+    // Determine base directory for zip structure
+    // If we have a single directory, use it as base; otherwise use common ancestor or flatten
+    const baseDir = baseDirs.length === 1 ? baseDirs[0] : undefined;
+    zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
+    shouldCleanup = true;
 
     try {
       await this.upload.upload({

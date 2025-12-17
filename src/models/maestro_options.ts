@@ -32,7 +32,7 @@ export interface MaestroRunOptions {
 
 export default class MaestroOptions {
   private _app: string;
-  private _flows: string;
+  private _flows: string[];
   private _device?: string;
   private _includeTags?: string[];
   private _excludeTags?: string[];
@@ -55,7 +55,7 @@ export default class MaestroOptions {
 
   public constructor(
     app: string,
-    flows: string,
+    flows: string | string[],
     device?: string,
     options?: {
       includeTags?: string[];
@@ -79,7 +79,7 @@ export default class MaestroOptions {
     },
   ) {
     this._app = app;
-    this._flows = flows;
+    this._flows = flows ? (Array.isArray(flows) ? flows : [flows]) : [];
     this._device = device;
     this._includeTags = options?.includeTags;
     this._excludeTags = options?.excludeTags;
@@ -105,7 +105,7 @@ export default class MaestroOptions {
     return this._app;
   }
 
-  public get flows(): string {
+  public get flows(): string[] {
     return this._flows;
   }
 

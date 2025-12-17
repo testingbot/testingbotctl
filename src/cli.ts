@@ -204,17 +204,13 @@ const maestroCommand = program
     'Path to application under test (.apk, .ipa, .app or .zip)',
   )
   .argument(
-    '[flows]',
-    'Path to flow file (.yaml/.yml), directory, .zip or glob pattern',
+    '[flows...]',
+    'Paths to flow files, directories, or glob patterns (can specify multiple)',
   )
   // App and flows options
   .option(
     '--app <path>',
     'Path to application under test (.apk, .ipa, .app, or .zip).',
-  )
-  .option(
-    '--flows <path>',
-    'Path to flow file (.yaml/.yml), directory of flows, .zip file or glob pattern.',
   )
   // Device configuration
   .option(
@@ -299,13 +295,24 @@ const maestroCommand = program
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
-  .action(async (appFileArg, flowsArg, args) => {
+  .action(async (appFileArg, flowsArgs, args) => {
     try {
-      // Positional arguments take precedence, fall back to options
-      const app = appFileArg || args.app;
-      const flows = flowsArg || args.flows;
+      let app: string;
+      let flows: string[];
 
-      if (!app || !flows) {
+      if (args.app) {
+        // If --app is specified, treat all positional arguments as flows
+        app = args.app;
+        flows = appFileArg
+          ? [appFileArg, ...(flowsArgs || [])]
+          : flowsArgs || [];
+      } else {
+        // Otherwise, first positional is app, rest are flows
+        app = appFileArg;
+        flows = flowsArgs || [];
+      }
+
+      if (!app || flows.length === 0) {
         maestroCommand.help();
         return;
       }
