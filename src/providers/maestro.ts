@@ -638,6 +638,9 @@ export default class Maestro {
             console.log(
               `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusText}`,
             );
+            console.log(
+              `     View results: https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
+            );
           }
         }
 
