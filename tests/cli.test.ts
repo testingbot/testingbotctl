@@ -306,7 +306,11 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'Espresso error: Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
+      'Espresso error: No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+        '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+        '  2. Use --api-key and --api-secret options\n' +
+        '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+        '  4. Create ~/.testingbot file with content: key:secret',
     );
   });
 
@@ -327,7 +331,11 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'Maestro error: Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
+      'Maestro error: No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+        '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+        '  2. Use --api-key and --api-secret options\n' +
+        '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+        '  4. Create ~/.testingbot file with content: key:secret',
     );
   });
 
@@ -350,7 +358,11 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'XCUITest error: Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
+      'XCUITest error: No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+        '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+        '  2. Use --api-key and --api-secret options\n' +
+        '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+        '  4. Create ~/.testingbot file with content: key:secret',
     );
   });
 

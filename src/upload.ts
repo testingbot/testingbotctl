@@ -80,6 +80,15 @@ export default class Upload {
         throw error;
       }
       if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          throw new TestingBotError(
+            'Invalid TestingBot credentials. Please check your API key and secret.\n' +
+              'You can update your credentials by running "testingbot login" or by using:\n' +
+              '  --api-key and --api-secret options\n' +
+              '  TB_KEY and TB_SECRET environment variables\n' +
+              '  ~/.testingbot file with content: key:secret',
+          );
+        }
         const message = error.response?.data?.error || error.message;
         throw new TestingBotError(`Upload failed: ${message}`);
       }

@@ -179,7 +179,11 @@ const espressoCommand = program
       });
       if (credentials === null) {
         throw new Error(
-          'Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
+          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+            '  2. Use --api-key and --api-secret options\n' +
+            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+            '  4. Create ~/.testingbot file with content: key:secret',
         );
       }
       const espresso = new Espresso(credentials, options);
@@ -365,7 +369,11 @@ const maestroCommand = program
       });
       if (credentials === null) {
         throw new Error(
-          'Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
+          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+            '  2. Use --api-key and --api-secret options\n' +
+            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+            '  4. Create ~/.testingbot file with content: key:secret',
         );
       }
       const maestro = new Maestro(credentials, options);
@@ -482,7 +490,11 @@ const xcuitestCommand = program
       });
       if (credentials === null) {
         throw new Error(
-          'Please specify credentials via --api-key/--api-secret, TB_KEY/TB_SECRET environment variables, or ~/.testingbot file',
+          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+            '  2. Use --api-key and --api-secret options\n' +
+            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+            '  4. Create ~/.testingbot file with content: key:secret',
         );
       }
       const xcuitest = new XCUITest(credentials, options);
