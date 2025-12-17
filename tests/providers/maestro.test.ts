@@ -2,6 +2,7 @@ import Maestro, { MaestroSocketMessage } from '../../src/providers/maestro';
 import MaestroOptions from '../../src/models/maestro_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
+import path from 'node:path';
 import axios from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
@@ -980,7 +981,7 @@ describe('Maestro', () => {
           }),
         );
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
-          '/tmp/reports/report_run_5678.xml',
+          path.join('/tmp/reports', 'report_run_5678.xml'),
           mockReportXml,
           'utf-8',
         );
@@ -1021,7 +1022,7 @@ describe('Maestro', () => {
           expect.any(Object),
         );
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
-          '/tmp/reports/report_run_5678.html',
+          path.join('/tmp/reports', 'report_run_5678.html'),
           mockReportHtml,
           'utf-8',
         );
@@ -1066,12 +1067,12 @@ describe('Maestro', () => {
         expect(axios.get).toHaveBeenCalledTimes(2);
         expect(fs.promises.writeFile).toHaveBeenCalledTimes(2);
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
-          '/tmp/reports/report_run_5678.xml',
+          path.join('/tmp/reports', 'report_run_5678.xml'),
           mockReportXml,
           'utf-8',
         );
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
-          '/tmp/reports/report_run_9012.xml',
+          path.join('/tmp/reports', 'report_run_9012.xml'),
           mockReportXml,
           'utf-8',
         );
@@ -1118,7 +1119,7 @@ describe('Maestro', () => {
         // Only the second report should be written
         expect(fs.promises.writeFile).toHaveBeenCalledTimes(1);
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
-          '/tmp/reports/report_run_9012.xml',
+          path.join('/tmp/reports', 'report_run_9012.xml'),
           mockReportXml,
           'utf-8',
         );
@@ -1217,7 +1218,7 @@ describe('Maestro', () => {
 
         expect(result.success).toBe(true);
         expect(fs.promises.writeFile).toHaveBeenCalledWith(
-          '/tmp/reports/report_run_5678.xml',
+          path.join('/tmp/reports', 'report_run_5678.xml'),
           mockReportXml,
           'utf-8',
         );
