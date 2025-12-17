@@ -52,6 +52,8 @@ export default class MaestroOptions {
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
   private _realDevice: boolean;
+  private _downloadArtifacts: boolean;
+  private _artifactsOutputDir?: string;
 
   public constructor(
     app: string,
@@ -76,6 +78,8 @@ export default class MaestroOptions {
       report?: ReportFormat;
       reportOutputDir?: string;
       realDevice?: boolean;
+      downloadArtifacts?: boolean;
+      artifactsOutputDir?: string;
     },
   ) {
     this._app = app;
@@ -99,6 +103,8 @@ export default class MaestroOptions {
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
     this._realDevice = options?.realDevice ?? false;
+    this._downloadArtifacts = options?.downloadArtifacts ?? false;
+    this._artifactsOutputDir = options?.artifactsOutputDir;
   }
 
   public get app(): string {
@@ -183,6 +189,14 @@ export default class MaestroOptions {
 
   public get realDevice(): boolean {
     return this._realDevice;
+  }
+
+  public get downloadArtifacts(): boolean {
+    return this._downloadArtifacts;
+  }
+
+  public get artifactsOutputDir(): string | undefined {
+    return this._artifactsOutputDir;
   }
 
   public getMaestroOptions(): MaestroRunOptions | undefined {

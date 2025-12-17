@@ -14,6 +14,12 @@ import utils from '../utils';
 import Upload from '../upload';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
 
+export interface MaestroRunAssets {
+  logs?: string[];
+  video?: string | false;
+  screenshots?: string[];
+}
+
 export interface MaestroRunInfo {
   id: number;
   status: 'WAITING' | 'READY' | 'DONE' | 'FAILED';
@@ -25,6 +31,12 @@ export interface MaestroRunInfo {
   success: number;
   report?: string;
   options?: Record<string, unknown>;
+  assets?: MaestroRunAssets;
+}
+
+export interface MaestroRunDetails extends MaestroRunInfo {
+  completed: boolean;
+  assets_synced: boolean;
 }
 
 export interface MaestroStatusResponse {
@@ -111,6 +123,11 @@ export default class Maestro {
 
     if (this.options.reportOutputDir) {
       await this.ensureOutputDirectory(this.options.reportOutputDir);
+    }
+
+    // Validate artifact download options - output dir defaults to current directory
+    if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+      await this.ensureOutputDirectory(this.options.artifactsOutputDir);
     }
 
     return true;
@@ -644,6 +661,11 @@ export default class Maestro {
           await this.fetchReports(status.runs);
         }
 
+        // Download artifacts if requested
+        if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+          await this.downloadArtifacts(status.runs);
+        }
+
         return {
           success: status.success,
           runs: status.runs,
@@ -782,6 +804,250 @@ export default class Maestro {
         );
       }
     }
+  }
+
+  private async getRunDetails(runId: number): Promise<MaestroRunDetails> {
+    try {
+      const response = await axios.get(`${this.URL}/${this.appId}/${runId}`, {
+        headers: {
+          'User-Agent': utils.getUserAgent(),
+        },
+        auth: {
+          username: this.credentials.userName,
+          password: this.credentials.accessKey,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      throw new TestingBotError(`Failed to get run details for run ${runId}`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async waitForArtifactsSync(
+    runId: number,
+  ): Promise<MaestroRunDetails> {
+    const maxAttempts = 60; // 5 minutes max wait for artifacts
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const details = await this.getRunDetails(runId);
+      if (details.assets_synced) {
+        return details;
+      }
+      attempts++;
+      await this.sleep(this.POLL_INTERVAL_MS);
+    }
+
+    throw new TestingBotError(
+      `Timed out waiting for artifacts to sync for run ${runId}`,
+    );
+  }
+
+  private async downloadFile(url: string, filePath: string): Promise<void> {
+    try {
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent': utils.getUserAgent(),
+        }
+      });
+
+      await fs.promises.writeFile(filePath, response.data);
+    } catch (error) {
+      throw new TestingBotError(`Failed to download file from ${url}`, {
+        cause: error,
+      });
+    }
+  }
+
+  private generateArtifactZipName(): string {
+    // Use --build option if provided, otherwise generate timestamp-based name
+    if (this.options.build) {
+      const sanitizedBuild = this.options.build.replace(/[^a-zA-Z0-9_-]/g, '_');
+      return `${sanitizedBuild}.zip`;
+    }
+
+    // Generate unique name with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    return `maestro_artifacts_${timestamp}.zip`;
+  }
+
+  private async downloadArtifacts(runs: MaestroRunInfo[]): Promise<void> {
+    if (!this.options.downloadArtifacts) return;
+
+    if (!this.options.quiet) {
+      logger.info('Downloading artifacts...');
+    }
+
+    const outputDir = this.options.artifactsOutputDir || process.cwd();
+
+    const tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'testingbot-maestro-artifacts-'),
+    );
+
+    try {
+      for (const run of runs) {
+        try {
+          if (!this.options.quiet) {
+            logger.info(`  Waiting for artifacts sync for run ${run.id}...`);
+          }
+
+          const runDetails = await this.waitForArtifactsSync(run.id);
+
+          if (!runDetails.assets) {
+            if (!this.options.quiet) {
+              logger.info(`  No artifacts available for run ${run.id}`);
+            }
+            continue;
+          }
+
+          const runDir = path.join(tempDir, `run_${run.id}`);
+          await fs.promises.mkdir(runDir, { recursive: true });
+
+          // Download logs
+          if (runDetails.assets.logs && runDetails.assets.logs.length > 0) {
+            const logsDir = path.join(runDir, 'logs');
+            await fs.promises.mkdir(logsDir, { recursive: true });
+
+            for (let i = 0; i < runDetails.assets.logs.length; i++) {
+              const logUrl = runDetails.assets.logs[i];
+              const logFileName = path.basename(logUrl) || `log_${i}.txt`;
+              const logPath = path.join(logsDir, logFileName);
+
+              try {
+                await this.downloadFile(logUrl, logPath);
+                if (!this.options.quiet) {
+                  logger.info(`    Downloaded log: ${logFileName}`);
+                }
+              } catch (error) {
+                logger.error(
+                  `    Failed to download log ${logFileName}: ${error instanceof Error ? error.message : error}`,
+                );
+              }
+            }
+          }
+
+          if (
+            runDetails.assets.video &&
+            typeof runDetails.assets.video === 'string'
+          ) {
+            const videoDir = path.join(runDir, 'video');
+            await fs.promises.mkdir(videoDir, { recursive: true });
+
+            const videoUrl = runDetails.assets.video;
+            const videoFileName = path.basename(videoUrl) || 'video.mp4';
+            const videoPath = path.join(videoDir, videoFileName);
+
+            try {
+              await this.downloadFile(videoUrl, videoPath);
+              if (!this.options.quiet) {
+                logger.info(`    Downloaded video: ${videoFileName}`);
+              }
+            } catch (error) {
+              logger.error(
+                `    Failed to download video: ${error instanceof Error ? error.message : error}`,
+              );
+            }
+          }
+
+          if (
+            runDetails.assets.screenshots &&
+            runDetails.assets.screenshots.length > 0
+          ) {
+            const screenshotsDir = path.join(runDir, 'screenshots');
+            await fs.promises.mkdir(screenshotsDir, { recursive: true });
+
+            for (let i = 0; i < runDetails.assets.screenshots.length; i++) {
+              const screenshotUrl = runDetails.assets.screenshots[i];
+              const screenshotFileName =
+                path.basename(screenshotUrl) || `screenshot_${i}.png`;
+              const screenshotPath = path.join(
+                screenshotsDir,
+                screenshotFileName,
+              );
+
+              try {
+                await this.downloadFile(screenshotUrl, screenshotPath);
+                if (!this.options.quiet) {
+                  logger.info(
+                    `    Downloaded screenshot: ${screenshotFileName}`,
+                  );
+                }
+              } catch (error) {
+                logger.error(
+                  `    Failed to download screenshot ${screenshotFileName}: ${error instanceof Error ? error.message : error}`,
+                );
+              }
+            }
+          }
+
+          if (runDetails.report) {
+            const reportPath = path.join(runDir, 'report.xml');
+            try {
+              await fs.promises.writeFile(
+                reportPath,
+                runDetails.report,
+                'utf-8',
+              );
+              if (!this.options.quiet) {
+                logger.info(`    Saved report.xml`);
+              }
+            } catch (error) {
+              logger.error(
+                `    Failed to save report.xml: ${error instanceof Error ? error.message : error}`,
+              );
+            }
+          }
+
+          if (!this.options.quiet) {
+            logger.info(`  Artifacts for run ${run.id} downloaded`);
+          }
+        } catch (error) {
+          logger.error(
+            `Failed to download artifacts for run ${run.id}: ${error instanceof Error ? error.message : error}`,
+          );
+        }
+      }
+
+      const zipFileName = this.generateArtifactZipName();
+      const zipFilePath = path.join(outputDir, zipFileName);
+
+      if (!this.options.quiet) {
+        logger.info(`Creating artifacts zip: ${zipFileName}`);
+      }
+
+      await this.createZipFromDirectory(tempDir, zipFilePath);
+
+      if (!this.options.quiet) {
+        logger.info(`Artifacts saved to: ${zipFilePath}`);
+      }
+    } finally {
+      try {
+        await fs.promises.rm(tempDir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }
+
+  private async createZipFromDirectory(
+    sourceDir: string,
+    zipPath: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+
+      output.on('close', () => resolve());
+      archive.on('error', (err) => reject(err));
+
+      archive.pipe(output);
+      archive.directory(sourceDir, false);
+      archive.finalize();
+    });
   }
 
   private sleep(ms: number): Promise<void> {

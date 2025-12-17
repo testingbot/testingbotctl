@@ -1535,4 +1535,190 @@ describe('Maestro', () => {
       stdoutSpy.mockRestore();
     });
   });
+
+  describe('Artifact Download', () => {
+    it('should pass validation when downloadArtifacts is set without artifactsOutputDir (defaults to cwd)', async () => {
+      const optionsWithArtifacts = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { downloadArtifacts: true },
+      );
+      const maestroWithArtifacts = new Maestro(
+        mockCredentials,
+        optionsWithArtifacts,
+      );
+
+      fs.promises.access = jest
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+
+      await expect(maestroWithArtifacts['validate']()).resolves.toBe(true);
+    });
+
+    it('should pass validation when downloadArtifacts has artifactsOutputDir', async () => {
+      const optionsWithArtifacts = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          downloadArtifacts: true,
+          artifactsOutputDir: './artifacts',
+        },
+      );
+      const maestroWithArtifacts = new Maestro(
+        mockCredentials,
+        optionsWithArtifacts,
+      );
+
+      fs.promises.access = jest
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+      fs.promises.stat = jest
+        .fn()
+        .mockResolvedValue({ isDirectory: () => true });
+
+      await expect(maestroWithArtifacts['validate']()).resolves.toBe(true);
+    });
+
+    it('should generate zip filename from --build option', () => {
+      const optionsWithBuild = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          downloadArtifacts: true,
+          build: 'my-build-123',
+        },
+      );
+      const maestroWithBuild = new Maestro(mockCredentials, optionsWithBuild);
+
+      const zipName = maestroWithBuild['generateArtifactZipName']();
+      expect(zipName).toBe('my-build-123.zip');
+    });
+
+    it('should sanitize build name for zip filename', () => {
+      const optionsWithBuild = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          downloadArtifacts: true,
+          build: 'my build/test:v1.0',
+        },
+      );
+      const maestroWithBuild = new Maestro(mockCredentials, optionsWithBuild);
+
+      const zipName = maestroWithBuild['generateArtifactZipName']();
+      expect(zipName).toBe('my_build_test_v1_0.zip');
+    });
+
+    it('should generate timestamp-based zip filename when no --build option', () => {
+      const optionsWithoutBuild = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { downloadArtifacts: true },
+      );
+      const maestroWithoutBuild = new Maestro(
+        mockCredentials,
+        optionsWithoutBuild,
+      );
+
+      const zipName = maestroWithoutBuild['generateArtifactZipName']();
+      expect(zipName).toMatch(/^maestro_artifacts_\d{4}-\d{2}-\d{2}T.*\.zip$/);
+    });
+
+    it('should fetch run details with assets', async () => {
+      maestro['appId'] = 1234;
+
+      const mockRunDetails = {
+        id: 5678,
+        status: 'DONE',
+        capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+        success: 1,
+        completed: true,
+        assets_synced: true,
+        assets: {
+          logs: ['https://example.com/log1.txt'],
+          video: 'https://example.com/video.mp4',
+          screenshots: ['https://example.com/screenshot1.png'],
+        },
+      };
+
+      axios.get = jest.fn().mockResolvedValueOnce({ data: mockRunDetails });
+
+      const result = await maestro['getRunDetails'](5678);
+
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678',
+        expect.objectContaining({
+          auth: { username: 'testUser', password: 'testKey' },
+        }),
+      );
+      expect(result.assets_synced).toBe(true);
+      expect(result.assets?.logs).toHaveLength(1);
+      expect(result.assets?.video).toBe('https://example.com/video.mp4');
+    });
+
+    it('should wait for artifacts to sync', async () => {
+      maestro['appId'] = 1234;
+
+      const notSyncedResponse = {
+        data: {
+          id: 5678,
+          status: 'DONE',
+          assets_synced: false,
+        },
+      };
+      const syncedResponse = {
+        data: {
+          id: 5678,
+          status: 'DONE',
+          assets_synced: true,
+          assets: {
+            logs: ['https://example.com/log.txt'],
+          },
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockResolvedValueOnce(notSyncedResponse)
+        .mockResolvedValueOnce(notSyncedResponse)
+        .mockResolvedValueOnce(syncedResponse);
+
+      // Speed up the test
+      maestro['POLL_INTERVAL_MS'] = 10;
+
+      const result = await maestro['waitForArtifactsSync'](5678);
+
+      expect(axios.get).toHaveBeenCalledTimes(3);
+      expect(result.assets_synced).toBe(true);
+    });
+
+    it('should download file from URL', async () => {
+      const mockFileContent = Buffer.from('test file content');
+      axios.get = jest.fn().mockResolvedValueOnce({ data: mockFileContent });
+      fs.promises.writeFile = jest.fn().mockResolvedValueOnce(undefined);
+
+      await maestro['downloadFile'](
+        'https://example.com/file.txt',
+        '/path/to/file.txt',
+      );
+
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://example.com/file.txt',
+        expect.objectContaining({
+          responseType: 'arraybuffer',
+        }),
+      );
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        '/path/to/file.txt',
+        mockFileContent,
+      );
+    });
+  });
 });

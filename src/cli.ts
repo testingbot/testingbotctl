@@ -292,6 +292,15 @@ const maestroCommand = program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
+  // Artifact download
+  .option(
+    '--download-artifacts',
+    'Download test artifacts (logs, screenshots, video) after completion.',
+  )
+  .option(
+    '--artifacts-output-dir <path>',
+    'Directory to save artifacts zip (defaults to current directory).',
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -347,6 +356,8 @@ const maestroCommand = program
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         realDevice: args.realDevice,
+        downloadArtifacts: args.downloadArtifacts,
+        artifactsOutputDir: args.artifactsOutputDir,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
