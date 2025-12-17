@@ -1,0 +1,19 @@
+# Source files (we publish compiled dist/)
+src/
+tests/
+
+# Config files
+.github/
+tsconfig.json
+jest.config.js
+eslint.config.mjs
+.prettierrc
+.prettierignore
+.release-it.json
+
+# OS files
+.DS_Store
+*.log
+
+# Test artifacts
+report_run_*.xml

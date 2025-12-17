@@ -3,3 +3,6 @@ dist
 coverage
 node_modules
 .DS_Store
+
+# Test artifacts
+report_run_*.xml
