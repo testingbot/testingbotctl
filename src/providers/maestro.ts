@@ -13,6 +13,7 @@ import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import Upload from '../upload';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
+import platform from '../utils/platform';
 
 export interface MaestroRunAssets {
   logs?: string[];
@@ -720,7 +721,7 @@ export default class Maestro {
   }
 
   private clearLine(): void {
-    process.stdout.write('\r\x1b[K');
+    platform.clearLine();
   }
 
   private formatElapsedTime(seconds: number): string {
@@ -852,7 +853,7 @@ export default class Maestro {
         responseType: 'arraybuffer',
         headers: {
           'User-Agent': utils.getUserAgent(),
-        }
+        },
       });
 
       await fs.promises.writeFile(filePath, response.data);
@@ -1112,14 +1113,12 @@ export default class Maestro {
       this.handleShutdown();
     };
 
-    process.on('SIGINT', this.signalHandler);
-    process.on('SIGTERM', this.signalHandler);
+    platform.setupSignalHandlers(this.signalHandler);
   }
 
   private removeSignalHandlers(): void {
     if (this.signalHandler) {
-      process.removeListener('SIGINT', this.signalHandler);
-      process.removeListener('SIGTERM', this.signalHandler);
+      platform.removeSignalHandlers(this.signalHandler);
       this.signalHandler = null;
     }
   }
