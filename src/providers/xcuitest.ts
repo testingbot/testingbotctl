@@ -1,19 +1,58 @@
+import XCUITestOptions from '../models/xcuitest_options';
 import logger from '../logger';
 import Credentials from '../models/credentials';
 import axios from 'axios';
 import fs from 'node:fs';
+import path from 'node:path';
+import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
-import XCUITestOptions from '../models/xcuitest_options';
 import utils from '../utils';
 import Upload from '../upload';
 
+export interface XCUITestRunInfo {
+  id: number;
+  status: 'WAITING' | 'READY' | 'DONE' | 'FAILED';
+  capabilities: {
+    deviceName: string;
+    platformName: string;
+    version?: string;
+  };
+  success: number;
+  report?: string;
+}
+
+export interface XCUITestStatusResponse {
+  runs: XCUITestRunInfo[];
+  success: boolean;
+  completed: boolean;
+}
+
+export interface XCUITestResult {
+  success: boolean;
+  runs: XCUITestRunInfo[];
+}
+
+export interface XCUITestSocketMessage {
+  id: number;
+  payload: string;
+}
+
 export default class XCUITest {
   private readonly URL = 'https://api.testingbot.com/v1/app-automate/xcuitest';
+  private readonly POLL_INTERVAL_MS = 5000;
+  private readonly MAX_POLL_ATTEMPTS = 720; // 1 hour max with 5s interval
+
   private credentials: Credentials;
   private options: XCUITestOptions;
   private upload: Upload;
 
   private appId: number | undefined = undefined;
+  private activeRunIds: number[] = [];
+  private isShuttingDown = false;
+  private signalHandler: (() => void) | null = null;
+  private socket: Socket | null = null;
+  private updateServer: string | null = null;
+  private updateKey: string | null = null;
 
   public constructor(credentials: Credentials, options: XCUITestOptions) {
     this.credentials = credentials;
@@ -23,17 +62,19 @@ export default class XCUITest {
 
   private async validate(): Promise<boolean> {
     if (this.options.app === undefined) {
-      throw new TestingBotError(`app is required`);
+      throw new TestingBotError(`app option is required`);
     }
 
     try {
       await fs.promises.access(this.options.app, fs.constants.R_OK);
     } catch {
-      throw new TestingBotError(`app path does not exist ${this.options.app}`);
+      throw new TestingBotError(
+        `Provided app path does not exist ${this.options.app}`,
+      );
     }
 
     if (this.options.testApp === undefined) {
-      throw new TestingBotError(`testApp is required`);
+      throw new TestingBotError(`testApp option is required`);
     }
 
     try {
@@ -44,29 +85,106 @@ export default class XCUITest {
       );
     }
 
-    if (this.options.device === undefined) {
-      throw new TestingBotError(`Please specify a device`);
+    // Validate report options
+    if (this.options.report && !this.options.reportOutputDir) {
+      throw new TestingBotError(
+        `--report-output-dir is required when --report is specified`,
+      );
+    }
+
+    if (this.options.reportOutputDir) {
+      await this.ensureOutputDirectory(this.options.reportOutputDir);
     }
 
     return true;
   }
 
-  public async run() {
+  private async ensureOutputDirectory(dirPath: string): Promise<void> {
+    try {
+      const stat = await fs.promises.stat(dirPath);
+      if (!stat.isDirectory()) {
+        throw new TestingBotError(
+          `Report output path exists but is not a directory: ${dirPath}`,
+        );
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        try {
+          await fs.promises.mkdir(dirPath, { recursive: true });
+        } catch (mkdirError) {
+          throw new TestingBotError(
+            `Failed to create report output directory: ${dirPath}`,
+            { cause: mkdirError },
+          );
+        }
+      } else if (error instanceof TestingBotError) {
+        throw error;
+      } else {
+        throw new TestingBotError(
+          `Failed to access report output directory: ${dirPath}`,
+          { cause: error },
+        );
+      }
+    }
+  }
+
+  public async run(): Promise<XCUITestResult> {
     if (!(await this.validate())) {
-      return;
+      return { success: false, runs: [] };
     }
 
     try {
-      logger.info('Uploading XCUITest App');
+      if (!this.options.quiet) {
+        logger.info('Uploading XCUITest App');
+      }
       await this.uploadApp();
 
-      logger.info('Uploading XCUITest Test App');
+      if (!this.options.quiet) {
+        logger.info('Uploading XCUITest Test App');
+      }
       await this.uploadTestApp();
 
-      logger.info('Running XCUITests');
+      if (!this.options.quiet) {
+        logger.info('Running XCUITests');
+      }
       await this.runTests();
+
+      if (this.options.async) {
+        if (!this.options.quiet) {
+          logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
+        }
+        return { success: true, runs: [] };
+      }
+
+      // Set up signal handlers before waiting for completion
+      this.setupSignalHandlers();
+
+      // Connect to real-time update server (unless --quiet is specified)
+      this.connectToUpdateServer();
+
+      if (!this.options.quiet) {
+        logger.info('Waiting for test results...');
+      }
+      const result = await this.waitForCompletion();
+
+      // Clean up
+      this.disconnectFromUpdateServer();
+      this.removeSignalHandlers();
+
+      return result;
     } catch (error) {
+      // Clean up on error
+      this.disconnectFromUpdateServer();
+      this.removeSignalHandlers();
+
       logger.error(error instanceof Error ? error.message : error);
+      if (error instanceof Error && error.cause) {
+        const causeMessage = this.extractErrorMessage(error.cause);
+        if (causeMessage) {
+          logger.error(`  Reason: ${causeMessage}`);
+        }
+      }
+      return { success: false, runs: [] };
     }
   }
 
@@ -76,7 +194,7 @@ export default class XCUITest {
       url: `${this.URL}/app`,
       credentials: this.credentials,
       contentType: 'application/octet-stream',
-      showProgress: true,
+      showProgress: !this.options.quiet,
     });
 
     this.appId = result.id;
@@ -89,7 +207,7 @@ export default class XCUITest {
       url: `${this.URL}/${this.appId}/tests`,
       credentials: this.credentials,
       contentType: 'application/zip',
-      showProgress: true,
+      showProgress: !this.options.quiet,
     });
 
     return true;
@@ -97,14 +215,14 @@ export default class XCUITest {
 
   private async runTests() {
     try {
+      const capabilities = this.options.getCapabilities();
+      const xcuitestOptions = this.options.getXCUITestOptions();
+
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
-          capabilities: [
-            {
-              deviceName: this.options.device,
-            },
-          ],
+          capabilities: [capabilities],
+          ...(xcuitestOptions && { options: xcuitestOptions }),
         },
         {
           headers: {
@@ -123,15 +241,452 @@ export default class XCUITest {
       utils.checkForUpdate(latestVersion);
 
       const result = response.data;
+
+      // Capture real-time update server info
+      if (result.update_server && result.update_key) {
+        this.updateServer = result.update_server;
+        this.updateKey = result.update_key;
+      }
+
       if (result.success === false) {
+        const errorMessage =
+          result.errors?.join('\n') || result.error || 'Unknown error';
         throw new TestingBotError(`Running XCUITest failed`, {
-          cause: result.error,
+          cause: errorMessage,
         });
       }
 
       return true;
     } catch (error) {
-      throw new TestingBotError(`Running XCUITest failed`, { cause: error });
+      if (error instanceof TestingBotError) {
+        throw error;
+      }
+      throw new TestingBotError(`Running XCUITest failed`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async getStatus(): Promise<XCUITestStatusResponse> {
+    try {
+      const response = await axios.get(`${this.URL}/${this.appId}`, {
+        headers: {
+          'User-Agent': utils.getUserAgent(),
+        },
+        auth: {
+          username: this.credentials.userName,
+          password: this.credentials.accessKey,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      throw new TestingBotError(`Failed to get XCUITest status`, {
+        cause: error,
+      });
+    }
+  }
+
+  private async waitForCompletion(): Promise<XCUITestResult> {
+    let attempts = 0;
+    const startTime = Date.now();
+    const previousStatus: Map<number, XCUITestRunInfo['status']> = new Map();
+
+    while (attempts < this.MAX_POLL_ATTEMPTS) {
+      if (this.isShuttingDown) {
+        throw new TestingBotError('Test run cancelled by user');
+      }
+
+      const status = await this.getStatus();
+
+      // Track active run IDs for graceful shutdown
+      this.activeRunIds = status.runs
+        .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
+        .map((run) => run.id);
+
+      // Log current status of runs (unless quiet mode)
+      if (!this.options.quiet) {
+        this.displayRunStatus(status.runs, startTime, previousStatus);
+      }
+
+      if (status.completed) {
+        // Clear the updating line and print final status
+        if (!this.options.quiet) {
+          this.clearLine();
+          for (const run of status.runs) {
+            const statusEmoji = run.success === 1 ? '✅' : '❌';
+            const statusText =
+              run.success === 1 ? 'Test completed successfully' : 'Test failed';
+            console.log(
+              `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusText}`,
+            );
+          }
+        }
+
+        const allSucceeded = status.runs.every((run) => run.success === 1);
+
+        if (allSucceeded) {
+          if (!this.options.quiet) {
+            logger.info('All tests completed successfully!');
+          }
+        } else {
+          const failedRuns = status.runs.filter((run) => run.success !== 1);
+          logger.error(`${failedRuns.length} test run(s) failed:`);
+          for (const run of failedRuns) {
+            logger.error(
+              `  - Run ${run.id} (${run.capabilities.deviceName}): ${run.report || 'No report available'}`,
+            );
+          }
+        }
+
+        // Fetch reports if requested
+        if (this.options.report && this.options.reportOutputDir) {
+          await this.fetchReports(status.runs);
+        }
+
+        return {
+          success: status.success,
+          runs: status.runs,
+        };
+      }
+
+      attempts++;
+      await this.sleep(this.POLL_INTERVAL_MS);
+    }
+
+    throw new TestingBotError(
+      `Test timed out after ${(this.MAX_POLL_ATTEMPTS * this.POLL_INTERVAL_MS) / 1000 / 60} minutes`,
+    );
+  }
+
+  private displayRunStatus(
+    runs: XCUITestRunInfo[],
+    startTime: number,
+    previousStatus: Map<number, XCUITestRunInfo['status']>,
+  ): void {
+    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const elapsedStr = this.formatElapsedTime(elapsedSeconds);
+
+    for (const run of runs) {
+      const prevStatus = previousStatus.get(run.id);
+      const statusChanged = prevStatus !== run.status;
+
+      if (
+        statusChanged &&
+        prevStatus &&
+        (prevStatus === 'WAITING' || prevStatus === 'READY')
+      ) {
+        this.clearLine();
+      }
+
+      previousStatus.set(run.id, run.status);
+
+      const statusInfo = this.getStatusInfo(run.status);
+
+      if (run.status === 'WAITING' || run.status === 'READY') {
+        const message = `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text} (${elapsedStr})`;
+        process.stdout.write(`\r${message}`);
+      } else if (statusChanged) {
+        console.log(
+          `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text}`,
+        );
+      }
+    }
+  }
+
+  private clearLine(): void {
+    process.stdout.write('\r\x1b[K');
+  }
+
+  private formatElapsedTime(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  private getStatusInfo(status: XCUITestRunInfo['status']): {
+    emoji: string;
+    text: string;
+  } {
+    switch (status) {
+      case 'WAITING':
+        return { emoji: '⏳', text: 'Waiting for test to start' };
+      case 'READY':
+        return { emoji: '🔄', text: 'Running test' };
+      case 'DONE':
+        return { emoji: '✅', text: 'Test has finished running' };
+      case 'FAILED':
+        return { emoji: '❌', text: 'Test failed' };
+      default:
+        return { emoji: '❓', text: status };
+    }
+  }
+
+  private async fetchReports(runs: XCUITestRunInfo[]): Promise<void> {
+    const reportFormat = this.options.report;
+    const outputDir = this.options.reportOutputDir;
+
+    if (!reportFormat || !outputDir) {
+      return;
+    }
+
+    if (!this.options.quiet) {
+      logger.info(`Fetching ${reportFormat} report(s)...`);
+    }
+
+    for (const run of runs) {
+      try {
+        const endpoint =
+          reportFormat === 'junit'
+            ? `${this.URL}/${this.appId}/${run.id}/junit_report`
+            : `${this.URL}/${this.appId}/${run.id}/html_report`;
+
+        const response = await axios.get(endpoint, {
+          headers: {
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+          responseType: reportFormat === 'html' ? 'arraybuffer' : 'text',
+        });
+
+        const reportContent = response.data;
+
+        if (!reportContent) {
+          logger.error(`No report content received for run ${run.id}`);
+          continue;
+        }
+
+        const extension = reportFormat === 'junit' ? 'xml' : 'html';
+        const fileName = `xcuitest_report_${this.appId}_${run.id}.${extension}`;
+        const filePath = path.join(outputDir, fileName);
+
+        await fs.promises.writeFile(filePath, reportContent);
+
+        if (!this.options.quiet) {
+          logger.info(`  Saved report: ${filePath}`);
+        }
+      } catch (error) {
+        logger.error(
+          `Failed to fetch report for run ${run.id}: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private extractErrorMessage(cause: unknown): string | null {
+    if (typeof cause === 'string') {
+      return cause;
+    }
+
+    if (Array.isArray(cause)) {
+      return cause.join('\n');
+    }
+
+    if (cause && typeof cause === 'object') {
+      const axiosError = cause as {
+        response?: {
+          data?: { error?: string; errors?: string[]; message?: string };
+        };
+        message?: string;
+      };
+      if (axiosError.response?.data?.errors) {
+        return axiosError.response.data.errors.join('\n');
+      }
+      if (axiosError.response?.data?.error) {
+        return axiosError.response.data.error;
+      }
+      if (axiosError.response?.data?.message) {
+        return axiosError.response.data.message;
+      }
+
+      if (cause instanceof Error) {
+        return cause.message;
+      }
+
+      const obj = cause as {
+        errors?: string[];
+        error?: string;
+        message?: string;
+      };
+      if (obj.errors) {
+        return obj.errors.join('\n');
+      }
+      if (obj.error) {
+        return obj.error;
+      }
+      if (obj.message) {
+        return obj.message;
+      }
+    }
+
+    return null;
+  }
+
+  private setupSignalHandlers(): void {
+    this.signalHandler = () => {
+      this.handleShutdown();
+    };
+
+    process.on('SIGINT', this.signalHandler);
+    process.on('SIGTERM', this.signalHandler);
+  }
+
+  private removeSignalHandlers(): void {
+    if (this.signalHandler) {
+      process.removeListener('SIGINT', this.signalHandler);
+      process.removeListener('SIGTERM', this.signalHandler);
+      this.signalHandler = null;
+    }
+  }
+
+  private handleShutdown(): void {
+    if (this.isShuttingDown) {
+      logger.warn('Force exiting...');
+      process.exit(1);
+    }
+
+    this.isShuttingDown = true;
+    this.clearLine();
+    logger.warn('Received interrupt signal, stopping test runs...');
+
+    this.stopActiveRuns()
+      .then(() => {
+        logger.info('All test runs have been stopped.');
+        process.exit(1);
+      })
+      .catch((error) => {
+        logger.error(
+          `Failed to stop some test runs: ${error instanceof Error ? error.message : error}`,
+        );
+        process.exit(1);
+      });
+  }
+
+  private async stopActiveRuns(): Promise<void> {
+    if (!this.appId || this.activeRunIds.length === 0) {
+      return;
+    }
+
+    const stopPromises = this.activeRunIds.map((runId) =>
+      this.stopRun(runId).catch((error) => {
+        logger.error(
+          `Failed to stop run ${runId}: ${error instanceof Error ? error.message : error}`,
+        );
+      }),
+    );
+
+    await Promise.all(stopPromises);
+  }
+
+  private async stopRun(runId: number): Promise<void> {
+    if (!this.appId) {
+      return;
+    }
+
+    try {
+      await axios.post(
+        `${this.URL}/${this.appId}/${runId}/stop`,
+        {},
+        {
+          headers: {
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+        },
+      );
+
+      if (!this.options.quiet) {
+        logger.info(`  Stopped run ${runId}`);
+      }
+    } catch (error) {
+      throw new TestingBotError(`Failed to stop run ${runId}`, {
+        cause: error,
+      });
+    }
+  }
+
+  private connectToUpdateServer(): void {
+    if (!this.updateServer || !this.updateKey || this.options.quiet) {
+      return;
+    }
+
+    try {
+      this.socket = io(this.updateServer, {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        timeout: 10000,
+      });
+
+      this.socket.on('connect', () => {
+        // Join the room for this test run
+        this.socket?.emit('join', this.updateKey);
+      });
+
+      this.socket.on('xcuitest_data', (data: string) => {
+        this.handleXCUITestData(data);
+      });
+
+      this.socket.on('xcuitest_error', (data: string) => {
+        this.handleXCUITestError(data);
+      });
+
+      this.socket.on('connect_error', () => {
+        // Silently fail - real-time updates are optional
+        this.disconnectFromUpdateServer();
+      });
+    } catch {
+      // Socket connection failed, continue without real-time updates
+      this.socket = null;
+    }
+  }
+
+  private disconnectFromUpdateServer(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
+
+  private handleXCUITestData(data: string): void {
+    try {
+      const message: XCUITestSocketMessage = JSON.parse(data);
+      if (message.payload) {
+        // Clear the status line before printing output
+        this.clearLine();
+        // Print the XCUITest output
+        process.stdout.write(message.payload);
+      }
+    } catch {
+      // Invalid JSON, ignore
+    }
+  }
+
+  private handleXCUITestError(data: string): void {
+    try {
+      const message: XCUITestSocketMessage = JSON.parse(data);
+      if (message.payload) {
+        // Clear the status line before printing error
+        this.clearLine();
+        // Print the error output
+        process.stderr.write(message.payload);
+      }
+    } catch {
+      // Invalid JSON, ignore
     }
   }
 }

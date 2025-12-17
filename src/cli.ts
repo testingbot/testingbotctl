@@ -7,7 +7,11 @@ import EspressoOptions, {
   ReportFormat as EspressoReportFormat,
   ThrottleNetwork as EspressoThrottleNetwork,
 } from './models/espresso_options';
-import XCUITestOptions from './models/xcuitest_options';
+import XCUITestOptions, {
+  Orientation as XCUITestOrientation,
+  ThrottleNetwork as XCUITestThrottleNetwork,
+  ReportFormat as XCUITestReportFormat,
+} from './models/xcuitest_options';
 import XCUITest from './providers/xcuitest';
 import packageJson from '../package.json';
 import MaestroOptions, {
@@ -360,17 +364,100 @@ const maestroCommand = program
   })
   .showHelpAfterError(true);
 
-program
+const xcuitestCommand = program
   .command('xcuitest')
-  .description('Bootstrap an XCUITest project.')
-  .requiredOption('--app <string>', 'Path to application under test.')
-  .requiredOption('--device <device>', 'Real device to use for testing.')
-  .requiredOption('--test-app <string>', 'Path to test application.')
+  .description('Run XCUITest tests on TestingBot.')
+  .argument('[appFile]', 'Path to application IPA file')
+  .argument('[testAppFile]', 'Path to test ZIP file containing XCUITests')
+  // App and test options
+  .option('--app <path>', 'Path to application IPA file.')
+  .option('--test-app <path>', 'Path to test ZIP file containing XCUITests.')
+  // Device configuration
+  .option(
+    '--device <device>',
+    'Device name to use for testing (e.g., "iPhone 15", "iPad.*").',
+  )
+  .option('--platform-version <version>', 'iOS version (e.g., "17.0", "18.2").')
+  .option('--real-device', 'Use a real device instead of a simulator.')
+  .option('--tablet-only', 'Only allocate tablet devices.')
+  .option('--phone-only', 'Only allocate phone devices.')
+  .option(
+    '--orientation <orientation>',
+    'Screen orientation: PORTRAIT or LANDSCAPE.',
+    (val) => val.toUpperCase() as XCUITestOrientation,
+  )
+  .option('--locale <locale>', 'Device locale (e.g., "DE", "US").')
+  .option(
+    '--timezone <timezone>',
+    'Device timezone (e.g., "New_York", "Europe/London").',
+  )
+  // Test metadata
+  .option('--name <name>', 'Test name for identification in dashboard.')
+  .option('--build <build>', 'Build identifier for grouping test runs.')
+  // Localization
+  .option(
+    '--language <lang>',
+    'App language (ISO 639-1 code, e.g., "en", "fr", "de").',
+  )
+  // Geolocation
+  .option(
+    '--geo-location <code>',
+    'Geographic IP location (ISO country code, e.g., "US", "DE").',
+  )
+  // Network throttling
+  .option(
+    '--throttle-network <speed>',
+    'Network throttling: 4G, 3G, Edge, or airplane.',
+    (val) => val as XCUITestThrottleNetwork,
+  )
+  // Execution mode
+  .option('-q, --quiet', 'Quieter console output without progress updates.')
+  .option(
+    '--async',
+    'Start tests and exit immediately without waiting for results.',
+  )
+  // Report options
+  .option(
+    '--report <format>',
+    'Download test report after completion: html or junit.',
+    (val) => val.toLowerCase() as XCUITestReportFormat,
+  )
+  .option(
+    '--report-output-dir <path>',
+    'Directory to save test reports (required when --report is used).',
+  )
+  // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
-  .action(async (args) => {
+  .action(async (appFileArg, testAppFileArg, args) => {
     try {
-      const options = new XCUITestOptions(args.app, args.testApp, args.device);
+      // Positional arguments take precedence, fall back to options
+      const app = appFileArg || args.app;
+      const testApp = testAppFileArg || args.testApp;
+
+      if (!app || !testApp) {
+        xcuitestCommand.help();
+        return;
+      }
+
+      const options = new XCUITestOptions(app, testApp, args.device, {
+        version: args.platformVersion,
+        realDevice: args.realDevice,
+        tabletOnly: args.tabletOnly,
+        phoneOnly: args.phoneOnly,
+        name: args.name,
+        build: args.build,
+        orientation: args.orientation,
+        language: args.language,
+        locale: args.locale,
+        timeZone: args.timezone,
+        geoLocation: args.geoLocation,
+        throttleNetwork: args.throttleNetwork,
+        quiet: args.quiet,
+        async: args.async,
+        report: args.report,
+        reportOutputDir: args.reportOutputDir,
+      });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
         apiSecret: args.apiSecret,
@@ -381,13 +468,18 @@ program
         );
       }
       const xcuitest = new XCUITest(credentials, options);
-      await xcuitest.run();
+      const result = await xcuitest.run();
+      if (!result.success) {
+        process.exitCode = 1;
+      }
     } catch (err) {
       logger.error(
         `XCUITest error: ${err instanceof Error ? err.message : err}`,
       );
+      process.exitCode = 1;
     }
-  });
+  })
+  .showHelpAfterError(true);
 
 program
   .command('login')
