@@ -7,7 +7,7 @@ CLI tool to run Espresso, XCUITest and Maestro tests on [TestingBot's](https://t
 ## Installation
 
 ```sh
-npm install -g testingbotctl
+npm install -g @testingbot/cli
 ```
 
 **Requirements:** NodeJS 20 or higher
