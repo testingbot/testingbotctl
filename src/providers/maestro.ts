@@ -638,9 +638,6 @@ export default class Maestro {
             console.log(
               `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusText}`,
             );
-            console.log(
-              `     View results: https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
-            );
           }
         }
 
@@ -704,6 +701,16 @@ export default class Maestro {
         (prevStatus === 'WAITING' || prevStatus === 'READY')
       ) {
         this.clearLine();
+      }
+
+      // Show URL when test starts running (transitions from WAITING to READY)
+      if (statusChanged && prevStatus === 'WAITING' && run.status === 'READY') {
+        console.log(
+          `  🚀 Run ${run.id} (${run.capabilities.deviceName}): Test started`,
+        );
+        console.log(
+          `     Watch this test in realtime: https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
+        );
       }
 
       previousStatus.set(run.id, run.status);

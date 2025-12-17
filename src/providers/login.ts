@@ -25,7 +25,7 @@ export default class Login {
       const authUrl = `${AUTH_URL}?port=${this.port}&identifier=testingbotctl`;
       logger.info('Opening browser for authentication...');
       logger.info(
-        `\nIf the browser does not open automatically, visit:\n\n    ${authUrl}\n`,
+        `If the browser does not open automatically, visit:\n\n    ${authUrl}\n`,
       );
 
       await this.openBrowser(authUrl);
