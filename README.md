@@ -1,4 +1,5 @@
 [![Run Tests](https://github.com/testingbot/testingbotctl/actions/workflows/test.yml/badge.svg)](https://github.com/testingbot/testingbotctl/actions/workflows/test.yml)
+[![npm version](https://img.shields.io/npm/v/@testingbot/cli.svg)](https://www.npmjs.com/package/@testingbot/cli)
 
 # TestingBot CLI
 
@@ -97,8 +98,8 @@ testingbot maestro app.apk ./flows/smoke ./flows/regression ./flows/e2e
 # With device selection
 testingbot maestro app.apk ./flows --device "Pixel 8" --deviceVersion "14"
 
-# iOS app on real device with tags
-testingbot maestro app.ipa ./flows --platform iOS --real-device --include-tags "smoke,regression"
+# Android app on real device with tags
+testingbot maestro app.apk ./flows --device "Samsung Galaxy S24" --real-device --include-tags "smoke,regression"
 
 # With environment variables
 testingbot maestro app.apk ./flows -e API_URL=https://staging.example.com -e API_KEY=secret
