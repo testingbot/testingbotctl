@@ -16,7 +16,7 @@ import { detectPlatformFromFile } from '../utils/file-type-detector';
 import platform from '../utils/platform';
 
 export interface MaestroRunAssets {
-  logs?: string[];
+  logs?: Record<string, string>;
   video?: string | false;
   screenshots?: string[];
 }
@@ -663,7 +663,7 @@ export default class Maestro {
         }
 
         // Download artifacts if requested
-        if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+        if (this.options.downloadArtifacts) {
           await this.downloadArtifacts(status.runs);
         }
 
@@ -857,33 +857,83 @@ export default class Maestro {
     );
   }
 
-  private async downloadFile(url: string, filePath: string): Promise<void> {
-    try {
-      const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        headers: {
-          'User-Agent': utils.getUserAgent(),
-        },
-      });
+  private async downloadFile(
+    url: string,
+    filePath: string,
+    retries = 3,
+  ): Promise<void> {
+    let lastError: unknown;
 
-      await fs.promises.writeFile(filePath, response.data);
-    } catch (error) {
-      throw new TestingBotError(`Failed to download file from ${url}`, {
-        cause: error,
-      });
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 60000, // 60 second timeout for large files
+        });
+
+        await fs.promises.writeFile(filePath, response.data);
+        return;
+      } catch (error) {
+        lastError = error;
+
+        // Don't retry on 4xx errors (client errors like 403, 404)
+        if (axios.isAxiosError(error) && error.response?.status) {
+          const status = error.response.status;
+          if (status >= 400 && status < 500) {
+            break;
+          }
+        }
+
+        // Wait before retrying (exponential backoff)
+        if (attempt < retries) {
+          await this.sleep(1000 * attempt);
+        }
+      }
     }
+
+    // Extract detailed error message
+    let errorDetail = '';
+    if (axios.isAxiosError(lastError)) {
+      if (lastError.response) {
+        errorDetail = `HTTP ${lastError.response.status}: ${lastError.response.statusText}`;
+      } else if (lastError.code) {
+        errorDetail = lastError.code;
+      } else if (lastError.message) {
+        errorDetail = lastError.message;
+      }
+    } else if (lastError instanceof Error) {
+      errorDetail = lastError.message;
+    } else if (lastError) {
+      errorDetail = String(lastError);
+    }
+
+    throw new TestingBotError(
+      `Failed to download file${errorDetail ? `: ${errorDetail}` : ''}`,
+      {
+        cause: lastError,
+      },
+    );
   }
 
-  private generateArtifactZipName(): string {
-    // Use --build option if provided, otherwise generate timestamp-based name
-    if (this.options.build) {
-      const sanitizedBuild = this.options.build.replace(/[^a-zA-Z0-9_-]/g, '_');
-      return `${sanitizedBuild}.zip`;
+  private async generateArtifactZipName(outputDir: string): Promise<string> {
+    if (!this.options.build) {
+      // Generate unique name with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      return `maestro_artifacts_${timestamp}.zip`;
     }
 
-    // Generate unique name with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    return `maestro_artifacts_${timestamp}.zip`;
+    const baseName = this.options.build.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${baseName}.zip`;
+    const filePath = path.join(outputDir, fileName);
+
+    try {
+      await fs.promises.access(filePath);
+      // File exists, append timestamp
+      return `${baseName}_${Date.now()}.zip`;
+    } catch {
+      // File doesn't exist, use base name
+      return fileName;
+    }
   }
 
   private async downloadArtifacts(runs: MaestroRunInfo[]): Promise<void> {
@@ -919,13 +969,17 @@ export default class Maestro {
           await fs.promises.mkdir(runDir, { recursive: true });
 
           // Download logs
-          if (runDetails.assets.logs && runDetails.assets.logs.length > 0) {
+          if (
+            runDetails.assets.logs &&
+            Object.keys(runDetails.assets.logs).length > 0
+          ) {
             const logsDir = path.join(runDir, 'logs');
             await fs.promises.mkdir(logsDir, { recursive: true });
 
-            for (let i = 0; i < runDetails.assets.logs.length; i++) {
-              const logUrl = runDetails.assets.logs[i];
-              const logFileName = path.basename(logUrl) || `log_${i}.txt`;
+            for (const [logName, logUrl] of Object.entries(
+              runDetails.assets.logs,
+            )) {
+              const logFileName = `${logName}.txt`;
               const logPath = path.join(logsDir, logFileName);
 
               try {
@@ -949,7 +1003,7 @@ export default class Maestro {
             await fs.promises.mkdir(videoDir, { recursive: true });
 
             const videoUrl = runDetails.assets.video;
-            const videoFileName = path.basename(videoUrl) || 'video.mp4';
+            const videoFileName = 'video.mp4';
             const videoPath = path.join(videoDir, videoFileName);
 
             try {
@@ -973,12 +1027,8 @@ export default class Maestro {
 
             for (let i = 0; i < runDetails.assets.screenshots.length; i++) {
               const screenshotUrl = runDetails.assets.screenshots[i];
-              const screenshotFileName =
-                path.basename(screenshotUrl) || `screenshot_${i}.png`;
-              const screenshotPath = path.join(
-                screenshotsDir,
-                screenshotFileName,
-              );
+              const screenshotFileName = `screenshot_${i}.png`;
+              const screenshotPath = path.join(screenshotsDir, screenshotFileName);
 
               try {
                 await this.downloadFile(screenshotUrl, screenshotPath);
@@ -1023,7 +1073,7 @@ export default class Maestro {
         }
       }
 
-      const zipFileName = this.generateArtifactZipName();
+      const zipFileName = await this.generateArtifactZipName(outputDir);
       const zipFilePath = path.join(outputDir, zipFileName);
 
       if (!this.options.quiet) {
