@@ -124,12 +124,10 @@ describe('Espresso', () => {
 
   describe('Upload App', () => {
     it('should successfully upload an app and set appId', async () => {
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
-
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       const mockResponse = {
         data: {
@@ -144,12 +142,10 @@ describe('Espresso', () => {
     });
 
     it('should throw an error if app upload fails', async () => {
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
-
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       const mockResponse = { data: { error: 'Upload failed' } };
       axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
@@ -162,12 +158,10 @@ describe('Espresso', () => {
 
   describe('Upload Test App', () => {
     it('should successfully upload the test app', async () => {
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
-
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       const mockResponse = {
         data: {
@@ -182,12 +176,10 @@ describe('Espresso', () => {
     });
 
     it('should throw an error if test app upload fails', async () => {
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
-
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       const mockResponse = { data: { error: 'Test app upload failed' } };
       axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
@@ -657,10 +649,9 @@ describe('Espresso', () => {
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
 
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       // Mock upload responses
       axios.post = jest
@@ -694,10 +685,9 @@ describe('Espresso', () => {
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
 
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       axios.post = jest
         .fn()

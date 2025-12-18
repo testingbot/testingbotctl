@@ -197,12 +197,10 @@ describe('Maestro', () => {
 
   describe('Upload App', () => {
     it('should successfully upload an APK app and set appId', async () => {
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
-
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       const mockResponse = {
         data: {
@@ -217,12 +215,10 @@ describe('Maestro', () => {
     });
 
     it('should throw an error if app upload fails', async () => {
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
-
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       const mockResponse = { data: { error: 'Upload failed' } };
       axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
@@ -670,14 +666,13 @@ describe('Maestro', () => {
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
 
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
       fs.promises.stat = jest.fn().mockResolvedValue({
         size: 1024,
         isFile: () => true,
         isDirectory: () => false,
       });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       // Mock upload responses
       axios.post = jest
@@ -708,14 +703,13 @@ describe('Maestro', () => {
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
 
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
       fs.promises.stat = jest.fn().mockResolvedValue({
         size: 1024,
         isFile: () => true,
         isDirectory: () => false,
       });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       // Mock upload and run responses
       axios.post = jest
@@ -766,14 +760,13 @@ describe('Maestro', () => {
         .mockResolvedValueOnce(undefined)
         .mockResolvedValueOnce(undefined);
 
-      const mockFileStream = new Readable();
-      mockFileStream._read = jest.fn();
       fs.promises.stat = jest.fn().mockResolvedValue({
         size: 1024,
         isFile: () => true,
         isDirectory: () => false,
       });
-      fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
       // Mock upload and run responses
       axios.post = jest
@@ -1164,20 +1157,20 @@ describe('Maestro', () => {
           .mockResolvedValueOnce(undefined) // app access
           .mockResolvedValueOnce(undefined); // flows access
 
-        // stat is called for report dir check, then for uploadApp size, then for uploadFlows
+        // stat is called for: report dir check, app upload, flows path check, flows upload
         fs.promises.stat = jest
           .fn()
           .mockResolvedValueOnce({ isDirectory: () => true }) // report dir exists
-          .mockResolvedValueOnce({ size: 1024 }) // uploadApp size
+          .mockResolvedValueOnce({ size: 1024 }) // app upload size
           .mockResolvedValueOnce({
             size: 1024,
             isFile: () => true,
             isDirectory: () => false,
-          }); // uploadFlows stat
+          }) // uploadFlows path check
+          .mockResolvedValueOnce({ size: 1024 }); // flows upload size
 
-        const mockFileStream = new Readable();
-        mockFileStream._read = jest.fn();
-        fs.createReadStream = jest.fn().mockReturnValue(mockFileStream);
+        const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+        fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
         // Mock uploads and run
         axios.post = jest

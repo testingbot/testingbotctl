@@ -1,7 +1,8 @@
-import axios, { AxiosProgressEvent } from 'axios';
+import axios from 'axios';
 import fs from 'node:fs';
 import path from 'node:path';
 import FormData from 'form-data';
+import progress from 'progress-stream';
 import Credentials from './models/credentials';
 import TestingBotError from './models/testingbot_error';
 import utils from './utils';
@@ -24,14 +25,11 @@ export interface UploadResult {
 }
 
 export default class Upload {
-  private lastProgressPercent: number = 0;
-
   public async upload(options: UploadOptions): Promise<UploadResult> {
     const {
       filePath,
       url,
       credentials,
-      contentType,
       showProgress = false,
     } = options;
 
@@ -39,16 +37,45 @@ export default class Upload {
 
     const fileName = path.basename(filePath);
     const fileStats = await fs.promises.stat(filePath);
+    const totalSize = fileStats.size;
+    const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+
+    // Create progress tracker
+    const progressTracker = progress({
+      length: totalSize,
+      time: 100, // Emit progress every 100ms
+    });
+
+    let lastPercent = 0;
+
+    if (showProgress) {
+      // Draw initial progress bar
+      this.drawProgressBar(fileName, sizeMB, 0);
+
+      progressTracker.on('progress', (prog) => {
+        const percent = Math.round(prog.percentage);
+        if (percent !== lastPercent) {
+          lastPercent = percent;
+          this.drawProgressBar(fileName, sizeMB, percent);
+        }
+      });
+    }
+
+    // Create file stream and pipe through progress tracker
     const fileStream = fs.createReadStream(filePath);
+    const trackedStream = fileStream.pipe(progressTracker);
 
     const formData = new FormData();
-    formData.append('file', fileStream);
+    formData.append('file', trackedStream, {
+      filename: fileName,
+      contentType: options.contentType,
+      knownLength: totalSize,
+    });
 
     try {
       const response = await axios.post(url, formData, {
         headers: {
-          'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename=${fileName}`,
+          ...formData.getHeaders(),
           'User-Agent': utils.getUserAgent(),
         },
         auth: {
@@ -57,25 +84,28 @@ export default class Upload {
         },
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
-        onUploadProgress: showProgress
-          ? (progressEvent: AxiosProgressEvent) => {
-              this.handleProgress(progressEvent, fileStats.size, fileName);
-            }
-          : undefined,
+        maxRedirects: 0, // Recommended for stream uploads to avoid buffering
       });
 
       const result = response.data;
       if (result.id) {
         if (showProgress) {
-          this.clearProgressLine();
+          this.drawProgressBar(fileName, sizeMB, 100);
+          console.log('');
         }
         return { id: result.id };
       } else {
+        if (showProgress) {
+          console.log(' Failed');
+        }
         throw new TestingBotError(
           `Upload failed: ${result.error || 'Unknown error'}`,
         );
       }
     } catch (error) {
+      if (showProgress) {
+        console.log(' Failed');
+      }
       if (error instanceof TestingBotError) {
         throw error;
       }
@@ -98,50 +128,27 @@ export default class Upload {
     }
   }
 
+  private drawProgressBar(
+    fileName: string,
+    sizeMB: string,
+    percent: number,
+  ): void {
+    const barWidth = 30;
+    const filled = Math.round((barWidth * percent) / 100);
+    const empty = barWidth - filled;
+    const bar = '█'.repeat(filled) + '░'.repeat(empty);
+    const transferred = ((percent / 100) * parseFloat(sizeMB)).toFixed(2);
+
+    process.stdout.write(
+      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${sizeMB} MB)`,
+    );
+  }
+
   private async validateFile(filePath: string): Promise<void> {
     try {
       await fs.promises.access(filePath, fs.constants.R_OK);
     } catch {
       throw new TestingBotError(`File not found or not readable: ${filePath}`);
     }
-  }
-
-  private handleProgress(
-    progressEvent: AxiosProgressEvent,
-    totalSize: number,
-    fileName: string,
-  ): void {
-    const loaded = progressEvent.loaded;
-    const total = progressEvent.total || totalSize;
-    const percent = Math.round((loaded / total) * 100);
-
-    if (percent !== this.lastProgressPercent) {
-      this.lastProgressPercent = percent;
-      this.displayProgress(fileName, percent, loaded, total);
-    }
-  }
-
-  private displayProgress(
-    fileName: string,
-    percent: number,
-    loaded: number,
-    total: number,
-  ): void {
-    const barWidth = 30;
-    const filledWidth = Math.round((percent / 100) * barWidth);
-    const emptyWidth = barWidth - filledWidth;
-    const bar = '█'.repeat(filledWidth) + '░'.repeat(emptyWidth);
-
-    const loadedMB = (loaded / (1024 * 1024)).toFixed(2);
-    const totalMB = (total / (1024 * 1024)).toFixed(2);
-
-    process.stdout.write(
-      `\r  ${fileName}: [${bar}] ${percent}% (${loadedMB}/${totalMB} MB)`,
-    );
-  }
-
-  private clearProgressLine(): void {
-    process.stdout.write('\r' + ' '.repeat(80) + '\r');
-    this.lastProgressPercent = 0;
   }
 }

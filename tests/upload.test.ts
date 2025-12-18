@@ -40,12 +40,14 @@ describe('Upload', () => {
       size: 1024 * 1024, // 1 MB
     } as fs.Stats);
 
-    // Mock fs.createReadStream
-    const mockStream = new Readable();
-    mockStream._read = jest.fn();
-    jest
-      .spyOn(fs, 'createReadStream')
-      .mockReturnValue(mockStream as fs.ReadStream);
+    // Mock fs.createReadStream with a Readable-like object that FormData accepts
+    const mockStream = new Readable({
+      read() {
+        this.push(Buffer.alloc(1024));
+        this.push(null);
+      },
+    });
+    jest.spyOn(fs, 'createReadStream').mockReturnValue(mockStream as fs.ReadStream);
   });
 
   afterEach(() => {
@@ -66,19 +68,22 @@ describe('Upload', () => {
         expect.any(Object), // FormData
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Content-Type': 'application/vnd.android.package-archive',
-            'Content-Disposition': 'attachment; filename=app.apk',
             'User-Agent': 'TestingBot-CTL-test',
           }),
           auth: {
             username: 'testUser',
             password: 'testKey',
           },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
         }),
       );
+      // Verify multipart/form-data content type is set by FormData
+      const callArgs = (axios.post as jest.Mock).mock.calls[0][2];
+      expect(callArgs.headers['content-type']).toMatch(/^multipart\/form-data/);
     });
 
-    it('should use the correct content type for iOS apps', async () => {
+    it('should upload iOS apps successfully', async () => {
       const mockResponse = { data: { id: 67890 } };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
@@ -93,14 +98,15 @@ describe('Upload', () => {
         options.url,
         expect.any(Object),
         expect.objectContaining({
-          headers: expect.objectContaining({
-            'Content-Type': 'application/octet-stream',
-          }),
+          auth: {
+            username: 'testUser',
+            password: 'testKey',
+          },
         }),
       );
     });
 
-    it('should use the correct content type for zip files', async () => {
+    it('should upload zip files successfully', async () => {
       const mockResponse = { data: { id: 11111 } };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
@@ -115,9 +121,10 @@ describe('Upload', () => {
         options.url,
         expect.any(Object),
         expect.objectContaining({
-          headers: expect.objectContaining({
-            'Content-Type': 'application/zip',
-          }),
+          auth: {
+            username: 'testUser',
+            password: 'testKey',
+          },
         }),
       );
     });
@@ -228,43 +235,49 @@ describe('Upload', () => {
   });
 
   describe('progress tracking', () => {
-    it('should configure onUploadProgress when showProgress is true', async () => {
+    it('should show progress bar when showProgress is true', async () => {
       const mockResponse = { data: { id: 12345 } };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
-      // Mock process.stdout.write to prevent console output during tests
+      // Mock process.stdout.write to capture progress output
       const writeSpy = jest
         .spyOn(process.stdout, 'write')
         .mockImplementation(() => true);
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
       const options = createUploadOptions({ showProgress: true });
       await upload.upload(options);
 
-      expect(axios.post).toHaveBeenCalledWith(
-        options.url,
-        expect.any(Object),
-        expect.objectContaining({
-          onUploadProgress: expect.any(Function),
-        }),
+      // Should show progress bar with filename
+      expect(writeSpy).toHaveBeenCalledWith(
+        expect.stringContaining('app.apk'),
       );
+      // Should show percentage in progress bar
+      expect(writeSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\d+%/),
+      );
+      // Should print newline when complete
+      expect(logSpy).toHaveBeenCalledWith('');
 
       writeSpy.mockRestore();
+      logSpy.mockRestore();
     });
 
-    it('should not configure onUploadProgress when showProgress is false', async () => {
+    it('should not show upload message when showProgress is false', async () => {
       const mockResponse = { data: { id: 12345 } };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
+
+      const writeSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
 
       const options = createUploadOptions({ showProgress: false });
       await upload.upload(options);
 
-      expect(axios.post).toHaveBeenCalledWith(
-        options.url,
-        expect.any(Object),
-        expect.objectContaining({
-          onUploadProgress: undefined,
-        }),
-      );
+      // Should not show any upload message
+      expect(writeSpy).not.toHaveBeenCalled();
+
+      writeSpy.mockRestore();
     });
   });
 });
