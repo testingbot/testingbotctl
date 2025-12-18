@@ -202,6 +202,9 @@ export default class Maestro {
       if (this.options.async) {
         if (!this.options.quiet) {
           logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
+          logger.info(
+            `View realtime results: https://testingbot.com/members/maestro/${this.appId}`,
+          );
         }
         return { success: true, runs: [] };
       }
