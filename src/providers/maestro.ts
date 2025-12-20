@@ -351,6 +351,12 @@ export default class Maestro {
     // Determine base directory for zip structure
     // If we have a single directory, use it as base; otherwise use common ancestor or flatten
     const baseDir = baseDirs.length === 1 ? baseDirs[0] : undefined;
+
+    // Log files being included in the zip
+    if (!this.options.quiet) {
+      this.logIncludedFiles(allFlowFiles, baseDir);
+    }
+
     zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
     shouldCleanup = true;
 
@@ -416,81 +422,47 @@ export default class Maestro {
       dependencies.forEach((dep) => allFiles.add(dep));
     }
 
+    // Include config.yaml if it exists
+    if (config) {
+      allFiles.add(configPath);
+    }
+
     return Array.from(allFiles);
   }
 
   private async discoverDependencies(
     flowFile: string,
     baseDir: string,
+    visited: Set<string> = new Set(),
   ): Promise<string[]> {
+    // Normalize path to handle different relative path references to same file
+    const normalizedFlowFile = path.resolve(flowFile);
+
+    // Prevent circular dependencies
+    if (visited.has(normalizedFlowFile)) {
+      return [];
+    }
+    visited.add(normalizedFlowFile);
+
     const dependencies: string[] = [];
 
     try {
       const content = await fs.promises.readFile(flowFile, 'utf-8');
-      const flowData = yaml.load(content);
 
-      if (Array.isArray(flowData)) {
-        for (const step of flowData) {
-          if (typeof step === 'object' && step !== null) {
-            // Check for runFlow
-            if ('runFlow' in step) {
-              const runFlowValue = step.runFlow;
-              const refFile =
-                typeof runFlowValue === 'string'
-                  ? runFlowValue
-                  : runFlowValue?.file;
-              if (refFile) {
-                const depPath = path.resolve(path.dirname(flowFile), refFile);
-                if (
-                  (await fs.promises.access(depPath).catch(() => false)) ===
-                  undefined
-                ) {
-                  dependencies.push(depPath);
-                  const nestedDeps = await this.discoverDependencies(
-                    depPath,
-                    baseDir,
-                  );
-                  dependencies.push(...nestedDeps);
-                }
-              }
-            }
-            // Check for runScript
-            if ('runScript' in step) {
-              const scriptFile = step.runScript?.file;
-              if (scriptFile) {
-                const depPath = path.resolve(
-                  path.dirname(flowFile),
-                  scriptFile,
-                );
-                if (
-                  (await fs.promises.access(depPath).catch(() => false)) ===
-                  undefined
-                ) {
-                  dependencies.push(depPath);
-                }
-              }
-            }
-            // Check for addMedia
-            if ('addMedia' in step) {
-              const mediaFiles = Array.isArray(step.addMedia)
-                ? step.addMedia
-                : [step.addMedia];
-              for (const mediaFile of mediaFiles) {
-                if (typeof mediaFile === 'string') {
-                  const depPath = path.resolve(
-                    path.dirname(flowFile),
-                    mediaFile,
-                  );
-                  if (
-                    (await fs.promises.access(depPath).catch(() => false)) ===
-                    undefined
-                  ) {
-                    dependencies.push(depPath);
-                  }
-                }
-              }
-            }
-          }
+      // Maestro YAML files can have front matter (metadata) followed by ---
+      // and then the actual flow steps. Use loadAll to handle both cases.
+      const documents: unknown[] = [];
+      yaml.loadAll(content, (doc) => documents.push(doc));
+
+      for (const flowData of documents) {
+        if (flowData !== null && typeof flowData === 'object') {
+          const deps = await this.extractPathsFromValue(
+            flowData,
+            flowFile,
+            baseDir,
+            visited,
+          );
+          dependencies.push(...deps);
         }
       }
     } catch {
@@ -498,6 +470,242 @@ export default class Maestro {
     }
 
     return dependencies;
+  }
+
+  /**
+   * Check if a string looks like a file path (relative path with extension)
+   */
+  private looksLikePath(value: string): boolean {
+    // Must be a relative path (starts with . or contains /)
+    const isRelative = value.startsWith('./') || value.startsWith('../');
+    const hasPathSeparator = value.includes('/');
+
+    // Must have a file extension
+    const hasExtension = /\.[a-zA-Z0-9]+$/.test(value);
+
+    // Exclude URLs
+    const isUrl =
+      value.startsWith('http://') ||
+      value.startsWith('https://') ||
+      value.startsWith('file://');
+
+    // Exclude template variables that are just ${...}
+    const isOnlyVariable = /^\$\{[^}]+\}$/.test(value);
+
+    return (isRelative || hasPathSeparator) && hasExtension && !isUrl && !isOnlyVariable;
+  }
+
+  /**
+   * Try to add a file path as a dependency if it exists
+   */
+  private async tryAddDependency(
+    filePath: string,
+    flowFile: string,
+    baseDir: string,
+    dependencies: string[],
+    visited: Set<string>,
+  ): Promise<void> {
+    const depPath = path.resolve(path.dirname(flowFile), filePath);
+
+    // Check if already added (handles deduplication for non-YAML files)
+    // YAML files are tracked by discoverDependencies to handle circular refs
+    if (visited.has(depPath)) {
+      return;
+    }
+
+    if (
+      (await fs.promises.access(depPath).catch(() => false)) === undefined
+    ) {
+      dependencies.push(depPath);
+
+      // If it's a YAML file, recursively discover its dependencies
+      // discoverDependencies will add it to visited to prevent circular refs
+      const ext = path.extname(depPath).toLowerCase();
+      if (ext === '.yaml' || ext === '.yml') {
+        const nestedDeps = await this.discoverDependencies(depPath, baseDir, visited);
+        dependencies.push(...nestedDeps);
+      } else {
+        // For non-YAML files, add to visited here to prevent duplicates
+        visited.add(depPath);
+      }
+    }
+  }
+
+  /**
+   * Recursively extract file paths from any value in the YAML structure
+   */
+  private async extractPathsFromValue(
+    value: unknown,
+    flowFile: string,
+    baseDir: string,
+    visited: Set<string>,
+  ): Promise<string[]> {
+    const dependencies: string[] = [];
+
+    if (typeof value === 'string') {
+      // Check if this string looks like a file path
+      if (this.looksLikePath(value)) {
+        await this.tryAddDependency(value, flowFile, baseDir, dependencies, visited);
+      }
+    } else if (Array.isArray(value)) {
+      // Recursively check array elements
+      for (const item of value) {
+        const deps = await this.extractPathsFromValue(item, flowFile, baseDir, visited);
+        dependencies.push(...deps);
+      }
+    } else if (value !== null && typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+
+      // Track which keys we've handled specially to avoid double-processing
+      const handledKeys = new Set<string>();
+
+      // Handle known Maestro commands that reference files
+      // These should always be treated as file paths, even without path separators
+
+      // runScript: can be string or { file: "..." }
+      if ('runScript' in obj) {
+        handledKeys.add('runScript');
+        const runScript = obj.runScript;
+        const scriptFile =
+          typeof runScript === 'string'
+            ? runScript
+            : (runScript as Record<string, unknown>)?.file;
+        if (typeof scriptFile === 'string') {
+          await this.tryAddDependency(scriptFile, flowFile, baseDir, dependencies, visited);
+        }
+      }
+
+      // runFlow: can be string or { file: "...", commands: [...] }
+      if ('runFlow' in obj) {
+        handledKeys.add('runFlow');
+        const runFlow = obj.runFlow;
+        const flowRef =
+          typeof runFlow === 'string'
+            ? runFlow
+            : (runFlow as Record<string, unknown>)?.file;
+        if (typeof flowRef === 'string') {
+          await this.tryAddDependency(flowRef, flowFile, baseDir, dependencies, visited);
+        }
+        // Recurse into runFlow for inline commands
+        if (typeof runFlow === 'object' && runFlow !== null) {
+          const deps = await this.extractPathsFromValue(runFlow, flowFile, baseDir, visited);
+          dependencies.push(...deps);
+        }
+      }
+
+      // addMedia: can be string or array of strings
+      if ('addMedia' in obj) {
+        handledKeys.add('addMedia');
+        const addMedia = obj.addMedia;
+        const mediaFiles = Array.isArray(addMedia) ? addMedia : [addMedia];
+        for (const mediaFile of mediaFiles) {
+          if (typeof mediaFile === 'string') {
+            await this.tryAddDependency(mediaFile, flowFile, baseDir, dependencies, visited);
+          }
+        }
+      }
+
+      // onFlowStart: array of commands in frontmatter
+      if ('onFlowStart' in obj) {
+        handledKeys.add('onFlowStart');
+        const onFlowStart = obj.onFlowStart;
+        if (Array.isArray(onFlowStart)) {
+          const deps = await this.extractPathsFromValue(onFlowStart, flowFile, baseDir, visited);
+          dependencies.push(...deps);
+        }
+      }
+
+      // onFlowComplete: array of commands in frontmatter
+      if ('onFlowComplete' in obj) {
+        handledKeys.add('onFlowComplete');
+        const onFlowComplete = obj.onFlowComplete;
+        if (Array.isArray(onFlowComplete)) {
+          const deps = await this.extractPathsFromValue(onFlowComplete, flowFile, baseDir, visited);
+          dependencies.push(...deps);
+        }
+      }
+
+      // Generic handling for any command with nested 'commands' array
+      // This covers repeat, retry, doubleTapOn, longPressOn, and any future commands
+      // that use the commands pattern
+      if ('commands' in obj) {
+        handledKeys.add('commands');
+        const commands = obj.commands;
+        if (Array.isArray(commands)) {
+          const deps = await this.extractPathsFromValue(commands, flowFile, baseDir, visited);
+          dependencies.push(...deps);
+        }
+      }
+
+      // Generic handling for 'file' property in any command (e.g., retry: { file: ... })
+      if ('file' in obj && typeof obj.file === 'string') {
+        handledKeys.add('file');
+        await this.tryAddDependency(obj.file, flowFile, baseDir, dependencies, visited);
+      }
+
+      // Recursively check remaining object properties for nested structures
+      for (const [key, propValue] of Object.entries(obj)) {
+        if (!handledKeys.has(key)) {
+          const deps = await this.extractPathsFromValue(
+            propValue,
+            flowFile,
+            baseDir,
+            visited,
+          );
+          dependencies.push(...deps);
+        }
+      }
+    }
+
+    return dependencies;
+  }
+
+  private logIncludedFiles(files: string[], baseDir?: string): void {
+    // Get relative paths for display
+    const relativePaths = files
+      .map((f) => (baseDir ? path.relative(baseDir, f) : path.basename(f)))
+      .sort();
+
+    // Group by file type
+    const groups: Record<string, string[]> = {
+      'Flow files': [],
+      'Scripts': [],
+      'Media files': [],
+      'Config files': [],
+      'Other': [],
+    };
+
+    for (const filePath of relativePaths) {
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext === '.yaml' || ext === '.yml') {
+        if (filePath === 'config.yaml' || filePath.endsWith('/config.yaml')) {
+          groups['Config files'].push(filePath);
+        } else {
+          groups['Flow files'].push(filePath);
+        }
+      } else if (ext === '.js' || ext === '.ts') {
+        groups['Scripts'].push(filePath);
+      } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov'].includes(ext)) {
+        groups['Media files'].push(filePath);
+      } else {
+        groups['Other'].push(filePath);
+      }
+    }
+
+    logger.info(`Bundling ${files.length} files into flows.zip:`);
+    for (const [groupName, groupFiles] of Object.entries(groups)) {
+      if (groupFiles.length > 0) {
+        logger.info(`  ${groupName} (${groupFiles.length}):`);
+        // Show first 10 files, then summarize if more
+        const displayFiles = groupFiles.slice(0, 10);
+        for (const file of displayFiles) {
+          logger.info(`    - ${file}`);
+        }
+        if (groupFiles.length > 10) {
+          logger.info(`    ... and ${groupFiles.length - 10} more`);
+        }
+      }
+    }
   }
 
   private async createFlowsZip(
