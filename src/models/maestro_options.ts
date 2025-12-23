@@ -54,6 +54,7 @@ export default class MaestroOptions {
   private _realDevice: boolean;
   private _downloadArtifacts: boolean;
   private _artifactsOutputDir?: string;
+  private _ignoreChecksumCheck: boolean;
 
   public constructor(
     app: string,
@@ -80,6 +81,7 @@ export default class MaestroOptions {
       realDevice?: boolean;
       downloadArtifacts?: boolean;
       artifactsOutputDir?: string;
+      ignoreChecksumCheck?: boolean;
     },
   ) {
     this._app = app;
@@ -105,6 +107,7 @@ export default class MaestroOptions {
     this._realDevice = options?.realDevice ?? false;
     this._downloadArtifacts = options?.downloadArtifacts ?? false;
     this._artifactsOutputDir = options?.artifactsOutputDir;
+    this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
   }
 
   public get app(): string {
@@ -197,6 +200,10 @@ export default class MaestroOptions {
 
   public get artifactsOutputDir(): string | undefined {
     return this._artifactsOutputDir;
+  }
+
+  public get ignoreChecksumCheck(): boolean {
+    return this._ignoreChecksumCheck;
   }
 
   public getMaestroOptions(): MaestroRunOptions | undefined {

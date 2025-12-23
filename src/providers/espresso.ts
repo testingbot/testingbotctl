@@ -280,6 +280,10 @@ export default class Espresso {
         },
       });
 
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
+
       return response.data;
     } catch (error) {
       throw new TestingBotError(`Failed to get Espresso test status`, {
@@ -454,6 +458,10 @@ export default class Espresso {
           password: this.credentials.accessKey,
         },
       });
+
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
 
       const reportContent = response.data;
 

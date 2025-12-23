@@ -41,16 +41,22 @@ export default {
     const currentVersion = this.getCurrentVersion();
     if (this.compareVersions(currentVersion, latestVersion) < 0) {
       versionCheckDisplayed = true;
+      const border = '─'.repeat(80);
+
+      logger.info(`\nCLI Version: ${colors.cyan(currentVersion)}\n`);
+      logger.warn(colors.yellow(border));
+      logger.warn(colors.yellow('⚠  Update Available'));
       logger.warn(
         colors.yellow(
-          `\n📦 A new version of testingbotctl is available: ${colors.green(latestVersion)} (current: ${currentVersion})`,
+          `   A new version of the TestingBot CLI is available: ${colors.green(latestVersion)}`,
         ),
       );
       logger.warn(
         colors.yellow(
-          `   Run ${colors.cyan('npm update -g testingbotctl')} to update.\n`,
+          `   Run: ${colors.cyan('npm install -g @testingbot/cli@latest')}`,
         ),
       );
+      logger.warn(colors.yellow(border) + '\n');
     }
   },
 };

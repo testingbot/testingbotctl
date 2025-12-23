@@ -260,6 +260,21 @@ export default class Maestro {
       contentType = 'application/octet-stream';
     }
 
+    // Check if app already exists (unless checksum check is disabled)
+    if (!this.options.ignoreChecksumCheck) {
+      const checksum = await this.upload.calculateChecksum(appPath);
+      const existingApp = await this.checkAppChecksum(checksum);
+
+      if (existingApp) {
+        this.appId = existingApp.id;
+        if (!this.options.quiet) {
+          logger.info('  App already uploaded, skipping upload');
+        }
+        return true;
+      }
+    }
+
+    // App doesn't exist (or checksum check skipped), upload it
     const result = await this.upload.upload({
       filePath: appPath,
       url: `${this.URL}/app`,
@@ -269,7 +284,43 @@ export default class Maestro {
     });
 
     this.appId = result.id;
+
     return true;
+  }
+
+  private async checkAppChecksum(
+    checksum: string,
+  ): Promise<{ id: number } | null> {
+    try {
+      const response = await axios.post(
+        `${this.URL}/app/checksum`,
+        { checksum },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+        },
+      );
+
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
+
+      const result = response.data;
+      if (result.app_exists && result.id) {
+        return { id: result.id };
+      }
+
+      return null;
+    } catch {
+      // If checksum check fails, proceed with upload
+      return null;
+    }
   }
 
   private async uploadFlows() {
@@ -807,6 +858,10 @@ export default class Maestro {
         },
       });
 
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
+
       return response.data;
     } catch (error) {
       throw new TestingBotError(`Failed to get Maestro test status`, {
@@ -1001,6 +1056,10 @@ export default class Maestro {
           },
         );
 
+        // Check for version update notification
+        const latestVersion = response.headers?.['x-testingbotctl-version'];
+        utils.checkForUpdate(latestVersion);
+
         // Extract the report content from the JSON response
         const reportKey =
           reportFormat === 'junit' ? 'junit_report' : 'html_report';
@@ -1039,6 +1098,10 @@ export default class Maestro {
           password: this.credentials.accessKey,
         },
       });
+
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
 
       return response.data;
     } catch (error) {

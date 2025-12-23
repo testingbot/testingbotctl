@@ -10,6 +10,7 @@ jest.mock('../src/utils', () => ({
   __esModule: true,
   default: {
     getUserAgent: jest.fn().mockReturnValue('TestingBot-CTL-test'),
+    checkForUpdate: jest.fn(),
   },
 }));
 
@@ -56,7 +57,7 @@ describe('Upload', () => {
 
   describe('successful uploads', () => {
     it('should upload a file and return the id', async () => {
-      const mockResponse = { data: { id: 12345 } };
+      const mockResponse = { data: { id: 12345 }, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const options = createUploadOptions();
@@ -84,7 +85,7 @@ describe('Upload', () => {
     });
 
     it('should upload iOS apps successfully', async () => {
-      const mockResponse = { data: { id: 67890 } };
+      const mockResponse = { data: { id: 67890 }, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const options = createUploadOptions({
@@ -107,7 +108,7 @@ describe('Upload', () => {
     });
 
     it('should upload zip files successfully', async () => {
-      const mockResponse = { data: { id: 11111 } };
+      const mockResponse = { data: { id: 11111 }, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const options = createUploadOptions({
@@ -160,7 +161,7 @@ describe('Upload', () => {
 
   describe('API error handling', () => {
     it('should throw an error if API returns no id', async () => {
-      const mockResponse = { data: { error: 'Invalid file format' } };
+      const mockResponse = { data: { error: 'Invalid file format' }, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const options = createUploadOptions();
@@ -171,7 +172,7 @@ describe('Upload', () => {
     });
 
     it('should throw an error with unknown error when no error message provided', async () => {
-      const mockResponse = { data: {} };
+      const mockResponse = { data: {}, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const options = createUploadOptions();
@@ -236,7 +237,7 @@ describe('Upload', () => {
 
   describe('progress tracking', () => {
     it('should show progress bar when showProgress is true', async () => {
-      const mockResponse = { data: { id: 12345 } };
+      const mockResponse = { data: { id: 12345 }, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       // Mock process.stdout.write to capture progress output
@@ -264,7 +265,7 @@ describe('Upload', () => {
     });
 
     it('should not show upload message when showProgress is false', async () => {
-      const mockResponse = { data: { id: 12345 } };
+      const mockResponse = { data: { id: 12345 }, headers: {} };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const writeSpy = jest

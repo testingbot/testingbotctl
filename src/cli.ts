@@ -305,6 +305,10 @@ const maestroCommand = program
     '--artifacts-output-dir <path>',
     'Directory to save artifacts zip (defaults to current directory).',
   )
+  .option(
+    '--ignore-checksum-check',
+    'Skip checksum verification and always upload the app.',
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -362,6 +366,7 @@ const maestroCommand = program
         realDevice: args.realDevice,
         downloadArtifacts: args.downloadArtifacts,
         artifactsOutputDir: args.artifactsOutputDir,
+        ignoreChecksumCheck: args.ignoreChecksumCheck,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,

@@ -202,16 +202,35 @@ describe('Maestro', () => {
       const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
       fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
-      const mockResponse = {
-        data: {
-          id: 1234,
-        },
-      };
+      const checksumResponse = { data: { app_exists: false }, headers: {} };
+      const uploadResponse = { data: { id: 1234 }, headers: {} };
 
-      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+      axios.post = jest.fn()
+        .mockResolvedValueOnce(checksumResponse)
+        .mockResolvedValueOnce(uploadResponse);
 
       await expect(maestro['uploadApp']()).resolves.toBe(true);
+      expect(maestro['appId']).toBe(1234);
       expect(fs.createReadStream).toHaveBeenCalledWith(mockOptions.app);
+    });
+
+    it('should skip upload when app already exists (checksum match)', async () => {
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
+
+      const checksumResponse = {
+        data: { app_exists: true, id: 5678 },
+        headers: {},
+      };
+
+      axios.post = jest.fn().mockResolvedValueOnce(checksumResponse);
+
+      await expect(maestro['uploadApp']()).resolves.toBe(true);
+      expect(maestro['appId']).toBe(5678);
+      // Upload should not have been called (only checksum call)
+      expect(axios.post).toHaveBeenCalledTimes(1);
     });
 
     it('should throw an error if app upload fails', async () => {
@@ -220,12 +239,31 @@ describe('Maestro', () => {
       const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
       fs.createReadStream = jest.fn().mockReturnValue(mockStream);
 
-      const mockResponse = { data: { error: 'Upload failed' } };
-      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+      const checksumResponse = { data: { app_exists: false }, headers: {} };
+      const uploadResponse = { data: { error: 'Upload failed' }, headers: {} };
+      axios.post = jest.fn()
+        .mockResolvedValueOnce(checksumResponse)
+        .mockResolvedValueOnce(uploadResponse);
 
       await expect(maestro['uploadApp']()).rejects.toThrow(
         new TestingBotError('Upload failed: Upload failed'),
       );
+    });
+
+    it('should proceed with upload if checksum check fails', async () => {
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
+      const mockStream = new Readable({ read() { this.push(Buffer.alloc(1024)); this.push(null); } });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
+
+      const uploadResponse = { data: { id: 1234 }, headers: {} };
+
+      axios.post = jest.fn()
+        .mockRejectedValueOnce(new Error('Network error'))
+        .mockResolvedValueOnce(uploadResponse);
+
+      await expect(maestro['uploadApp']()).resolves.toBe(true);
+      expect(maestro['appId']).toBe(1234);
     });
   });
 
@@ -677,9 +715,10 @@ describe('Maestro', () => {
       // Mock upload responses
       axios.post = jest
         .fn()
-        .mockResolvedValueOnce({ data: { id: 1234 } }) // uploadApp
-        .mockResolvedValueOnce({ data: { id: 1234 } }) // uploadFlows
-        .mockResolvedValueOnce({ data: { success: true } }); // runTests
+        .mockResolvedValueOnce({ data: { app_exists: false }, headers: {} }) // checksum
+        .mockResolvedValueOnce({ data: { id: 1234 }, headers: {} }) // uploadApp
+        .mockResolvedValueOnce({ data: { id: 1234 }, headers: {} }) // uploadFlows
+        .mockResolvedValueOnce({ data: { success: true }, headers: {} }); // runTests
 
       // getStatus should NOT be called in async mode
       axios.get = jest.fn();
@@ -714,9 +753,10 @@ describe('Maestro', () => {
       // Mock upload and run responses
       axios.post = jest
         .fn()
-        .mockResolvedValueOnce({ data: { id: 1234 } }) // uploadApp
-        .mockResolvedValueOnce({ data: { id: 1234 } }) // uploadFlows
-        .mockResolvedValueOnce({ data: { success: true } }); // runTests
+        .mockResolvedValueOnce({ data: { app_exists: false }, headers: {} }) // checksum
+        .mockResolvedValueOnce({ data: { id: 1234 }, headers: {} }) // uploadApp
+        .mockResolvedValueOnce({ data: { id: 1234 }, headers: {} }) // uploadFlows
+        .mockResolvedValueOnce({ data: { success: true }, headers: {} }); // runTests
 
       // Mock status polling
       const completedResponse = {
@@ -1175,9 +1215,10 @@ describe('Maestro', () => {
         // Mock uploads and run
         axios.post = jest
           .fn()
-          .mockResolvedValueOnce({ data: { id: 1234 } }) // uploadApp
-          .mockResolvedValueOnce({ data: { id: 1234 } }) // uploadFlows
-          .mockResolvedValueOnce({ data: { success: true } }); // runTests
+          .mockResolvedValueOnce({ data: { app_exists: false }, headers: {} }) // checksum
+          .mockResolvedValueOnce({ data: { id: 1234 }, headers: {} }) // uploadApp
+          .mockResolvedValueOnce({ data: { id: 1234 }, headers: {} }) // uploadFlows
+          .mockResolvedValueOnce({ data: { success: true }, headers: {} }); // runTests
 
         // Mock status polling
         const completedResponse = {

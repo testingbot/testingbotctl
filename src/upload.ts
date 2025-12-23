@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import FormData from 'form-data';
@@ -18,6 +19,7 @@ export interface UploadOptions {
   credentials: Credentials;
   contentType: ContentType;
   showProgress?: boolean;
+  checksum?: string;
 }
 
 export interface UploadResult {
@@ -40,7 +42,6 @@ export default class Upload {
     const totalSize = fileStats.size;
     const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
 
-    // Create progress tracker
     const progressTracker = progress({
       length: totalSize,
       time: 100, // Emit progress every 100ms
@@ -49,7 +50,6 @@ export default class Upload {
     let lastPercent = 0;
 
     if (showProgress) {
-      // Draw initial progress bar
       this.drawProgressBar(fileName, sizeMB, 0);
 
       progressTracker.on('progress', (prog) => {
@@ -61,7 +61,6 @@ export default class Upload {
       });
     }
 
-    // Create file stream and pipe through progress tracker
     const fileStream = fs.createReadStream(filePath);
     const trackedStream = fileStream.pipe(progressTracker);
 
@@ -71,6 +70,10 @@ export default class Upload {
       contentType: options.contentType,
       knownLength: totalSize,
     });
+
+    if (options.checksum) {
+      formData.append('checksum', options.checksum);
+    }
 
     try {
       const response = await axios.post(url, formData, {
@@ -86,6 +89,10 @@ export default class Upload {
         maxBodyLength: Infinity,
         maxRedirects: 0, // Recommended for stream uploads to avoid buffering
       });
+
+      // Check for version update notification
+      const latestVersion = response.headers?.['x-testingbotctl-version'];
+      utils.checkForUpdate(latestVersion);
 
       const result = response.data;
       if (result.id) {
@@ -150,5 +157,20 @@ export default class Upload {
     } catch {
       throw new TestingBotError(`File not found or not readable: ${filePath}`);
     }
+  }
+
+  /**
+   * Calculate MD5 checksum of a file, returning base64-encoded result
+   * This matches ActiveStorage's checksum format
+   */
+  public async calculateChecksum(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('md5');
+      const stream = fs.createReadStream(filePath);
+
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('end', () => resolve(hash.digest('base64')));
+      stream.on('error', (err) => reject(err));
+    });
   }
 }
