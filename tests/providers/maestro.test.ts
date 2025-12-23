@@ -1795,12 +1795,12 @@ describe('Maestro', () => {
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/login.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
 
-      expect(deps).toContain('/project/config/mocks.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'config', 'mocks.js'));
     });
 
     it('should discover runScript with object format', async () => {
@@ -1814,12 +1814,12 @@ describe('Maestro', () => {
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/login.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
 
-      expect(deps).toContain('/project/config/mocks.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'config', 'mocks.js'));
     });
 
     it('should discover multiple runScript dependencies with mixed formats', async () => {
@@ -1834,14 +1834,14 @@ describe('Maestro', () => {
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/login.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
 
-      expect(deps).toContain('/project/config/mocks.js');
-      expect(deps).toContain('/project/config/setup.js');
-      expect(deps).toContain('/project/helpers/index.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'config', 'mocks.js'));
+      expect(deps).toContain(path.join(projectDir, 'config', 'setup.js'));
+      expect(deps).toContain(path.join(projectDir, 'helpers', 'index.js'));
     });
 
     it('should handle multi-document YAML with front matter', async () => {
@@ -1855,12 +1855,19 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/subflows/loadApp.yaml',
-        '/project',
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(
+        projectDir,
+        'flows',
+        'subflows',
+        'loadApp.yaml',
       );
 
-      expect(deps).toContain('/project/flows/config/mocks.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'config', 'mocks.js'),
+      );
     });
 
     it('should handle multi-document YAML with runScript object format', async () => {
@@ -1879,14 +1886,21 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/app/flows/settings/subflows/loadApp.yaml',
-        '/project',
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(
+        projectDir,
+        'app',
+        'flows',
+        'settings',
+        'subflows',
+        'loadApp.yaml',
       );
 
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
       // From /project/app/flows/settings/subflows/, ../../../../ goes to /project/
-      expect(deps).toContain('/project/config/mocks.js');
-      expect(deps).toContain('/project/config/en-GB.js');
+      expect(deps).toContain(path.join(projectDir, 'config', 'mocks.js'));
+      expect(deps).toContain(path.join(projectDir, 'config', 'en-GB.js'));
     });
 
     it('should discover runFlow dependencies recursively', async () => {
@@ -1904,13 +1918,17 @@ tags:
         .mockResolvedValueOnce(helperFlowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/flows/subflows/helper.yaml');
-      expect(deps).toContain('/project/flows/config/setup.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'subflows', 'helper.yaml'),
+      );
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'config', 'setup.js'),
+      );
     });
 
     it('should discover runFlow with object format', async () => {
@@ -1929,12 +1947,14 @@ tags:
         .mockResolvedValueOnce(helperFlowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/flows/subflows/helper.yaml');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'subflows', 'helper.yaml'),
+      );
     });
 
     it('should discover addMedia dependencies', async () => {
@@ -1945,12 +1965,12 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/upload.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'upload.yaml');
 
-      expect(deps).toContain('/project/assets/test_image.jpg');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'assets', 'test_image.jpg'));
     });
 
     it('should discover addMedia with array format', async () => {
@@ -1962,13 +1982,13 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/upload.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'upload.yaml');
 
-      expect(deps).toContain('/project/assets/image1.jpg');
-      expect(deps).toContain('/project/assets/image2.png');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'assets', 'image1.jpg'));
+      expect(deps).toContain(path.join(projectDir, 'assets', 'image2.png'));
     });
 
     it('should discover addMedia inside runFlow with inline commands', async () => {
@@ -1985,13 +2005,21 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/app/flows/subflows/loadApp.yaml',
-        '/project',
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(
+        projectDir,
+        'app',
+        'flows',
+        'subflows',
+        'loadApp.yaml',
       );
 
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
       // From /project/app/flows/subflows/, ../../assets/ resolves to /project/app/assets/
-      expect(deps).toContain('/project/app/assets/media_image.jpg');
+      expect(deps).toContain(
+        path.join(projectDir, 'app', 'assets', 'media_image.jpg'),
+      );
     });
 
     it('should discover runScript inside runFlow with inline commands', async () => {
@@ -2006,12 +2034,14 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/config/conditional.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(
+        path.join(projectDir, 'config', 'conditional.js'),
+      );
     });
 
     it('should discover plain filenames in runScript commands', async () => {
@@ -2029,13 +2059,19 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/subflows/setUserAndEnvironment.yaml',
-        '/project',
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(
+        projectDir,
+        'subflows',
+        'setUserAndEnvironment.yaml',
       );
 
-      expect(deps).toContain('/project/subflows/setManager.js');
-      expect(deps).toContain('/project/subflows/setUser.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(
+        path.join(projectDir, 'subflows', 'setManager.js'),
+      );
+      expect(deps).toContain(path.join(projectDir, 'subflows', 'setUser.js'));
     });
 
     it('should discover nested dependencies in runFlow with inline commands', async () => {
@@ -2057,15 +2093,15 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/config/setup.js');
-      expect(deps).toContain('/project/assets/image1.jpg');
-      expect(deps).toContain('/project/assets/image2.jpg');
-      expect(deps).toContain('/project/config/teardown.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'config', 'setup.js'));
+      expect(deps).toContain(path.join(projectDir, 'assets', 'image1.jpg'));
+      expect(deps).toContain(path.join(projectDir, 'assets', 'image2.jpg'));
+      expect(deps).toContain(path.join(projectDir, 'config', 'teardown.js'));
     });
 
     it('should discover dependencies in repeat command', async () => {
@@ -2085,14 +2121,16 @@ tags:
         .mockResolvedValueOnce(subflowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/flows/subflow.yaml');
-      expect(deps).toContain('/project/flows/validation.js');
-      expect(deps).toContain('/project/flows/images/logo.png');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'flows', 'subflow.yaml'));
+      expect(deps).toContain(path.join(projectDir, 'flows', 'validation.js'));
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'images', 'logo.png'),
+      );
     });
 
     it('should discover dependencies in retry command with file reference', async () => {
@@ -2112,13 +2150,15 @@ tags:
         .mockResolvedValueOnce(nestedContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/flows/retry_flow.yaml');
-      expect(deps).toContain('/project/flows/nested.yaml');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'retry_flow.yaml'),
+      );
+      expect(deps).toContain(path.join(projectDir, 'flows', 'nested.yaml'));
     });
 
     it('should discover dependencies in retry command with inline commands', async () => {
@@ -2133,13 +2173,15 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/flows/cleanup.js');
-      expect(deps).toContain('/project/flows/images/retry.png');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'flows', 'cleanup.js'));
+      expect(deps).toContain(
+        path.join(projectDir, 'flows', 'images', 'retry.png'),
+      );
     });
 
     it('should discover dependencies in onFlowStart and onFlowComplete hooks', async () => {
@@ -2162,15 +2204,15 @@ onFlowComplete:
         .mockResolvedValueOnce(cleanupContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/flows/startup.yaml');
-      expect(deps).toContain('/project/flows/init.js');
-      expect(deps).toContain('/project/flows/cleanup.yaml');
-      expect(deps).toContain('/project/flows/teardown.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'flows', 'startup.yaml'));
+      expect(deps).toContain(path.join(projectDir, 'flows', 'init.js'));
+      expect(deps).toContain(path.join(projectDir, 'flows', 'cleanup.yaml'));
+      expect(deps).toContain(path.join(projectDir, 'flows', 'teardown.js'));
     });
 
     it('should handle circular dependencies without infinite loop', async () => {
@@ -2190,13 +2232,13 @@ onFlowComplete:
         .mockResolvedValueOnce(flow2Content);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/flow1.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'flow1.yaml');
+
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
 
       // Should find flow2 but not loop infinitely
-      expect(deps).toContain('/project/flows/flow2.yaml');
+      expect(deps).toContain(path.join(projectDir, 'flows', 'flow2.yaml'));
       // The mock was only called twice, proving no infinite loop
       expect(fs.promises.readFile).toHaveBeenCalledTimes(2);
     });
@@ -2216,15 +2258,14 @@ onFlowComplete:
         .mockResolvedValueOnce(subflowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
+
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
 
       // Should only include subflow once despite multiple references
-      const subflowCount = deps.filter(
-        (d) => d === '/project/flows/subflow.yaml',
-      ).length;
+      const expectedSubflow = path.join(projectDir, 'flows', 'subflow.yaml');
+      const subflowCount = deps.filter((d) => d === expectedSubflow).length;
       expect(subflowCount).toBe(1);
     });
 
@@ -2239,13 +2280,15 @@ onFlowComplete:
         .mockResolvedValueOnce(undefined) // exists.js found
         .mockRejectedValueOnce(new Error('ENOENT')); // not-exists.js not found
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/main.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
-      expect(deps).toContain('/project/config/exists.js');
-      expect(deps).not.toContain('/project/config/not-exists.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'config', 'exists.js'));
+      expect(deps).not.toContain(
+        path.join(projectDir, 'config', 'not-exists.js'),
+      );
     });
 
     it('should return empty array for single-document YAML without dependencies', async () => {
@@ -2255,10 +2298,10 @@ onFlowComplete:
 `;
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/simple.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'simple.yaml');
+
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
 
       expect(deps).toEqual([]);
     });
@@ -2268,10 +2311,10 @@ onFlowComplete:
         .fn()
         .mockRejectedValue(new Error('File not found'));
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/flows/missing.yaml',
-        '/project',
-      );
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'missing.yaml');
+
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
 
       expect(deps).toEqual([]);
     });
@@ -2304,16 +2347,26 @@ tags:
         .mockResolvedValueOnce(loginFlowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const deps = await maestro['discoverDependencies'](
-        '/project/app/flows/settings/main.yaml',
-        '/project',
+      const projectDir = path.join(path.sep, 'project');
+      const flowPath = path.join(
+        projectDir,
+        'app',
+        'flows',
+        'settings',
+        'main.yaml',
       );
 
-      expect(deps).toContain('/project/app/config/mocks.js');
-      expect(deps).toContain('/project/app/config/setup.js');
-      expect(deps).toContain('/project/app/flows/subflows/login.yaml');
-      expect(deps).toContain('/project/app/assets/avatar.png');
-      expect(deps).toContain('/project/app/config/auth.js');
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps).toContain(path.join(projectDir, 'app', 'config', 'mocks.js'));
+      expect(deps).toContain(path.join(projectDir, 'app', 'config', 'setup.js'));
+      expect(deps).toContain(
+        path.join(projectDir, 'app', 'flows', 'subflows', 'login.yaml'),
+      );
+      expect(deps).toContain(
+        path.join(projectDir, 'app', 'assets', 'avatar.png'),
+      );
+      expect(deps).toContain(path.join(projectDir, 'app', 'config', 'auth.js'));
     });
   });
 
@@ -2373,22 +2426,28 @@ flows:
 excludeTags:
   - subflow
 `;
+      const projectDir = path.join(path.sep, 'project');
       fs.promises.readFile = jest.fn().mockResolvedValue(configContent);
       fs.promises.readdir = jest.fn().mockResolvedValue([]);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       (glob as jest.Mock).mockResolvedValue([
-        '/project/app/flows/login.yaml',
-        '/project/app/flows/settings.yaml',
+        path.join(projectDir, 'app', 'flows', 'login.yaml'),
+        path.join(projectDir, 'app', 'flows', 'settings.yaml'),
       ]);
 
-      const files = await maestro['discoverFlows']('/project');
+      const files = await maestro['discoverFlows'](projectDir);
 
-      expect(files).toContain('/project/config.yaml');
-      expect(files).toContain('/project/app/flows/login.yaml');
-      expect(files).toContain('/project/app/flows/settings.yaml');
+      expect(files).toContain(path.join(projectDir, 'config.yaml'));
+      expect(files).toContain(
+        path.join(projectDir, 'app', 'flows', 'login.yaml'),
+      );
+      expect(files).toContain(
+        path.join(projectDir, 'app', 'flows', 'settings.yaml'),
+      );
     });
 
     it('should not include config.yaml when it does not exist', async () => {
+      const projectDir = path.join(path.sep, 'project');
       fs.promises.readFile = jest
         .fn()
         .mockRejectedValue(new Error('ENOENT: no such file'));
@@ -2398,11 +2457,11 @@ excludeTags:
       ]);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const files = await maestro['discoverFlows']('/project');
+      const files = await maestro['discoverFlows'](projectDir);
 
-      expect(files).not.toContain('/project/config.yaml');
-      expect(files).toContain('/project/flow1.yaml');
-      expect(files).toContain('/project/flow2.yaml');
+      expect(files).not.toContain(path.join(projectDir, 'config.yaml'));
+      expect(files).toContain(path.join(projectDir, 'flow1.yaml'));
+      expect(files).toContain(path.join(projectDir, 'flow2.yaml'));
     });
 
     it('should use glob patterns from config.yaml when available', async () => {
@@ -2411,20 +2470,33 @@ flows:
   - "app/flows/**"
   - "web/flows/**"
 `;
+      const projectDir = path.join(path.sep, 'project');
       fs.promises.readFile = jest.fn().mockResolvedValue(configContent);
       fs.promises.readdir = jest.fn().mockResolvedValue([]);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
       (glob as jest.Mock)
-        .mockResolvedValueOnce(['/project/app/flows/test.yaml'])
-        .mockResolvedValueOnce(['/project/web/flows/test.yaml']);
+        .mockResolvedValueOnce([
+          path.join(projectDir, 'app', 'flows', 'test.yaml'),
+        ])
+        .mockResolvedValueOnce([
+          path.join(projectDir, 'web', 'flows', 'test.yaml'),
+        ]);
 
-      const files = await maestro['discoverFlows']('/project');
+      const files = await maestro['discoverFlows'](projectDir);
 
-      expect(glob).toHaveBeenCalledWith('/project/app/flows/**');
-      expect(glob).toHaveBeenCalledWith('/project/web/flows/**');
-      expect(files).toContain('/project/config.yaml');
-      expect(files).toContain('/project/app/flows/test.yaml');
-      expect(files).toContain('/project/web/flows/test.yaml');
+      expect(glob).toHaveBeenCalledWith(
+        path.join(projectDir, 'app', 'flows', '**'),
+      );
+      expect(glob).toHaveBeenCalledWith(
+        path.join(projectDir, 'web', 'flows', '**'),
+      );
+      expect(files).toContain(path.join(projectDir, 'config.yaml'));
+      expect(files).toContain(
+        path.join(projectDir, 'app', 'flows', 'test.yaml'),
+      );
+      expect(files).toContain(
+        path.join(projectDir, 'web', 'flows', 'test.yaml'),
+      );
     });
   });
 });
