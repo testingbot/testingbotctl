@@ -55,6 +55,7 @@ export default class MaestroOptions {
   private _downloadArtifacts: boolean;
   private _artifactsOutputDir?: string;
   private _ignoreChecksumCheck: boolean;
+  private _shardSplit?: number;
 
   public constructor(
     app: string,
@@ -82,6 +83,7 @@ export default class MaestroOptions {
       downloadArtifacts?: boolean;
       artifactsOutputDir?: string;
       ignoreChecksumCheck?: boolean;
+      shardSplit?: number;
     },
   ) {
     this._app = app;
@@ -108,6 +110,7 @@ export default class MaestroOptions {
     this._downloadArtifacts = options?.downloadArtifacts ?? false;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
+    this._shardSplit = options?.shardSplit;
   }
 
   public get app(): string {
@@ -204,6 +207,10 @@ export default class MaestroOptions {
 
   public get ignoreChecksumCheck(): boolean {
     return this._ignoreChecksumCheck;
+  }
+
+  public get shardSplit(): number | undefined {
+    return this._shardSplit;
   }
 
   public getMaestroOptions(): MaestroRunOptions | undefined {

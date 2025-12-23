@@ -13,12 +13,26 @@ import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import Upload from '../upload';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
-import platform from '../utils/platform';
+import platformUtil from '../utils/platform';
+import colors from 'colors';
 
 export interface MaestroRunAssets {
   logs?: Record<string, string>;
   video?: string | false;
   screenshots?: string[];
+}
+
+export type MaestroFlowStatus = 'WAITING' | 'READY' | 'DONE' | 'FAILED';
+
+export interface MaestroFlowInfo {
+  id: number;
+  name: string;
+  report?: string;
+  requested_at?: string;
+  completed_at?: string;
+  status: MaestroFlowStatus;
+  success?: number;
+  test_case_id?: number;
 }
 
 export interface MaestroRunInfo {
@@ -33,6 +47,7 @@ export interface MaestroRunInfo {
   report?: string;
   options?: Record<string, unknown>;
   assets?: MaestroRunAssets;
+  flows?: MaestroFlowInfo[];
 }
 
 export interface MaestroRunDetails extends MaestroRunInfo {
@@ -213,7 +228,7 @@ export default class Maestro {
       this.setupSignalHandlers();
 
       // Connect to real-time update server (unless --quiet is specified)
-      this.connectToUpdateServer();
+      // this.connectToUpdateServer();
 
       if (!this.options.quiet) {
         logger.info('Waiting for test results...');
@@ -801,6 +816,7 @@ export default class Maestro {
         {
           capabilities: [capabilities],
           ...(maestroOptions && { maestroOptions }),
+          ...(this.options.shardSplit && { shardSplit: this.options.shardSplit }),
         },
         {
           headers: {
@@ -874,6 +890,9 @@ export default class Maestro {
     let attempts = 0;
     const startTime = Date.now();
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
+    const previousFlowStatus: Map<number, MaestroFlowStatus> = new Map();
+    let flowsTableDisplayed = false;
+    let displayedLineCount = 0;
 
     while (attempts < this.MAX_POLL_ATTEMPTS) {
       // Check if we're shutting down
@@ -890,13 +909,37 @@ export default class Maestro {
 
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
-        this.displayRunStatus(status.runs, startTime, previousStatus);
+        // Check if any run has flows and display them
+        const allFlows: MaestroFlowInfo[] = [];
+        for (const run of status.runs) {
+          if (run.flows && run.flows.length > 0) {
+            allFlows.push(...run.flows);
+          }
+        }
+
+        if (allFlows.length > 0) {
+          if (!flowsTableDisplayed) {
+            // First time showing flows - display header and initial state
+            this.displayRunStatus(status.runs, startTime, previousStatus);
+            console.log(); // Empty line before flows table
+            this.displayFlowsTableHeader();
+            displayedLineCount = this.displayFlowsWithLimit(allFlows, previousFlowStatus);
+            flowsTableDisplayed = true;
+          } else {
+            // Update flows in place
+            displayedLineCount = this.updateFlowsInPlace(allFlows, previousFlowStatus, displayedLineCount);
+          }
+        } else {
+          // No flows yet, show run status
+          this.displayRunStatus(status.runs, startTime, previousStatus);
+        }
       }
 
       if (status.completed) {
-        // Clear the updating line and print final status
+        // Print final summary
         if (!this.options.quiet) {
-          this.clearLine();
+          console.log(); // Empty line before summary
+
           for (const run of status.runs) {
             const statusEmoji = run.success === 1 ? '✅' : '❌';
             const statusText =
@@ -997,7 +1040,63 @@ export default class Maestro {
   }
 
   private clearLine(): void {
-    platform.clearLine();
+    platformUtil.clearLine();
+  }
+
+  private displayFlowsProgress(
+    flows: MaestroFlowInfo[],
+    startTime: number,
+    isUpdate: boolean,
+  ): void {
+    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const elapsedStr = this.formatElapsedTime(elapsedSeconds);
+
+    // Count flows by status
+    let waiting = 0;
+    let running = 0;
+    let passed = 0;
+    let failed = 0;
+
+    for (const flow of flows) {
+      switch (flow.status) {
+        case 'WAITING':
+          waiting++;
+          break;
+        case 'READY':
+          running++;
+          break;
+        case 'DONE':
+          if (flow.success === 1) {
+            passed++;
+          } else {
+            failed++;
+          }
+          break;
+        case 'FAILED':
+          failed++;
+          break;
+      }
+    }
+
+    const total = flows.length;
+    const completed = passed + failed;
+
+    // Build progress summary with colors
+    const parts: string[] = [];
+    if (waiting > 0) parts.push(colors.white(`${waiting} waiting`));
+    if (running > 0) parts.push(colors.blue(`${running} running`));
+    if (passed > 0) parts.push(colors.green(`${passed} passed`));
+    if (failed > 0) parts.push(colors.red(`${failed} failed`));
+
+    const progressBar = `[${completed}/${total}]`;
+    const message = `  🔄 Flows ${progressBar}: ${parts.join(' | ')} (${elapsedStr})`;
+
+    if (isUpdate) {
+      // Clear current line and write new progress
+      process.stdout.write(`\r\x1b[K${message}`);
+    } else {
+      process.stdout.write(message);
+    }
   }
 
   private formatElapsedTime(seconds: number): string {
@@ -1025,6 +1124,215 @@ export default class Maestro {
       default:
         return { emoji: '❓', text: status };
     }
+  }
+
+  private getFlowStatusDisplay(flow: MaestroFlowInfo): { text: string; colored: string } {
+    switch (flow.status) {
+      case 'WAITING':
+        return { text: 'WAITING', colored: colors.white('WAITING') };
+      case 'READY':
+        return { text: 'RUNNING', colored: colors.blue('RUNNING') };
+      case 'DONE':
+        if (flow.success === 1) {
+          return { text: 'PASSED', colored: colors.green('PASSED') };
+        } else {
+          return { text: 'FAILED', colored: colors.red('FAILED') };
+        }
+      case 'FAILED':
+        return { text: 'FAILED', colored: colors.red('FAILED') };
+      default:
+        return { text: flow.status, colored: flow.status };
+    }
+  }
+
+  private calculateFlowDuration(flow: MaestroFlowInfo): string {
+    if (!flow.requested_at) {
+      return '-';
+    }
+
+    const startTime = new Date(flow.requested_at).getTime();
+    let endTime: number;
+
+    if (flow.completed_at) {
+      endTime = new Date(flow.completed_at).getTime();
+    } else {
+      endTime = Date.now();
+    }
+
+    const durationSeconds = Math.floor((endTime - startTime) / 1000);
+    return this.formatElapsedTime(durationSeconds);
+  }
+
+  private getTerminalHeight(): number {
+    // Default to 24 if terminal height is not available
+    return process.stdout.rows || 24;
+  }
+
+  private getMaxDisplayableFlows(): number {
+    const terminalHeight = this.getTerminalHeight();
+    // Reserve lines for: header (2) + summary line (1) + some padding (3)
+    const reservedLines = 6;
+    return Math.max(5, terminalHeight - reservedLines);
+  }
+
+  private getRemainingSummary(
+    flows: MaestroFlowInfo[],
+    displayedCount: number,
+  ): string {
+    const remaining = flows.slice(displayedCount);
+    if (remaining.length === 0) {
+      return '';
+    }
+
+    // Count statuses for remaining flows
+    let waiting = 0;
+    let running = 0;
+    let passed = 0;
+    let failed = 0;
+
+    for (const flow of remaining) {
+      switch (flow.status) {
+        case 'WAITING':
+          waiting++;
+          break;
+        case 'READY':
+          running++;
+          break;
+        case 'DONE':
+          if (flow.success === 1) {
+            passed++;
+          } else {
+            failed++;
+          }
+          break;
+        case 'FAILED':
+          failed++;
+          break;
+      }
+    }
+
+    const parts: string[] = [];
+    if (waiting > 0) parts.push(colors.white(`${waiting} waiting`));
+    if (running > 0) parts.push(colors.blue(`${running} running`));
+    if (passed > 0) parts.push(colors.green(`${passed} passed`));
+    if (failed > 0) parts.push(colors.red(`${failed} failed`));
+
+    return ` ... and ${remaining.length} more: ${parts.join(', ')}`;
+  }
+
+  private displayFlowsWithLimit(
+    flows: MaestroFlowInfo[],
+    previousFlowStatus: Map<number, MaestroFlowStatus>,
+  ): number {
+    const maxFlows = this.getMaxDisplayableFlows();
+    const displayFlows = flows.slice(0, maxFlows);
+    let linesWritten = 0;
+
+    for (const flow of displayFlows) {
+      this.displayFlowRow(flow, false);
+      previousFlowStatus.set(flow.id, flow.status);
+      linesWritten++;
+    }
+
+    // Show summary for remaining flows
+    if (flows.length > maxFlows) {
+      const summary = this.getRemainingSummary(flows, maxFlows);
+      console.log(colors.dim(summary));
+      linesWritten++;
+    }
+
+    return linesWritten;
+  }
+
+  private displayFlowsTableHeader(): void {
+    const header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Test`;
+    const separator = ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(40)}`;
+    console.log(colors.dim(header));
+    console.log(colors.dim(separator));
+  }
+
+  private displayFlowRow(flow: MaestroFlowInfo, isUpdate: boolean = false): void {
+    const duration = this.calculateFlowDuration(flow).padEnd(10);
+    const statusDisplay = this.getFlowStatusDisplay(flow);
+    // Pad based on display text length, add extra for color codes
+    const statusPadded = statusDisplay.colored + ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
+    const name = flow.name;
+
+    const row = ` ${duration} ${statusPadded} ${name}`;
+
+    if (isUpdate) {
+      // Move cursor up and clear line before writing
+      process.stdout.write(`\r${row}`);
+    } else {
+      console.log(row);
+    }
+  }
+
+  private displayFlowsTable(
+    flows: MaestroFlowInfo[],
+    previousFlowStatus: Map<number, MaestroFlowStatus>,
+    showHeader: boolean,
+  ): number {
+    if (showHeader) {
+      this.displayFlowsTableHeader();
+    }
+
+    let linesWritten = 0;
+
+    for (const flow of flows) {
+      const prevStatus = previousFlowStatus.get(flow.id);
+      const isNewFlow = prevStatus === undefined;
+
+      if (isNewFlow) {
+        this.displayFlowRow(flow, false);
+        linesWritten++;
+      }
+
+      previousFlowStatus.set(flow.id, flow.status);
+    }
+
+    return linesWritten;
+  }
+
+  private updateFlowsInPlace(
+    flows: MaestroFlowInfo[],
+    previousFlowStatus: Map<number, MaestroFlowStatus>,
+    displayedLineCount: number,
+  ): number {
+    const maxFlows = this.getMaxDisplayableFlows();
+    const displayFlows = flows.slice(0, maxFlows);
+    const hasRemaining = flows.length > maxFlows;
+
+    // Move cursor up by the number of lines we PREVIOUSLY displayed
+    if (displayedLineCount > 0) {
+      process.stdout.write(`\x1b[${displayedLineCount}A`);
+    }
+
+    let linesWritten = 0;
+
+    // Redraw displayed flows
+    for (const flow of displayFlows) {
+      const duration = this.calculateFlowDuration(flow).padEnd(10);
+      const statusDisplay = this.getFlowStatusDisplay(flow);
+      const statusPadded = statusDisplay.colored + ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
+      const name = flow.name;
+
+      const row = ` ${duration} ${statusPadded} ${name}`;
+      process.stdout.write(`\r\x1b[K${row}\n`);
+
+      previousFlowStatus.set(flow.id, flow.status);
+      linesWritten++;
+    }
+
+    // Update or add summary line for remaining flows
+    if (hasRemaining) {
+      const summary = this.getRemainingSummary(flows, maxFlows);
+      process.stdout.write(`\r\x1b[K${colors.dim(summary)}\n`);
+      linesWritten++;
+    }
+
+    // Return the number of lines we wrote
+    return linesWritten;
   }
 
   private async fetchReports(runs: MaestroRunInfo[]): Promise<void> {
@@ -1447,12 +1755,12 @@ export default class Maestro {
       this.handleShutdown();
     };
 
-    platform.setupSignalHandlers(this.signalHandler);
+    platformUtil.setupSignalHandlers(this.signalHandler);
   }
 
   private removeSignalHandlers(): void {
     if (this.signalHandler) {
-      platform.removeSignalHandlers(this.signalHandler);
+      platformUtil.removeSignalHandlers(this.signalHandler);
       this.signalHandler = null;
     }
   }

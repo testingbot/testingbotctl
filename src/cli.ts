@@ -309,6 +309,11 @@ const maestroCommand = program
     '--ignore-checksum-check',
     'Skip checksum verification and always upload the app.',
   )
+  .option(
+    '--shard-split <number>',
+    'Number of chunks to split flows into (by default each flow runs on its own session).',
+    (val) => parseInt(val, 10),
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -367,6 +372,7 @@ const maestroCommand = program
         downloadArtifacts: args.downloadArtifacts,
         artifactsOutputDir: args.artifactsOutputDir,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
+        shardSplit: args.shardSplit,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,

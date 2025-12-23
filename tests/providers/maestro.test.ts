@@ -1,4 +1,4 @@
-import Maestro, { MaestroSocketMessage } from '../../src/providers/maestro';
+import Maestro, { MaestroSocketMessage, MaestroFlowInfo, MaestroFlowStatus } from '../../src/providers/maestro';
 import MaestroOptions from '../../src/models/maestro_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
@@ -2497,6 +2497,798 @@ flows:
       expect(files).toContain(
         path.join(projectDir, 'web', 'flows', 'test.yaml'),
       );
+    });
+  });
+
+  describe('Flow Status Display', () => {
+    describe('getFlowStatusDisplay', () => {
+      it('should return white WAITING for WAITING status', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'WAITING' };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('WAITING');
+        expect(result.colored).toContain('WAITING');
+      });
+
+      it('should return blue RUNNING for READY status', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'READY' };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('RUNNING');
+        expect(result.colored).toContain('RUNNING');
+      });
+
+      it('should return green PASSED for DONE status with success=1', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'DONE', success: 1 };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('PASSED');
+        expect(result.colored).toContain('PASSED');
+      });
+
+      it('should return red FAILED for DONE status with success=0', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'DONE', success: 0 };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('FAILED');
+        expect(result.colored).toContain('FAILED');
+      });
+
+      it('should return red FAILED for DONE status without success field', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'DONE' };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('FAILED');
+        expect(result.colored).toContain('FAILED');
+      });
+
+      it('should return red FAILED for FAILED status', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'FAILED' };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('FAILED');
+        expect(result.colored).toContain('FAILED');
+      });
+
+      it('should return the status as-is for unknown status', () => {
+        const flow: MaestroFlowInfo = { id: 1, name: 'test.yaml', status: 'UNKNOWN' as MaestroFlowStatus };
+        const result = maestro['getFlowStatusDisplay'](flow);
+        expect(result.text).toBe('UNKNOWN');
+        expect(result.colored).toBe('UNKNOWN');
+      });
+    });
+
+    describe('calculateFlowDuration', () => {
+      it('should return "-" when requested_at is not set', () => {
+        const flow: MaestroFlowInfo = {
+          id: 1,
+          name: 'test_flow.yaml',
+          status: 'WAITING',
+        };
+
+        const result = maestro['calculateFlowDuration'](flow);
+        expect(result).toBe('-');
+      });
+
+      it('should calculate duration for completed flow', () => {
+        const startTime = new Date('2025-01-01T10:00:00.000Z');
+        const endTime = new Date('2025-01-01T10:00:30.000Z');
+
+        const flow: MaestroFlowInfo = {
+          id: 1,
+          name: 'test_flow.yaml',
+          status: 'DONE',
+          success: 1,
+          requested_at: startTime.toISOString(),
+          completed_at: endTime.toISOString(),
+        };
+
+        const result = maestro['calculateFlowDuration'](flow);
+        expect(result).toBe('30s');
+      });
+
+      it('should format duration with minutes when over 60 seconds', () => {
+        const startTime = new Date('2025-01-01T10:00:00.000Z');
+        const endTime = new Date('2025-01-01T10:02:15.000Z');
+
+        const flow: MaestroFlowInfo = {
+          id: 1,
+          name: 'test_flow.yaml',
+          status: 'DONE',
+          success: 1,
+          requested_at: startTime.toISOString(),
+          completed_at: endTime.toISOString(),
+        };
+
+        const result = maestro['calculateFlowDuration'](flow);
+        expect(result).toBe('2m 15s');
+      });
+
+      it('should calculate elapsed time for running flow', () => {
+        // Set requested_at to a fixed time in the past
+        const startTime = new Date(Date.now() - 45000); // 45 seconds ago
+
+        const flow: MaestroFlowInfo = {
+          id: 1,
+          name: 'test_flow.yaml',
+          status: 'READY',
+          requested_at: startTime.toISOString(),
+        };
+
+        const result = maestro['calculateFlowDuration'](flow);
+        // Should be around 45s (allow some variance for test execution time)
+        expect(result).toMatch(/^\d+s$|^\d+m \d+s$/);
+      });
+    });
+
+    describe('getTerminalHeight', () => {
+      it('should return process.stdout.rows when available', () => {
+        const originalRows = process.stdout.rows;
+        Object.defineProperty(process.stdout, 'rows', { value: 40, configurable: true });
+
+        const result = maestro['getTerminalHeight']();
+        expect(result).toBe(40);
+
+        Object.defineProperty(process.stdout, 'rows', { value: originalRows, configurable: true });
+      });
+
+      it('should return 24 as default when rows is not available', () => {
+        const originalRows = process.stdout.rows;
+        Object.defineProperty(process.stdout, 'rows', { value: undefined, configurable: true });
+
+        const result = maestro['getTerminalHeight']();
+        expect(result).toBe(24);
+
+        Object.defineProperty(process.stdout, 'rows', { value: originalRows, configurable: true });
+      });
+    });
+
+    describe('getMaxDisplayableFlows', () => {
+      it('should calculate max flows based on terminal height', () => {
+        const originalRows = process.stdout.rows;
+        Object.defineProperty(process.stdout, 'rows', { value: 30, configurable: true });
+
+        const result = maestro['getMaxDisplayableFlows']();
+        // 30 - 6 reserved lines = 24
+        expect(result).toBe(24);
+
+        Object.defineProperty(process.stdout, 'rows', { value: originalRows, configurable: true });
+      });
+
+      it('should return minimum of 5 flows', () => {
+        const originalRows = process.stdout.rows;
+        Object.defineProperty(process.stdout, 'rows', { value: 8, configurable: true });
+
+        const result = maestro['getMaxDisplayableFlows']();
+        // 8 - 6 = 2, but minimum is 5
+        expect(result).toBe(5);
+
+        Object.defineProperty(process.stdout, 'rows', { value: originalRows, configurable: true });
+      });
+    });
+
+    describe('getRemainingSummary', () => {
+      it('should return empty string when no remaining flows', () => {
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'WAITING' },
+        ];
+
+        const result = maestro['getRemainingSummary'](flows, 1);
+        expect(result).toBe('');
+      });
+
+      it('should summarize remaining flows by status', () => {
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1 },
+          { id: 2, name: 'flow2.yaml', status: 'WAITING' },
+          { id: 3, name: 'flow3.yaml', status: 'WAITING' },
+          { id: 4, name: 'flow4.yaml', status: 'READY' },
+          { id: 5, name: 'flow5.yaml', status: 'DONE', success: 0 },
+        ];
+
+        const result = maestro['getRemainingSummary'](flows, 1);
+        expect(result).toContain('4 more');
+        expect(result).toContain('2 waiting');
+        expect(result).toContain('1 running');
+        expect(result).toContain('1 failed');
+      });
+
+      it('should only show non-zero counts', () => {
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1 },
+          { id: 2, name: 'flow2.yaml', status: 'WAITING' },
+          { id: 3, name: 'flow3.yaml', status: 'WAITING' },
+        ];
+
+        const result = maestro['getRemainingSummary'](flows, 1);
+        expect(result).toContain('2 more');
+        expect(result).toContain('2 waiting');
+        expect(result).not.toContain('running');
+        expect(result).not.toContain('passed');
+        expect(result).not.toContain('failed');
+      });
+    });
+
+    describe('displayFlowsWithLimit', () => {
+      it('should display all flows when under limit', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+        const originalRows = process.stdout.rows;
+        Object.defineProperty(process.stdout, 'rows', { value: 30, configurable: true });
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'WAITING' },
+          { id: 2, name: 'flow2.yaml', status: 'READY' },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+
+        const linesWritten = maestro['displayFlowsWithLimit'](flows, previousStatus);
+
+        expect(linesWritten).toBe(2);
+        expect(consoleSpy).toHaveBeenCalledTimes(2);
+
+        consoleSpy.mockRestore();
+        Object.defineProperty(process.stdout, 'rows', { value: originalRows, configurable: true });
+      });
+
+      it('should show summary line when flows exceed limit', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+        const originalRows = process.stdout.rows;
+        // Set terminal height so max flows = 5
+        Object.defineProperty(process.stdout, 'rows', { value: 11, configurable: true });
+
+        const flows: MaestroFlowInfo[] = [];
+        for (let i = 1; i <= 10; i++) {
+          flows.push({ id: i, name: `flow${i}.yaml`, status: 'WAITING' });
+        }
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+
+        const linesWritten = maestro['displayFlowsWithLimit'](flows, previousStatus);
+
+        // 5 flows + 1 summary line
+        expect(linesWritten).toBe(6);
+        // 5 flow rows + 1 summary
+        expect(consoleSpy).toHaveBeenCalledTimes(6);
+        // Last call should be the summary
+        const lastCall = consoleSpy.mock.calls[5][0];
+        expect(lastCall).toContain('5 more');
+
+        consoleSpy.mockRestore();
+        Object.defineProperty(process.stdout, 'rows', { value: originalRows, configurable: true });
+      });
+    });
+
+    describe('displayFlowsTableHeader', () => {
+      it('should output the table header', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        maestro['displayFlowsTableHeader']();
+
+        expect(consoleSpy).toHaveBeenCalledTimes(2);
+        // First call is the header row
+        expect(consoleSpy.mock.calls[0][0]).toContain('Duration');
+        expect(consoleSpy.mock.calls[0][0]).toContain('Status');
+        expect(consoleSpy.mock.calls[0][0]).toContain('Test');
+        // Second call is the separator
+        expect(consoleSpy.mock.calls[1][0]).toContain('─');
+
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('displayFlowRow', () => {
+      it('should display a flow row with correct formatting', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        const flow: MaestroFlowInfo = {
+          id: 1,
+          name: 'login_flow.yaml',
+          status: 'DONE',
+          success: 1,
+          requested_at: new Date(Date.now() - 30000).toISOString(),
+          completed_at: new Date().toISOString(),
+        };
+
+        maestro['displayFlowRow'](flow, false);
+
+        expect(consoleSpy).toHaveBeenCalledTimes(1);
+        const output = consoleSpy.mock.calls[0][0];
+        expect(output).toContain('login_flow.yaml');
+        expect(output).toContain('PASSED'); // DONE + success=1 displays as PASSED
+
+        consoleSpy.mockRestore();
+      });
+
+      it('should write to stdout when isUpdate is true', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flow: MaestroFlowInfo = {
+          id: 1,
+          name: 'login_flow.yaml',
+          status: 'READY',
+          requested_at: new Date().toISOString(),
+        };
+
+        maestro['displayFlowRow'](flow, true);
+
+        expect(stdoutSpy).toHaveBeenCalled();
+        const output = stdoutSpy.mock.calls[0][0] as string;
+        expect(output).toContain('login_flow.yaml');
+        expect(output).toContain('RUNNING'); // READY displays as RUNNING
+
+        stdoutSpy.mockRestore();
+      });
+    });
+
+    describe('displayFlowsTable', () => {
+      it('should display header and all flows on first call', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'WAITING' },
+          { id: 2, name: 'flow2.yaml', status: 'WAITING' },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+
+        const linesWritten = maestro['displayFlowsTable'](flows, previousStatus, true);
+
+        // Header (2 lines) + 2 flow rows
+        expect(consoleSpy).toHaveBeenCalledTimes(4);
+        expect(linesWritten).toBe(2);
+        expect(previousStatus.get(1)).toBe('WAITING');
+        expect(previousStatus.get(2)).toBe('WAITING');
+
+        consoleSpy.mockRestore();
+      });
+
+      it('should only display new flows on subsequent calls', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1 },
+          { id: 2, name: 'flow2.yaml', status: 'WAITING' },
+          { id: 3, name: 'flow3.yaml', status: 'WAITING' },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'WAITING');
+        previousStatus.set(2, 'WAITING');
+
+        const linesWritten = maestro['displayFlowsTable'](flows, previousStatus, false);
+
+        // Only the new flow (id: 3) should be displayed
+        expect(consoleSpy).toHaveBeenCalledTimes(1);
+        expect(linesWritten).toBe(1);
+
+        consoleSpy.mockRestore();
+      });
+
+      it('should not write lines for already tracked flows', () => {
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1 },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'WAITING'); // Already tracked
+
+        const linesWritten = maestro['displayFlowsTable'](flows, previousStatus, false);
+
+        expect(consoleSpy).not.toHaveBeenCalled();
+        expect(linesWritten).toBe(0);
+
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('updateFlowsInPlace', () => {
+      it('should update flows that changed status', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1, requested_at: new Date().toISOString(), completed_at: new Date().toISOString() },
+          { id: 2, name: 'flow2.yaml', status: 'READY', requested_at: new Date().toISOString() },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'READY');
+        previousStatus.set(2, 'WAITING');
+
+        const newCount = maestro['updateFlowsInPlace'](flows, previousStatus, 2);
+
+        // Should have written cursor movement and updates
+        expect(stdoutSpy).toHaveBeenCalled();
+        // Check that status was updated
+        expect(previousStatus.get(1)).toBe('DONE');
+        expect(previousStatus.get(2)).toBe('READY');
+        // Should return the new flow count
+        expect(newCount).toBe(2);
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should handle new flows being added', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1, requested_at: new Date().toISOString(), completed_at: new Date().toISOString() },
+          { id: 2, name: 'flow2.yaml', status: 'READY', requested_at: new Date().toISOString() },
+          { id: 3, name: 'flow3.yaml', status: 'WAITING' }, // New flow
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'DONE');
+        previousStatus.set(2, 'WAITING');
+
+        // Previously displayed 2 flows, now we have 3
+        const newCount = maestro['updateFlowsInPlace'](flows, previousStatus, 2);
+
+        // Should move up by 2 (previous count), not 3 (current count)
+        const cursorUpCall = stdoutSpy.mock.calls.find(call =>
+          typeof call[0] === 'string' && call[0].includes('\x1b[2A')
+        );
+        expect(cursorUpCall).toBeDefined();
+
+        // Should return the new count (3)
+        expect(newCount).toBe(3);
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should not move cursor when displayedFlowCount is 0', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'WAITING' },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+
+        const newCount = maestro['updateFlowsInPlace'](flows, previousStatus, 0);
+
+        // Should NOT have cursor up command when displayedFlowCount is 0
+        // Cursor up is \x1b[nA where n is a number - use regex to be precise
+        const cursorUpCall = stdoutSpy.mock.calls.find(call =>
+          typeof call[0] === 'string' && /\x1b\[\d+A/.test(call[0])
+        );
+        expect(cursorUpCall).toBeUndefined();
+
+        expect(newCount).toBe(1);
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should update running flows to refresh duration', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'READY', requested_at: new Date().toISOString() },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'READY'); // Same status but still READY
+
+        const newCount = maestro['updateFlowsInPlace'](flows, previousStatus, 1);
+
+        // Should update because READY flows need duration refresh
+        expect(stdoutSpy).toHaveBeenCalled();
+        expect(newCount).toBe(1);
+
+        stdoutSpy.mockRestore();
+      });
+    });
+
+    describe('displayFlowsProgress', () => {
+      it('should display progress summary with all status counts', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'WAITING' },
+          { id: 2, name: 'flow2.yaml', status: 'WAITING' },
+          { id: 3, name: 'flow3.yaml', status: 'READY', requested_at: new Date().toISOString() },
+          { id: 4, name: 'flow4.yaml', status: 'DONE', success: 1 },
+          { id: 5, name: 'flow5.yaml', status: 'DONE', success: 0 },
+          { id: 6, name: 'flow6.yaml', status: 'FAILED' },
+        ];
+
+        maestro['displayFlowsProgress'](flows, Date.now(), false);
+
+        expect(stdoutSpy).toHaveBeenCalled();
+        const output = stdoutSpy.mock.calls[0][0] as string;
+        expect(output).toContain('[3/6]'); // 3 completed (1 passed + 2 failed) out of 6 total
+        expect(output).toContain('2 waiting');
+        expect(output).toContain('1 running');
+        expect(output).toContain('1 passed');
+        expect(output).toContain('2 failed');
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should clear line when isUpdate is true', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'READY', requested_at: new Date().toISOString() },
+        ];
+
+        maestro['displayFlowsProgress'](flows, Date.now(), true);
+
+        expect(stdoutSpy).toHaveBeenCalled();
+        const output = stdoutSpy.mock.calls[0][0] as string;
+        expect(output).toContain('\r'); // Carriage return
+        expect(output).toContain('\x1b[K'); // Clear line
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should not clear line when isUpdate is false', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'READY', requested_at: new Date().toISOString() },
+        ];
+
+        maestro['displayFlowsProgress'](flows, Date.now(), false);
+
+        expect(stdoutSpy).toHaveBeenCalled();
+        const output = stdoutSpy.mock.calls[0][0] as string;
+        expect(output).not.toContain('\x1b[K');
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should show elapsed time', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'WAITING' },
+        ];
+
+        // Start time 30 seconds ago
+        const startTime = Date.now() - 30000;
+        maestro['displayFlowsProgress'](flows, startTime, false);
+
+        expect(stdoutSpy).toHaveBeenCalled();
+        const output = stdoutSpy.mock.calls[0][0] as string;
+        expect(output).toMatch(/\d+s\)/); // Should contain elapsed time
+
+        stdoutSpy.mockRestore();
+      });
+
+      it('should only show non-zero status counts', () => {
+        const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1 },
+          { id: 2, name: 'flow2.yaml', status: 'DONE', success: 1 },
+        ];
+
+        maestro['displayFlowsProgress'](flows, Date.now(), false);
+
+        expect(stdoutSpy).toHaveBeenCalled();
+        const output = stdoutSpy.mock.calls[0][0] as string;
+        expect(output).toContain('[2/2]');
+        expect(output).toContain('2 passed');
+        expect(output).not.toContain('waiting');
+        expect(output).not.toContain('running');
+        expect(output).not.toContain('failed');
+
+        stdoutSpy.mockRestore();
+      });
+    });
+  });
+
+  describe('Wait For Completion with Flows', () => {
+    beforeEach(() => {
+      maestro['appId'] = 1234;
+      maestro['POLL_INTERVAL_MS'] = 10;
+    });
+
+    it('should display flows table when flows are available', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      const responseWithFlows = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+              flows: [
+                { id: 1, name: 'login_flow.yaml', status: 'DONE', success: 1, requested_at: '2025-01-01T10:00:00Z', completed_at: '2025-01-01T10:00:30Z' },
+                { id: 2, name: 'checkout_flow.yaml', status: 'DONE', success: 1, requested_at: '2025-01-01T10:00:30Z', completed_at: '2025-01-01T10:01:00Z' },
+              ],
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseWithFlows);
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(result.success).toBe(true);
+      // Check that flows table header was displayed
+      const headerCalls = consoleSpy.mock.calls.filter(call =>
+        typeof call[0] === 'string' && call[0].includes('Duration')
+      );
+      expect(headerCalls.length).toBeGreaterThan(0);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should update flow statuses as they progress', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation();
+
+      const waitingResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'READY',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'login_flow.yaml', status: 'READY', requested_at: '2025-01-01T10:00:00Z' },
+                { id: 2, name: 'checkout_flow.yaml', status: 'WAITING' },
+              ],
+            },
+          ],
+          success: false,
+          completed: false,
+        },
+      };
+
+      const completedResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+              flows: [
+                { id: 1, name: 'login_flow.yaml', status: 'DONE', success: 1, requested_at: '2025-01-01T10:00:00Z', completed_at: '2025-01-01T10:00:30Z' },
+                { id: 2, name: 'checkout_flow.yaml', status: 'DONE', success: 1, requested_at: '2025-01-01T10:00:30Z', completed_at: '2025-01-01T10:01:00Z' },
+              ],
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest.fn()
+        .mockResolvedValueOnce(waitingResponse)
+        .mockResolvedValueOnce(completedResponse);
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(result.success).toBe(true);
+      expect(axios.get).toHaveBeenCalledTimes(2);
+
+      consoleSpy.mockRestore();
+      stdoutSpy.mockRestore();
+    });
+
+    it('should handle runs without flows gracefully', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      const responseWithoutFlows = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+              // No flows property
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseWithoutFlows);
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(result.success).toBe(true);
+      // Should not crash and should still complete
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle empty flows array', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      const responseEmptyFlows = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+              flows: [],
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseEmptyFlows);
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(result.success).toBe(true);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should display failed flows correctly', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      const responseWithFailedFlow = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'login_flow.yaml', status: 'DONE', success: 1, requested_at: '2025-01-01T10:00:00Z', completed_at: '2025-01-01T10:00:30Z' },
+                { id: 2, name: 'checkout_flow.yaml', status: 'DONE', success: 0, requested_at: '2025-01-01T10:00:30Z', completed_at: '2025-01-01T10:01:00Z' },
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseWithFailedFlow);
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(result.success).toBe(false);
+      expect(result.runs[0].flows).toHaveLength(2);
+      expect(result.runs[0].flows?.[0].status).toBe('DONE');
+      expect(result.runs[0].flows?.[0].success).toBe(1);
+      expect(result.runs[0].flows?.[1].status).toBe('DONE');
+      expect(result.runs[0].flows?.[1].success).toBe(0);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should aggregate flows from multiple runs', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      const responseMultipleRuns = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+              flows: [
+                { id: 1, name: 'android_flow.yaml', status: 'DONE', success: 1 },
+              ],
+            },
+            {
+              id: 5679,
+              status: 'DONE',
+              capabilities: { deviceName: 'iPhone 15', platformName: 'iOS' },
+              success: 1,
+              flows: [
+                { id: 2, name: 'ios_flow.yaml', status: 'DONE', success: 1 },
+              ],
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseMultipleRuns);
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(result.success).toBe(true);
+      expect(result.runs).toHaveLength(2);
+
+      consoleSpy.mockRestore();
     });
   });
 });
