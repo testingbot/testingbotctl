@@ -1795,7 +1795,7 @@ describe('Maestro', () => {
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'login.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -1814,7 +1814,7 @@ describe('Maestro', () => {
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'login.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -1834,7 +1834,7 @@ describe('Maestro', () => {
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'login.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -1855,7 +1855,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(
         projectDir,
         'flows',
@@ -1886,7 +1886,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(
         projectDir,
         'app',
@@ -1918,7 +1918,7 @@ tags:
         .mockResolvedValueOnce(helperFlowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -1947,7 +1947,7 @@ tags:
         .mockResolvedValueOnce(helperFlowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -1965,7 +1965,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'upload.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -1982,7 +1982,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'upload.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2005,7 +2005,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(
         projectDir,
         'app',
@@ -2034,7 +2034,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2059,7 +2059,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(
         projectDir,
         'subflows',
@@ -2093,7 +2093,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2121,7 +2121,7 @@ tags:
         .mockResolvedValueOnce(subflowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2150,7 +2150,7 @@ tags:
         .mockResolvedValueOnce(nestedContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2173,7 +2173,7 @@ tags:
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2204,7 +2204,7 @@ onFlowComplete:
         .mockResolvedValueOnce(cleanupContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2232,7 +2232,7 @@ onFlowComplete:
         .mockResolvedValueOnce(flow2Content);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'flow1.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2258,7 +2258,7 @@ onFlowComplete:
         .mockResolvedValueOnce(subflowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2280,7 +2280,7 @@ onFlowComplete:
         .mockResolvedValueOnce(undefined) // exists.js found
         .mockRejectedValueOnce(new Error('ENOENT')); // not-exists.js not found
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'main.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2298,7 +2298,7 @@ onFlowComplete:
 `;
       fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'simple.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2311,7 +2311,7 @@ onFlowComplete:
         .fn()
         .mockRejectedValue(new Error('File not found'));
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(projectDir, 'flows', 'missing.yaml');
 
       const deps = await maestro['discoverDependencies'](flowPath, projectDir);
@@ -2347,7 +2347,7 @@ tags:
         .mockResolvedValueOnce(loginFlowContent);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       const flowPath = path.join(
         projectDir,
         'app',
@@ -2426,7 +2426,7 @@ flows:
 excludeTags:
   - subflow
 `;
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       fs.promises.readFile = jest.fn().mockResolvedValue(configContent);
       fs.promises.readdir = jest.fn().mockResolvedValue([]);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
@@ -2447,7 +2447,7 @@ excludeTags:
     });
 
     it('should not include config.yaml when it does not exist', async () => {
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       fs.promises.readFile = jest
         .fn()
         .mockRejectedValue(new Error('ENOENT: no such file'));
@@ -2470,7 +2470,7 @@ flows:
   - "app/flows/**"
   - "web/flows/**"
 `;
-      const projectDir = path.join(path.sep, 'project');
+      const projectDir = path.resolve(path.sep, 'project');
       fs.promises.readFile = jest.fn().mockResolvedValue(configContent);
       fs.promises.readdir = jest.fn().mockResolvedValue([]);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
