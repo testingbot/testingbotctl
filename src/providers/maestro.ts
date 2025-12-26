@@ -812,12 +812,14 @@ export default class Maestro {
     try {
       const capabilities = this.options.getCapabilities(this.detectedPlatform);
       const maestroOptions = this.options.getMaestroOptions();
+      const metadata = this.options.metadata;
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
           capabilities: [capabilities],
           ...(maestroOptions && { maestroOptions }),
           ...(this.options.shardSplit && { shardSplit: this.options.shardSplit }),
+          ...(metadata && { metadata }),
         },
         {
           headers: {

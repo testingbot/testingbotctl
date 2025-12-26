@@ -10,6 +10,13 @@ export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane' | 'disable';
 export type ReportFormat = 'html' | 'junit';
 export type ArtifactDownloadMode = 'all' | 'failed';
 
+export interface RunMetadata {
+  commitSha?: string;
+  pullRequestId?: string;
+  repoName?: string;
+  repoOwner?: string;
+}
+
 export interface MaestroCapabilities {
   platformName?: 'Android' | 'iOS';
   version?: string;
@@ -55,6 +62,8 @@ export default class MaestroOptions {
   private _artifactsOutputDir?: string;
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
+  // Metadata
+  private _metadata?: RunMetadata;
 
   public constructor(
     app: string,
@@ -82,6 +91,7 @@ export default class MaestroOptions {
       artifactsOutputDir?: string;
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
+      metadata?: RunMetadata;
     },
   ) {
     this._app = app;
@@ -108,6 +118,7 @@ export default class MaestroOptions {
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
+    this._metadata = options?.metadata;
   }
 
   public get app(): string {
@@ -204,6 +215,10 @@ export default class MaestroOptions {
 
   public get shardSplit(): number | undefined {
     return this._shardSplit;
+  }
+
+  public get metadata(): RunMetadata | undefined {
+    return this._metadata;
   }
 
   public getMaestroOptions(): MaestroRunOptions | undefined {

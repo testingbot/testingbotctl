@@ -514,4 +514,59 @@ describe('MaestroOptions', () => {
       });
     });
   });
+
+  describe('metadata option', () => {
+    it('should have undefined metadata by default', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.metadata).toBeUndefined();
+    });
+
+    it('should store metadata when provided', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        metadata: {
+          commitSha: 'abc123def456',
+          pullRequestId: '42',
+          repoName: 'my-app',
+          repoOwner: 'my-org',
+        },
+      });
+
+      expect(options.metadata).toEqual({
+        commitSha: 'abc123def456',
+        pullRequestId: '42',
+        repoName: 'my-app',
+        repoOwner: 'my-org',
+      });
+    });
+
+    it('should store partial metadata', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        metadata: {
+          commitSha: 'abc123',
+        },
+      });
+
+      expect(options.metadata).toEqual({
+        commitSha: 'abc123',
+      });
+    });
+
+    it('should not include metadata in capabilities', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+        metadata: {
+          commitSha: 'abc123',
+          repoName: 'test-repo',
+        },
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).toEqual({
+        deviceName: 'Pixel 8',
+        platformName: 'Android',
+      });
+      expect(caps).not.toHaveProperty('metadata');
+    });
+  });
 });

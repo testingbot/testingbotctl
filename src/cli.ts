@@ -135,6 +135,11 @@ const espressoCommand = program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
+  // CI/CD metadata
+  .option('--commit-sha <sha>', 'The commit SHA of this upload.')
+  .option('--pull-request-id <id>', 'The ID of the pull request this upload originated from.')
+  .option('--repo-name <name>', 'Repository name (e.g., GitHub repo slug).')
+  .option('--repo-owner <owner>', 'Repository owner (e.g., GitHub organization or user slug).')
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -148,6 +153,16 @@ const espressoCommand = program
         espressoCommand.help();
         return;
       }
+
+      const metadata =
+          args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
+            ? {
+                commitSha: args.commitSha,
+                pullRequestId: args.pullRequestId,
+                repoName: args.repoName,
+                repoOwner: args.repoOwner,
+              }
+            : undefined;
 
       const options = new EspressoOptions(app, testApp, args.device, {
         version: args.platformVersion,
@@ -173,6 +188,7 @@ const espressoCommand = program
         async: args.async,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        metadata,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
@@ -315,6 +331,11 @@ const maestroCommand = program
     'Number of chunks to split flows into (by default each flow runs on its own session).',
     (val) => parseInt(val, 10),
   )
+  // CI/CD metadata
+  .option('--commit-sha <sha>', 'The commit SHA of this upload.')
+  .option('--pull-request-id <id>', 'The ID of the pull request this upload originated from.')
+  .option('--repo-name <name>', 'Repository name (e.g., GitHub repo slug).')
+  .option('--repo-owner <owner>', 'Repository owner (e.g., GitHub organization or user slug).')
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -351,6 +372,16 @@ const maestroCommand = program
         }
       }
 
+      const metadata =
+          args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
+            ? {
+                commitSha: args.commitSha,
+                pullRequestId: args.pullRequestId,
+                repoName: args.repoName,
+                repoOwner: args.repoOwner,
+              }
+            : undefined;
+
       const options = new MaestroOptions(app, flows, args.device, {
         includeTags: args.includeTags,
         excludeTags: args.excludeTags,
@@ -376,6 +407,7 @@ const maestroCommand = program
         artifactsOutputDir: args.artifactsOutputDir,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
+        metadata,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
@@ -466,6 +498,11 @@ const xcuitestCommand = program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
+  // CI/CD metadata
+  .option('--commit-sha <sha>', 'The commit SHA of this upload.')
+  .option('--pull-request-id <id>', 'The ID of the pull request this upload originated from.')
+  .option('--repo-name <name>', 'Repository name (e.g., GitHub repo slug).')
+  .option('--repo-owner <owner>', 'Repository owner (e.g., GitHub organization or user slug).')
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -479,6 +516,16 @@ const xcuitestCommand = program
         xcuitestCommand.help();
         return;
       }
+
+      const metadata =
+          args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
+            ? {
+                commitSha: args.commitSha,
+                pullRequestId: args.pullRequestId,
+                repoName: args.repoName,
+                repoOwner: args.repoOwner,
+              }
+            : undefined;
 
       const options = new XCUITestOptions(app, testApp, args.device, {
         version: args.platformVersion,
@@ -497,6 +544,7 @@ const xcuitestCommand = program
         async: args.async,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        metadata,
       });
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,

@@ -439,6 +439,57 @@ describe('XCUITest', () => {
       expect(callArgs[1]).not.toHaveProperty('options');
     });
 
+    it('should send metadata when provided', async () => {
+      const optionsWithMetadata = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        {
+          metadata: {
+            commitSha: 'abc123def456',
+            pullRequestId: '42',
+            repoName: 'my-ios-app',
+            repoOwner: 'my-org',
+          },
+        },
+      );
+      const xcuiTestWithMetadata = new XCUITest(
+        mockCredentials,
+        optionsWithMetadata,
+      );
+      xcuiTestWithMetadata['appId'] = 1234;
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await xcuiTestWithMetadata['runTests']();
+
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          metadata: {
+            commitSha: 'abc123def456',
+            pullRequestId: '42',
+            repoName: 'my-ios-app',
+            repoOwner: 'my-org',
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('should not include metadata when not provided', async () => {
+      xcuiTest['appId'] = 1234;
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await xcuiTest['runTests']();
+
+      const callArgs = (axios.post as jest.Mock).mock.calls[0];
+      expect(callArgs[1]).not.toHaveProperty('metadata');
+    });
+
     it('should throw an error if running tests fails', async () => {
       const mockError = new Error('Test failed');
       axios.post = jest.fn().mockRejectedValueOnce(mockError);

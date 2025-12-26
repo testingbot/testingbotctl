@@ -218,12 +218,14 @@ export default class Espresso {
     try {
       const capabilities = this.options.getCapabilities();
       const espressoOptions = this.options.getEspressoOptions();
+      const metadata = this.options.metadata;
 
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
           capabilities: [capabilities],
           ...(espressoOptions && { espressoOptions }),
+          ...(metadata && { metadata }),
         },
         {
           headers: {

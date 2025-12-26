@@ -429,6 +429,57 @@ describe('Maestro', () => {
       );
     });
 
+    it('should send metadata when provided', async () => {
+      const optionsWithMetadata = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          metadata: {
+            commitSha: 'abc123def456',
+            pullRequestId: '42',
+            repoName: 'my-app',
+            repoOwner: 'my-org',
+          },
+        },
+      );
+      const maestroWithMetadata = new Maestro(
+        mockCredentials,
+        optionsWithMetadata,
+      );
+      maestroWithMetadata['appId'] = 1234;
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await maestroWithMetadata['runTests']();
+
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          metadata: {
+            commitSha: 'abc123def456',
+            pullRequestId: '42',
+            repoName: 'my-app',
+            repoOwner: 'my-org',
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('should not include metadata when not provided', async () => {
+      maestro['appId'] = 1234;
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await maestro['runTests']();
+
+      const callArgs = (axios.post as jest.Mock).mock.calls[0];
+      expect(callArgs[1]).not.toHaveProperty('metadata');
+    });
+
     it('should throw an error if running tests fails', async () => {
       const mockError = new Error('Test failed');
       axios.post = jest.fn().mockRejectedValueOnce(mockError);

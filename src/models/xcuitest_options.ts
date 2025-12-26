@@ -2,6 +2,13 @@ export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ReportFormat = 'html' | 'junit';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane';
 
+export interface RunMetadata {
+  commitSha?: string;
+  pullRequestId?: string;
+  repoName?: string;
+  repoOwner?: string;
+}
+
 export interface CustomNetworkProfile {
   uploadSpeed: number; // kbps
   downloadSpeed: number; // kbps
@@ -58,6 +65,8 @@ export default class XCUITestOptions {
   private _async: boolean;
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
+  // Metadata
+  private _metadata?: RunMetadata;
 
   public constructor(
     app: string,
@@ -80,6 +89,7 @@ export default class XCUITestOptions {
       async?: boolean;
       report?: ReportFormat;
       reportOutputDir?: string;
+      metadata?: RunMetadata;
     },
   ) {
     this._app = app;
@@ -101,6 +111,7 @@ export default class XCUITestOptions {
     this._async = options?.async ?? false;
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
+    this._metadata = options?.metadata;
   }
 
   public get app(): string {
@@ -180,6 +191,10 @@ export default class XCUITestOptions {
 
   public get reportOutputDir(): string | undefined {
     return this._reportOutputDir;
+  }
+
+  public get metadata(): RunMetadata | undefined {
+    return this._metadata;
   }
 
   public getCapabilities(): XCUITestCapabilities {

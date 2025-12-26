@@ -269,6 +269,83 @@ describe('TestingBotCTL CLI', () => {
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
   });
 
+  test('espresso command should accept metadata options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '--device',
+      'Pixel 6',
+      '--commit-sha',
+      'abc123def456',
+      '--pull-request-id',
+      '42',
+      '--repo-name',
+      'my-app',
+      '--repo-owner',
+      'my-org',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('maestro command should accept metadata options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'Pixel 6',
+      '--commit-sha',
+      'abc123def456',
+      '--pull-request-id',
+      '42',
+      '--repo-name',
+      'my-app',
+      '--repo-owner',
+      'my-org',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('xcuitest command should accept metadata options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'xcuitest',
+      '--app',
+      'app.ipa',
+      '--test-app',
+      'test-app.zip',
+      '--device',
+      'iPhone 15',
+      '--commit-sha',
+      'abc123def456',
+      '--pull-request-id',
+      '42',
+      '--repo-name',
+      'my-ios-app',
+      '--repo-owner',
+      'my-org',
+    ]);
+
+    expect(mockXCUITestRun).toHaveBeenCalledTimes(1);
+  });
+
   test('xcuitest command should call xcuitest.run() with valid options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 

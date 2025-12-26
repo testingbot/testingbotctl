@@ -218,12 +218,14 @@ export default class XCUITest {
     try {
       const capabilities = this.options.getCapabilities();
       const xcuitestOptions = this.options.getXCUITestOptions();
+      const metadata = this.options.metadata;
 
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
           capabilities: [capabilities],
           ...(xcuitestOptions && { options: xcuitestOptions }),
+          ...(metadata && { metadata }),
         },
         {
           headers: {
