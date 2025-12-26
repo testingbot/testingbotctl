@@ -314,7 +314,6 @@ describe('Maestro', () => {
           platformName: 'Android',
           version: '14',
           name: 'My Test',
-          build: 'build-123',
           orientation: 'LANDSCAPE',
           locale: 'en_US',
           timeZone: 'America/New_York',
@@ -342,7 +341,6 @@ describe('Maestro', () => {
               platformName: 'Android',
               version: '14',
               name: 'My Test',
-              build: 'build-123',
               orientation: 'LANDSCAPE',
               locale: 'en_US',
               timeZone: 'America/New_York',
@@ -1618,77 +1616,77 @@ describe('Maestro', () => {
       await expect(maestroWithArtifacts['validate']()).resolves.toBe(true);
     });
 
-    it('should generate zip filename from --build option', async () => {
-      const optionsWithBuild = new MaestroOptions(
+    it('should generate zip filename from --name option', async () => {
+      const optionsWithName = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
         {
           downloadArtifacts: true,
-          build: 'my-build-123',
+          name: 'my-test-run',
         },
       );
-      const maestroWithBuild = new Maestro(mockCredentials, optionsWithBuild);
+      const maestroWithName = new Maestro(mockCredentials, optionsWithName);
 
       // Mock access to throw (file doesn't exist)
       (fs.promises.access as jest.Mock).mockRejectedValue(new Error('ENOENT'));
 
-      const zipName = await maestroWithBuild['generateArtifactZipName']('/tmp/test');
-      expect(zipName).toBe('my-build-123.zip');
+      const zipName = await maestroWithName['generateArtifactZipName']('/tmp/test');
+      expect(zipName).toBe('my-test-run.zip');
     });
 
-    it('should sanitize build name for zip filename', async () => {
-      const optionsWithBuild = new MaestroOptions(
+    it('should sanitize name for zip filename', async () => {
+      const optionsWithName = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
         {
           downloadArtifacts: true,
-          build: 'my build/test:v1.0',
+          name: 'my test/run:v1.0',
         },
       );
-      const maestroWithBuild = new Maestro(mockCredentials, optionsWithBuild);
+      const maestroWithName = new Maestro(mockCredentials, optionsWithName);
 
       // Mock access to throw (file doesn't exist)
       (fs.promises.access as jest.Mock).mockRejectedValue(new Error('ENOENT'));
 
-      const zipName = await maestroWithBuild['generateArtifactZipName']('/tmp/test');
-      expect(zipName).toBe('my_build_test_v1_0.zip');
+      const zipName = await maestroWithName['generateArtifactZipName']('/tmp/test');
+      expect(zipName).toBe('my_test_run_v1_0.zip');
     });
 
-    it('should generate timestamp-based zip filename when no --build option', async () => {
-      const optionsWithoutBuild = new MaestroOptions(
+    it('should generate timestamp-based zip filename when no --name option', async () => {
+      const optionsWithoutName = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
         { downloadArtifacts: true },
       );
-      const maestroWithoutBuild = new Maestro(
+      const maestroWithoutName = new Maestro(
         mockCredentials,
-        optionsWithoutBuild,
+        optionsWithoutName,
       );
 
-      const zipName = await maestroWithoutBuild['generateArtifactZipName']('/tmp/test');
+      const zipName = await maestroWithoutName['generateArtifactZipName']('/tmp/test');
       expect(zipName).toMatch(/^maestro_artifacts_\d{4}-\d{2}-\d{2}T.*\.zip$/);
     });
 
     it('should add timestamp suffix when zip file already exists', async () => {
-      const optionsWithBuild = new MaestroOptions(
+      const optionsWithName = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
         {
           downloadArtifacts: true,
-          build: 'existing-build',
+          name: 'existing-name',
         },
       );
-      const maestroWithBuild = new Maestro(mockCredentials, optionsWithBuild);
+      const maestroWithName = new Maestro(mockCredentials, optionsWithName);
 
       // Mock access: file exists
       (fs.promises.access as jest.Mock).mockResolvedValueOnce(undefined);
 
-      const zipName = await maestroWithBuild['generateArtifactZipName']('/tmp/test');
-      expect(zipName).toMatch(/^existing-build_\d+\.zip$/);
+      const zipName = await maestroWithName['generateArtifactZipName']('/tmp/test');
+      expect(zipName).toMatch(/^existing-name_\d+\.zip$/);
     });
 
     it('should fetch run details with assets', async () => {

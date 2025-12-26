@@ -242,8 +242,7 @@ const maestroCommand = program
     'Device timezone (e.g., "America/New_York", "Europe/London").',
   )
   // Test metadata
-  .option('--name <name>', 'Test name for identification in dashboard.')
-  .option('--build <build>', 'Build identifier for grouping test runs.')
+  .option('--name <name>', 'Name for this Maestro run.')
   // Network and geo
   .option(
     '--throttle-network <speed>',
@@ -356,7 +355,6 @@ const maestroCommand = program
         platformName: args.platform,
         version: args.deviceVersion,
         name: args.name,
-        build: args.build,
         orientation: args.orientation,
         locale: args.deviceLocale,
         timeZone: args.timezone,

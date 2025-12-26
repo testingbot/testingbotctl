@@ -14,7 +14,6 @@ export interface MaestroCapabilities {
   version?: string;
   deviceName: string;
   name?: string;
-  build?: string;
   orientation?: Orientation;
   locale?: string;
   timeZone?: string;
@@ -39,7 +38,6 @@ export default class MaestroOptions {
   private _platformName?: 'Android' | 'iOS';
   private _version?: string;
   private _name?: string;
-  private _build?: string;
   private _orientation?: Orientation;
   private _locale?: string;
   private _timeZone?: string;
@@ -67,7 +65,6 @@ export default class MaestroOptions {
       platformName?: 'Android' | 'iOS';
       version?: string;
       name?: string;
-      build?: string;
       orientation?: Orientation;
       locale?: string;
       timeZone?: string;
@@ -94,7 +91,6 @@ export default class MaestroOptions {
     this._platformName = options?.platformName;
     this._version = options?.version;
     this._name = options?.name;
-    this._build = options?.build;
     this._orientation = options?.orientation;
     this._locale = options?.locale;
     this._timeZone = options?.timeZone;
@@ -143,10 +139,6 @@ export default class MaestroOptions {
 
   public get name(): string | undefined {
     return this._name;
-  }
-
-  public get build(): string | undefined {
-    return this._build;
   }
 
   public get orientation(): Orientation | undefined {
@@ -258,7 +250,6 @@ export default class MaestroOptions {
 
     if (this._version) caps.version = this._version;
     if (this._name) caps.name = this._name;
-    if (this._build) caps.build = this._build;
     if (this._orientation) caps.orientation = this._orientation;
     if (this._locale) caps.locale = this._locale;
     if (this._timeZone) caps.timeZone = this._timeZone;

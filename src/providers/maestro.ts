@@ -1499,13 +1499,13 @@ export default class Maestro {
   }
 
   private async generateArtifactZipName(outputDir: string): Promise<string> {
-    if (!this.options.build) {
+    if (!this.options.name) {
       // Generate unique name with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       return `maestro_artifacts_${timestamp}.zip`;
     }
 
-    const baseName = this.options.build.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const baseName = this.options.name.replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `${baseName}.zip`;
     const filePath = path.join(outputDir, fileName);
 

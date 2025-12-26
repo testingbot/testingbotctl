@@ -11,7 +11,6 @@ describe('MaestroOptions', () => {
       expect(options.platformName).toBeUndefined();
       expect(options.version).toBeUndefined();
       expect(options.name).toBeUndefined();
-      expect(options.build).toBeUndefined();
       expect(options.orientation).toBeUndefined();
       expect(options.locale).toBeUndefined();
       expect(options.timeZone).toBeUndefined();
@@ -30,7 +29,6 @@ describe('MaestroOptions', () => {
         platformName: 'Android',
         version: '14',
         name: 'Test Run',
-        build: 'build-456',
         orientation: 'LANDSCAPE',
         locale: 'de_DE',
         timeZone: 'Europe/Berlin',
@@ -50,7 +48,6 @@ describe('MaestroOptions', () => {
       expect(options.platformName).toBe('Android');
       expect(options.version).toBe('14');
       expect(options.name).toBe('Test Run');
-      expect(options.build).toBe('build-456');
       expect(options.orientation).toBe('LANDSCAPE');
       expect(options.locale).toBe('de_DE');
       expect(options.timeZone).toBe('Europe/Berlin');
@@ -181,7 +178,6 @@ describe('MaestroOptions', () => {
         platformName: 'iOS',
         version: '17.2',
         name: 'iOS Test',
-        build: 'ios-build-1',
         orientation: 'PORTRAIT',
         locale: 'en_GB',
         timeZone: 'Europe/London',
@@ -195,7 +191,6 @@ describe('MaestroOptions', () => {
         platformName: 'iOS',
         version: '17.2',
         name: 'iOS Test',
-        build: 'ios-build-1',
         orientation: 'PORTRAIT',
         locale: 'en_GB',
         timeZone: 'Europe/London',
@@ -218,7 +213,6 @@ describe('MaestroOptions', () => {
         version: '13',
       });
       expect(caps).not.toHaveProperty('name');
-      expect(caps).not.toHaveProperty('build');
       expect(caps).not.toHaveProperty('orientation');
       expect(caps).not.toHaveProperty('locale');
       expect(caps).not.toHaveProperty('timeZone');
