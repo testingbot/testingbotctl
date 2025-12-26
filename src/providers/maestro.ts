@@ -199,9 +199,6 @@ export default class Maestro {
         this.detectedPlatform = await this.detectPlatform();
       }
 
-      if (!this.options.quiet) {
-        logger.info('Uploading Maestro App');
-      }
       await this.uploadApp();
 
       if (!this.options.quiet) {
@@ -287,6 +284,10 @@ export default class Maestro {
         }
         return true;
       }
+    }
+
+    if (!this.options.quiet) {
+      logger.info('Uploading Maestro App');
     }
 
     // App doesn't exist (or checksum check skipped), upload it
@@ -1774,7 +1775,7 @@ export default class Maestro {
 
     this.isShuttingDown = true;
     this.clearLine();
-    logger.warn('Received interrupt signal, stopping test runs...');
+    logger.info('Received interrupt signal, stopping test runs...');
 
     // Stop all active runs
     this.stopActiveRuns()

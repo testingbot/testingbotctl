@@ -564,7 +564,7 @@ export default class XCUITest {
 
     this.isShuttingDown = true;
     this.clearLine();
-    logger.warn('Received interrupt signal, stopping test runs...');
+    logger.info('Received interrupt signal, stopping test runs...');
 
     this.stopActiveRuns()
       .then(() => {
