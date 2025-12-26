@@ -18,6 +18,7 @@ import MaestroOptions, {
   Orientation,
   ThrottleNetwork,
   ReportFormat,
+  ArtifactDownloadMode,
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 import Login from './providers/login';
@@ -297,8 +298,9 @@ const maestroCommand = program
   )
   // Artifact download
   .option(
-    '--download-artifacts',
-    'Download test artifacts (logs, screenshots, video) after completion.',
+    '--download-artifacts [mode]',
+    'Download test artifacts after completion. Mode: all (default) or failed.',
+    (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
   )
   .option(
     '--artifacts-output-dir <path>',
@@ -367,7 +369,10 @@ const maestroCommand = program
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         realDevice: args.realDevice,
-        downloadArtifacts: args.downloadArtifacts,
+        downloadArtifacts:
+          args.downloadArtifacts === true
+            ? 'all'
+            : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
         artifactsOutputDir: args.artifactsOutputDir,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,

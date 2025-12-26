@@ -8,6 +8,7 @@ export interface MaestroConfig {
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane' | 'disable';
 export type ReportFormat = 'html' | 'junit';
+export type ArtifactDownloadMode = 'all' | 'failed';
 
 export interface MaestroCapabilities {
   platformName?: 'Android' | 'iOS';
@@ -50,7 +51,7 @@ export default class MaestroOptions {
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
   private _realDevice: boolean;
-  private _downloadArtifacts: boolean;
+  private _downloadArtifacts?: ArtifactDownloadMode;
   private _artifactsOutputDir?: string;
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
@@ -77,7 +78,7 @@ export default class MaestroOptions {
       report?: ReportFormat;
       reportOutputDir?: string;
       realDevice?: boolean;
-      downloadArtifacts?: boolean;
+      downloadArtifacts?: ArtifactDownloadMode;
       artifactsOutputDir?: string;
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
@@ -103,7 +104,7 @@ export default class MaestroOptions {
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
     this._realDevice = options?.realDevice ?? false;
-    this._downloadArtifacts = options?.downloadArtifacts ?? false;
+    this._downloadArtifacts = options?.downloadArtifacts;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
@@ -189,7 +190,7 @@ export default class MaestroOptions {
     return this._realDevice;
   }
 
-  public get downloadArtifacts(): boolean {
+  public get downloadArtifacts(): ArtifactDownloadMode | undefined {
     return this._downloadArtifacts;
   }
 

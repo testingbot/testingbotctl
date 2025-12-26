@@ -1575,7 +1575,7 @@ describe('Maestro', () => {
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
-        { downloadArtifacts: true },
+        { downloadArtifacts: 'all' },
       );
       const maestroWithArtifacts = new Maestro(
         mockCredentials,
@@ -1596,7 +1596,7 @@ describe('Maestro', () => {
         'path/to/flows',
         'Pixel 6',
         {
-          downloadArtifacts: true,
+          downloadArtifacts: 'all',
           artifactsOutputDir: './artifacts',
         },
       );
@@ -1616,13 +1616,33 @@ describe('Maestro', () => {
       await expect(maestroWithArtifacts['validate']()).resolves.toBe(true);
     });
 
+    it('should pass validation when downloadArtifacts is set to failed mode', async () => {
+      const optionsWithArtifacts = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { downloadArtifacts: 'failed' },
+      );
+      const maestroWithArtifacts = new Maestro(
+        mockCredentials,
+        optionsWithArtifacts,
+      );
+
+      fs.promises.access = jest
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+
+      await expect(maestroWithArtifacts['validate']()).resolves.toBe(true);
+    });
+
     it('should generate zip filename from --name option', async () => {
       const optionsWithName = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
         {
-          downloadArtifacts: true,
+          downloadArtifacts: 'all',
           name: 'my-test-run',
         },
       );
@@ -1641,7 +1661,7 @@ describe('Maestro', () => {
         'path/to/flows',
         'Pixel 6',
         {
-          downloadArtifacts: true,
+          downloadArtifacts: 'all',
           name: 'my test/run:v1.0',
         },
       );
@@ -1659,7 +1679,7 @@ describe('Maestro', () => {
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
-        { downloadArtifacts: true },
+        { downloadArtifacts: 'all' },
       );
       const maestroWithoutName = new Maestro(
         mockCredentials,
@@ -1676,7 +1696,7 @@ describe('Maestro', () => {
         'path/to/flows',
         'Pixel 6',
         {
-          downloadArtifacts: true,
+          downloadArtifacts: 'all',
           name: 'existing-name',
         },
       );

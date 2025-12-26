@@ -1522,8 +1522,30 @@ export default class Maestro {
   private async downloadArtifacts(runs: MaestroRunInfo[]): Promise<void> {
     if (!this.options.downloadArtifacts) return;
 
+    // Filter runs based on download mode
+    const downloadMode = this.options.downloadArtifacts;
+    const runsToDownload =
+      downloadMode === 'failed'
+        ? runs.filter((run) => run.success !== 1)
+        : runs;
+
+    if (runsToDownload.length === 0) {
+      if (!this.options.quiet) {
+        if (downloadMode === 'failed') {
+          logger.info('No failed runs to download artifacts for.');
+        } else {
+          logger.info('No runs to download artifacts for.');
+        }
+      }
+      return;
+    }
+
     if (!this.options.quiet) {
-      logger.info('Downloading artifacts...');
+      if (downloadMode === 'failed') {
+        logger.info(`Downloading artifacts for ${runsToDownload.length} failed run(s)...`);
+      } else {
+        logger.info('Downloading artifacts...');
+      }
     }
 
     const outputDir = this.options.artifactsOutputDir || process.cwd();
@@ -1533,7 +1555,7 @@ export default class Maestro {
     );
 
     try {
-      for (const run of runs) {
+      for (const run of runsToDownload) {
         try {
           if (!this.options.quiet) {
             logger.info(`  Waiting for artifacts sync for run ${run.id}...`);
