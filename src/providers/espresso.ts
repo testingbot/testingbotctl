@@ -503,10 +503,17 @@ export default class Espresso {
     if (cause && typeof cause === 'object') {
       const axiosError = cause as {
         response?: {
+          status?: number;
           data?: { error?: string; errors?: string[]; message?: string };
         };
         message?: string;
       };
+
+      // Check for 429 status code (credits depleted)
+      if (axiosError.response?.status === 429) {
+        return 'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing';
+      }
+
       if (axiosError.response?.data?.errors) {
         return axiosError.response.data.errors.join('\n');
       }

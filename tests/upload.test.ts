@@ -233,6 +233,56 @@ describe('Upload', () => {
         new TestingBotError('Upload failed: Something went wrong'),
       );
     });
+
+    it('should handle 401 unauthorized errors', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        message: 'Request failed with status code 401',
+        response: {
+          status: 401,
+          data: {},
+        },
+      };
+      (axios.post as jest.Mock).mockRejectedValueOnce(axiosError);
+      (axios.isAxiosError as unknown as jest.Mock) = jest
+        .fn()
+        .mockReturnValue(true);
+
+      const options = createUploadOptions();
+
+      await expect(upload.upload(options)).rejects.toThrow(
+        new TestingBotError(
+          'Invalid TestingBot credentials. Please check your API key and secret.\n' +
+            'You can update your credentials by running "testingbot login" or by using:\n' +
+            '  --api-key and --api-secret options\n' +
+            '  TB_KEY and TB_SECRET environment variables\n' +
+            '  ~/.testingbot file with content: key:secret',
+        ),
+      );
+    });
+
+    it('should handle 429 credits depleted errors', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        message: 'Request failed with status code 429',
+        response: {
+          status: 429,
+          data: {},
+        },
+      };
+      (axios.post as jest.Mock).mockRejectedValueOnce(axiosError);
+      (axios.isAxiosError as unknown as jest.Mock) = jest
+        .fn()
+        .mockReturnValue(true);
+
+      const options = createUploadOptions();
+
+      await expect(upload.upload(options)).rejects.toThrow(
+        new TestingBotError(
+          'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing',
+        ),
+      );
+    });
   });
 
   describe('progress tracking', () => {

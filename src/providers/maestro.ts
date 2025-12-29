@@ -112,7 +112,7 @@ export default class Maestro {
       throw new TestingBotError(`flows option is required`);
     }
 
-    // Check if all flows paths exist (can be files, directories, or glob patterns)
+    // Check if all flows paths exist (can be files, directories or glob patterns)
     for (const flowsPath of this.options.flows) {
       const isGlobPattern =
         flowsPath.includes('*') ||
@@ -128,9 +128,6 @@ export default class Maestro {
       }
     }
 
-    // Device is optional - will be inferred from app file type if not provided
-
-    // Validate report options
     if (this.options.report && !this.options.reportOutputDir) {
       throw new TestingBotError(
         `--report-output-dir is required when --report is specified`,
@@ -141,7 +138,6 @@ export default class Maestro {
       await this.ensureOutputDirectory(this.options.reportOutputDir);
     }
 
-    // Validate artifact download options - output dir defaults to current directory
     if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
       await this.ensureOutputDirectory(this.options.artifactsOutputDir);
     }
@@ -159,7 +155,6 @@ export default class Maestro {
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        // Directory doesn't exist, try to create it
         try {
           await fs.promises.mkdir(dirPath, { recursive: true });
         } catch (mkdirError) {
@@ -221,7 +216,6 @@ export default class Maestro {
         return { success: true, runs: [] };
       }
 
-      // Set up signal handlers before waiting for completion
       this.setupSignalHandlers();
 
       // Connect to real-time update server (unless --quiet is specified)
@@ -272,7 +266,6 @@ export default class Maestro {
       contentType = 'application/octet-stream';
     }
 
-    // Check if app already exists (unless checksum check is disabled)
     if (!this.options.ignoreChecksumCheck) {
       const checksum = await this.upload.calculateChecksum(appPath);
       const existingApp = await this.checkAppChecksum(checksum);
@@ -290,7 +283,6 @@ export default class Maestro {
       logger.info('Uploading Maestro App');
     }
 
-    // App doesn't exist (or checksum check skipped), upload it
     const result = await this.upload.upload({
       filePath: appPath,
       url: `${this.URL}/app`,
@@ -323,7 +315,6 @@ export default class Maestro {
         },
       );
 
-      // Check for version update notification
       const latestVersion = response.headers?.['x-testingbotctl-version'];
       utils.checkForUpdate(latestVersion);
 
@@ -351,7 +342,6 @@ export default class Maestro {
       const stat = await fs.promises.stat(singlePath).catch(() => null);
       if (stat?.isFile() && path.extname(singlePath).toLowerCase() === '.zip') {
         zipPath = singlePath;
-        // Upload the zip directly without cleanup
         await this.upload.upload({
           filePath: zipPath,
           url: `${this.URL}/${this.appId}/tests`,
@@ -419,7 +409,6 @@ export default class Maestro {
     // If we have a single directory, use it as base; otherwise use common ancestor or flatten
     const baseDir = baseDirs.length === 1 ? baseDirs[0] : undefined;
 
-    // Log files being included in the zip
     if (!this.options.quiet) {
       this.logIncludedFiles(allFlowFiles, baseDir);
     }
@@ -894,6 +883,7 @@ export default class Maestro {
     const startTime = Date.now();
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
     const previousFlowStatus: Map<number, MaestroFlowStatus> = new Map();
+    const urlDisplayed: Set<number> = new Set();
     let flowsTableDisplayed = false;
     let displayedLineCount = 0;
 
@@ -920,10 +910,22 @@ export default class Maestro {
           }
         }
 
+        // Show realtime URL once per run (before any in-place updates)
+        for (const run of status.runs) {
+          if (!urlDisplayed.has(run.id)) {
+            console.log(
+              `  🔗 Run ${run.id} (${run.capabilities.deviceName}): Watch in realtime:`,
+            );
+            console.log(
+              `     https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
+            );
+            urlDisplayed.add(run.id);
+          }
+        }
+
         if (allFlows.length > 0) {
           if (!flowsTableDisplayed) {
             // First time showing flows - display header and initial state
-            this.displayRunStatus(status.runs, startTime, previousStatus);
             console.log(); // Empty line before flows table
             this.displayFlowsTableHeader();
             displayedLineCount = this.displayFlowsWithLimit(allFlows, previousFlowStatus);
@@ -969,12 +971,10 @@ export default class Maestro {
           }
         }
 
-        // Fetch reports if requested
         if (this.options.report && this.options.reportOutputDir) {
           await this.fetchReports(status.runs);
         }
 
-        // Download artifacts if requested
         if (this.options.downloadArtifacts) {
           await this.downloadArtifacts(status.runs);
         }
@@ -1015,16 +1015,6 @@ export default class Maestro {
         this.clearLine();
       }
 
-      // Show URL when test starts running (transitions from WAITING to READY)
-      if (statusChanged && prevStatus === 'WAITING' && run.status === 'READY') {
-        console.log(
-          `  🚀 Run ${run.id} (${run.capabilities.deviceName}): Test started`,
-        );
-        console.log(
-          `     Watch this test in realtime: https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
-        );
-      }
-
       previousStatus.set(run.id, run.status);
 
       const statusInfo = this.getStatusInfo(run.status);
@@ -1044,62 +1034,6 @@ export default class Maestro {
 
   private clearLine(): void {
     platformUtil.clearLine();
-  }
-
-  private displayFlowsProgress(
-    flows: MaestroFlowInfo[],
-    startTime: number,
-    isUpdate: boolean,
-  ): void {
-    const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
-    const elapsedStr = this.formatElapsedTime(elapsedSeconds);
-
-    // Count flows by status
-    let waiting = 0;
-    let running = 0;
-    let passed = 0;
-    let failed = 0;
-
-    for (const flow of flows) {
-      switch (flow.status) {
-        case 'WAITING':
-          waiting++;
-          break;
-        case 'READY':
-          running++;
-          break;
-        case 'DONE':
-          if (flow.success === 1) {
-            passed++;
-          } else {
-            failed++;
-          }
-          break;
-        case 'FAILED':
-          failed++;
-          break;
-      }
-    }
-
-    const total = flows.length;
-    const completed = passed + failed;
-
-    // Build progress summary with colors
-    const parts: string[] = [];
-    if (waiting > 0) parts.push(colors.white(`${waiting} waiting`));
-    if (running > 0) parts.push(colors.blue(`${running} running`));
-    if (passed > 0) parts.push(colors.green(`${passed} passed`));
-    if (failed > 0) parts.push(colors.red(`${failed} failed`));
-
-    const progressBar = `[${completed}/${total}]`;
-    const message = `  🔄 Flows ${progressBar}: ${parts.join(' | ')} (${elapsedStr})`;
-
-    if (isUpdate) {
-      // Clear current line and write new progress
-      process.stdout.write(`\r\x1b[K${message}`);
-    } else {
-      process.stdout.write(message);
-    }
   }
 
   private formatElapsedTime(seconds: number): string {
@@ -1410,7 +1344,6 @@ export default class Maestro {
         },
       });
 
-      // Check for version update notification
       const latestVersion = response.headers?.['x-testingbotctl-version'];
       utils.checkForUpdate(latestVersion);
 
@@ -1575,7 +1508,6 @@ export default class Maestro {
           const runDir = path.join(tempDir, `run_${run.id}`);
           await fs.promises.mkdir(runDir, { recursive: true });
 
-          // Download logs
           if (
             runDetails.assets.logs &&
             Object.keys(runDetails.assets.logs).length > 0
@@ -1736,10 +1668,17 @@ export default class Maestro {
       // Handle axios errors which have response.data
       const axiosError = cause as {
         response?: {
+          status?: number;
           data?: { error?: string; errors?: string[]; message?: string };
         };
         message?: string;
       };
+
+      // Check for 429 status code (credits depleted)
+      if (axiosError.response?.status === 429) {
+        return 'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing';
+      }
+
       if (axiosError.response?.data?.errors) {
         return axiosError.response.data.errors.join('\n');
       }
@@ -1750,12 +1689,10 @@ export default class Maestro {
         return axiosError.response.data.message;
       }
 
-      // Handle standard Error objects
       if (cause instanceof Error) {
         return cause.message;
       }
 
-      // Handle plain objects with errors array, error, or message property
       const obj = cause as {
         errors?: string[];
         error?: string;

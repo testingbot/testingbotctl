@@ -126,6 +126,11 @@ export default class Upload {
               '  ~/.testingbot file with content: key:secret',
           );
         }
+        if (error.response?.status === 429) {
+          throw new TestingBotError(
+            'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing',
+          );
+        }
         const message = error.response?.data?.error || error.message;
         throw new TestingBotError(`Upload failed: ${message}`);
       }

@@ -1002,4 +1002,54 @@ describe('Espresso', () => {
       stdoutSpy.mockRestore();
     });
   });
+
+  describe('extractErrorMessage', () => {
+    it('should return credits depleted message for 429 status code', () => {
+      const axiosError = {
+        response: {
+          status: 429,
+          data: {},
+        },
+        message: 'Request failed with status code 429',
+      };
+
+      const result = espresso['extractErrorMessage'](axiosError);
+
+      expect(result).toBe(
+        'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing',
+      );
+    });
+
+    it('should return error message from response data for non-429 errors', () => {
+      const axiosError = {
+        response: {
+          status: 400,
+          data: {
+            error: 'Invalid request',
+          },
+        },
+        message: 'Request failed',
+      };
+
+      const result = espresso['extractErrorMessage'](axiosError);
+
+      expect(result).toBe('Invalid request');
+    });
+
+    it('should return string cause directly', () => {
+      const result = espresso['extractErrorMessage']('Simple error message');
+
+      expect(result).toBe('Simple error message');
+    });
+
+    it('should join array of errors with newlines', () => {
+      const result = espresso['extractErrorMessage']([
+        'Error 1',
+        'Error 2',
+        'Error 3',
+      ]);
+
+      expect(result).toBe('Error 1\nError 2\nError 3');
+    });
+  });
 });
