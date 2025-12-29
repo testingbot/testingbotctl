@@ -28,12 +28,7 @@ export interface UploadResult {
 
 export default class Upload {
   public async upload(options: UploadOptions): Promise<UploadResult> {
-    const {
-      filePath,
-      url,
-      credentials,
-      showProgress = false,
-    } = options;
+    const { filePath, url, credentials, showProgress = false } = options;
 
     await this.validateFile(filePath);
 

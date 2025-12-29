@@ -7,8 +7,7 @@ import path from 'node:path';
 import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
-import Upload from '../upload';
-import platform from '../utils/platform';
+import BaseProvider from './base_provider';
 
 export interface XCUITestRunInfo {
   id: number;
@@ -38,27 +37,16 @@ export interface XCUITestSocketMessage {
   payload: string;
 }
 
-export default class XCUITest {
-  private readonly URL = 'https://api.testingbot.com/v1/app-automate/xcuitest';
-  private readonly POLL_INTERVAL_MS = 5000;
-  private readonly MAX_POLL_ATTEMPTS = 720; // 1 hour max with 5s interval
+export default class XCUITest extends BaseProvider<XCUITestOptions> {
+  protected readonly URL =
+    'https://api.testingbot.com/v1/app-automate/xcuitest';
 
-  private credentials: Credentials;
-  private options: XCUITestOptions;
-  private upload: Upload;
-
-  private appId: number | undefined = undefined;
-  private activeRunIds: number[] = [];
-  private isShuttingDown = false;
-  private signalHandler: (() => void) | null = null;
   private socket: Socket | null = null;
   private updateServer: string | null = null;
   private updateKey: string | null = null;
 
   public constructor(credentials: Credentials, options: XCUITestOptions) {
-    this.credentials = credentials;
-    this.options = options;
-    this.upload = new Upload();
+    super(credentials, options);
   }
 
   private async validate(): Promise<boolean> {
@@ -98,35 +86,6 @@ export default class XCUITest {
     }
 
     return true;
-  }
-
-  private async ensureOutputDirectory(dirPath: string): Promise<void> {
-    try {
-      const stat = await fs.promises.stat(dirPath);
-      if (!stat.isDirectory()) {
-        throw new TestingBotError(
-          `Report output path exists but is not a directory: ${dirPath}`,
-        );
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        try {
-          await fs.promises.mkdir(dirPath, { recursive: true });
-        } catch (mkdirError) {
-          throw new TestingBotError(
-            `Failed to create report output directory: ${dirPath}`,
-            { cause: mkdirError },
-          );
-        }
-      } else if (error instanceof TestingBotError) {
-        throw error;
-      } else {
-        throw new TestingBotError(
-          `Failed to access report output directory: ${dirPath}`,
-          { cause: error },
-        );
-      }
-    }
   }
 
   public async run(): Promise<XCUITestResult> {
@@ -401,19 +360,6 @@ export default class XCUITest {
     }
   }
 
-  private clearLine(): void {
-    platform.clearLine();
-  }
-
-  private formatElapsedTime(seconds: number): string {
-    if (seconds < 60) {
-      return `${seconds}s`;
-    }
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-
   private getStatusInfo(status: XCUITestRunInfo['status']): {
     emoji: string;
     text: string;
@@ -487,150 +433,6 @@ export default class XCUITest {
           `Failed to fetch report for run ${run.id}: ${error instanceof Error ? error.message : error}`,
         );
       }
-    }
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private extractErrorMessage(cause: unknown): string | null {
-    if (typeof cause === 'string') {
-      return cause;
-    }
-
-    if (Array.isArray(cause)) {
-      return cause.join('\n');
-    }
-
-    if (cause && typeof cause === 'object') {
-      const axiosError = cause as {
-        response?: {
-          status?: number;
-          data?: { error?: string; errors?: string[]; message?: string };
-        };
-        message?: string;
-      };
-
-      // Check for 429 status code (credits depleted)
-      if (axiosError.response?.status === 429) {
-        return 'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing';
-      }
-
-      if (axiosError.response?.data?.errors) {
-        return axiosError.response.data.errors.join('\n');
-      }
-      if (axiosError.response?.data?.error) {
-        return axiosError.response.data.error;
-      }
-      if (axiosError.response?.data?.message) {
-        return axiosError.response.data.message;
-      }
-
-      if (cause instanceof Error) {
-        return cause.message;
-      }
-
-      const obj = cause as {
-        errors?: string[];
-        error?: string;
-        message?: string;
-      };
-      if (obj.errors) {
-        return obj.errors.join('\n');
-      }
-      if (obj.error) {
-        return obj.error;
-      }
-      if (obj.message) {
-        return obj.message;
-      }
-    }
-
-    return null;
-  }
-
-  private setupSignalHandlers(): void {
-    this.signalHandler = () => {
-      this.handleShutdown();
-    };
-
-    platform.setupSignalHandlers(this.signalHandler);
-  }
-
-  private removeSignalHandlers(): void {
-    if (this.signalHandler) {
-      platform.removeSignalHandlers(this.signalHandler);
-      this.signalHandler = null;
-    }
-  }
-
-  private handleShutdown(): void {
-    if (this.isShuttingDown) {
-      logger.warn('Force exiting...');
-      process.exit(1);
-    }
-
-    this.isShuttingDown = true;
-    this.clearLine();
-    logger.info('Received interrupt signal, stopping test runs...');
-
-    this.stopActiveRuns()
-      .then(() => {
-        logger.info('All test runs have been stopped.');
-        process.exit(1);
-      })
-      .catch((error) => {
-        logger.error(
-          `Failed to stop some test runs: ${error instanceof Error ? error.message : error}`,
-        );
-        process.exit(1);
-      });
-  }
-
-  private async stopActiveRuns(): Promise<void> {
-    if (!this.appId || this.activeRunIds.length === 0) {
-      return;
-    }
-
-    const stopPromises = this.activeRunIds.map((runId) =>
-      this.stopRun(runId).catch((error) => {
-        logger.error(
-          `Failed to stop run ${runId}: ${error instanceof Error ? error.message : error}`,
-        );
-      }),
-    );
-
-    await Promise.all(stopPromises);
-  }
-
-  private async stopRun(runId: number): Promise<void> {
-    if (!this.appId) {
-      return;
-    }
-
-    try {
-      await axios.post(
-        `${this.URL}/${this.appId}/${runId}/stop`,
-        {},
-        {
-          headers: {
-            'User-Agent': utils.getUserAgent(),
-          },
-          auth: {
-            username: this.credentials.userName,
-            password: this.credentials.accessKey,
-          },
-        },
-      );
-
-      if (!this.options.quiet) {
-        logger.info(`  Stopped run ${runId}`);
-      }
-    } catch (error) {
-      throw new TestingBotError(`Failed to stop run ${runId}`, {
-        cause: error,
-      });
     }
   }
 

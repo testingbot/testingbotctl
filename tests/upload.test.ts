@@ -48,7 +48,9 @@ describe('Upload', () => {
         this.push(null);
       },
     });
-    jest.spyOn(fs, 'createReadStream').mockReturnValue(mockStream as fs.ReadStream);
+    jest
+      .spyOn(fs, 'createReadStream')
+      .mockReturnValue(mockStream as fs.ReadStream);
   });
 
   afterEach(() => {
@@ -161,7 +163,10 @@ describe('Upload', () => {
 
   describe('API error handling', () => {
     it('should throw an error if API returns no id', async () => {
-      const mockResponse = { data: { error: 'Invalid file format' }, headers: {} };
+      const mockResponse = {
+        data: { error: 'Invalid file format' },
+        headers: {},
+      };
       (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
 
       const options = createUploadOptions();
@@ -300,13 +305,9 @@ describe('Upload', () => {
       await upload.upload(options);
 
       // Should show progress bar with filename
-      expect(writeSpy).toHaveBeenCalledWith(
-        expect.stringContaining('app.apk'),
-      );
+      expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('app.apk'));
       // Should show percentage in progress bar
-      expect(writeSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/\d+%/),
-      );
+      expect(writeSpy).toHaveBeenCalledWith(expect.stringMatching(/\d+%/));
       // Should print newline when complete
       expect(logSpy).toHaveBeenCalledWith('');
 

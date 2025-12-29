@@ -11,10 +11,9 @@ import archiver from 'archiver';
 import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
-import Upload from '../upload';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
-import platformUtil from '../utils/platform';
 import colors from 'colors';
+import BaseProvider from './base_provider';
 
 export interface MaestroRunAssets {
   logs?: Record<string, string>;
@@ -73,28 +72,16 @@ export interface MaestroSocketMessage {
   payload: string;
 }
 
-export default class Maestro {
-  private readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
-  private readonly POLL_INTERVAL_MS = 5000;
-  private readonly MAX_POLL_ATTEMPTS = 720; // 1 hour max with 5s interval
+export default class Maestro extends BaseProvider<MaestroOptions> {
+  protected readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
 
-  private credentials: Credentials;
-  private options: MaestroOptions;
-  private upload: Upload;
-
-  private appId: number | undefined = undefined;
   private detectedPlatform: 'Android' | 'iOS' | undefined = undefined;
-  private activeRunIds: number[] = [];
-  private isShuttingDown = false;
-  private signalHandler: (() => void) | null = null;
   private socket: Socket | null = null;
   private updateServer: string | null = null;
   private updateKey: string | null = null;
 
   public constructor(credentials: Credentials, options: MaestroOptions) {
-    this.credentials = credentials;
-    this.options = options;
-    this.upload = new Upload();
+    super(credentials, options);
   }
 
   private async validate(): Promise<boolean> {
@@ -145,35 +132,6 @@ export default class Maestro {
     }
 
     return true;
-  }
-
-  private async ensureOutputDirectory(dirPath: string): Promise<void> {
-    try {
-      const stat = await fs.promises.stat(dirPath);
-      if (!stat.isDirectory()) {
-        throw new TestingBotError(
-          `Report output path exists but is not a directory: ${dirPath}`,
-        );
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        try {
-          await fs.promises.mkdir(dirPath, { recursive: true });
-        } catch (mkdirError) {
-          throw new TestingBotError(
-            `Failed to create report output directory: ${dirPath}`,
-            { cause: mkdirError },
-          );
-        }
-      } else if (error instanceof TestingBotError) {
-        throw error;
-      } else {
-        throw new TestingBotError(
-          `Failed to access report output directory: ${dirPath}`,
-          { cause: error },
-        );
-      }
-    }
   }
 
   /**
@@ -550,7 +508,12 @@ export default class Maestro {
     // Exclude template variables that are just ${...}
     const isOnlyVariable = /^\$\{[^}]+\}$/.test(value);
 
-    return (isRelative || hasPathSeparator) && hasExtension && !isUrl && !isOnlyVariable;
+    return (
+      (isRelative || hasPathSeparator) &&
+      hasExtension &&
+      !isUrl &&
+      !isOnlyVariable
+    );
   }
 
   /**
@@ -571,16 +534,18 @@ export default class Maestro {
       return;
     }
 
-    if (
-      (await fs.promises.access(depPath).catch(() => false)) === undefined
-    ) {
+    if ((await fs.promises.access(depPath).catch(() => false)) === undefined) {
       dependencies.push(depPath);
 
       // If it's a YAML file, recursively discover its dependencies
       // discoverDependencies will add it to visited to prevent circular refs
       const ext = path.extname(depPath).toLowerCase();
       if (ext === '.yaml' || ext === '.yml') {
-        const nestedDeps = await this.discoverDependencies(depPath, baseDir, visited);
+        const nestedDeps = await this.discoverDependencies(
+          depPath,
+          baseDir,
+          visited,
+        );
         dependencies.push(...nestedDeps);
       } else {
         // For non-YAML files, add to visited here to prevent duplicates
@@ -603,12 +568,23 @@ export default class Maestro {
     if (typeof value === 'string') {
       // Check if this string looks like a file path
       if (this.looksLikePath(value)) {
-        await this.tryAddDependency(value, flowFile, baseDir, dependencies, visited);
+        await this.tryAddDependency(
+          value,
+          flowFile,
+          baseDir,
+          dependencies,
+          visited,
+        );
       }
     } else if (Array.isArray(value)) {
       // Recursively check array elements
       for (const item of value) {
-        const deps = await this.extractPathsFromValue(item, flowFile, baseDir, visited);
+        const deps = await this.extractPathsFromValue(
+          item,
+          flowFile,
+          baseDir,
+          visited,
+        );
         dependencies.push(...deps);
       }
     } else if (value !== null && typeof value === 'object') {
@@ -629,7 +605,13 @@ export default class Maestro {
             ? runScript
             : (runScript as Record<string, unknown>)?.file;
         if (typeof scriptFile === 'string') {
-          await this.tryAddDependency(scriptFile, flowFile, baseDir, dependencies, visited);
+          await this.tryAddDependency(
+            scriptFile,
+            flowFile,
+            baseDir,
+            dependencies,
+            visited,
+          );
         }
       }
 
@@ -642,11 +624,22 @@ export default class Maestro {
             ? runFlow
             : (runFlow as Record<string, unknown>)?.file;
         if (typeof flowRef === 'string') {
-          await this.tryAddDependency(flowRef, flowFile, baseDir, dependencies, visited);
+          await this.tryAddDependency(
+            flowRef,
+            flowFile,
+            baseDir,
+            dependencies,
+            visited,
+          );
         }
         // Recurse into runFlow for inline commands
         if (typeof runFlow === 'object' && runFlow !== null) {
-          const deps = await this.extractPathsFromValue(runFlow, flowFile, baseDir, visited);
+          const deps = await this.extractPathsFromValue(
+            runFlow,
+            flowFile,
+            baseDir,
+            visited,
+          );
           dependencies.push(...deps);
         }
       }
@@ -658,7 +651,13 @@ export default class Maestro {
         const mediaFiles = Array.isArray(addMedia) ? addMedia : [addMedia];
         for (const mediaFile of mediaFiles) {
           if (typeof mediaFile === 'string') {
-            await this.tryAddDependency(mediaFile, flowFile, baseDir, dependencies, visited);
+            await this.tryAddDependency(
+              mediaFile,
+              flowFile,
+              baseDir,
+              dependencies,
+              visited,
+            );
           }
         }
       }
@@ -668,7 +667,12 @@ export default class Maestro {
         handledKeys.add('onFlowStart');
         const onFlowStart = obj.onFlowStart;
         if (Array.isArray(onFlowStart)) {
-          const deps = await this.extractPathsFromValue(onFlowStart, flowFile, baseDir, visited);
+          const deps = await this.extractPathsFromValue(
+            onFlowStart,
+            flowFile,
+            baseDir,
+            visited,
+          );
           dependencies.push(...deps);
         }
       }
@@ -678,7 +682,12 @@ export default class Maestro {
         handledKeys.add('onFlowComplete');
         const onFlowComplete = obj.onFlowComplete;
         if (Array.isArray(onFlowComplete)) {
-          const deps = await this.extractPathsFromValue(onFlowComplete, flowFile, baseDir, visited);
+          const deps = await this.extractPathsFromValue(
+            onFlowComplete,
+            flowFile,
+            baseDir,
+            visited,
+          );
           dependencies.push(...deps);
         }
       }
@@ -690,7 +699,12 @@ export default class Maestro {
         handledKeys.add('commands');
         const commands = obj.commands;
         if (Array.isArray(commands)) {
-          const deps = await this.extractPathsFromValue(commands, flowFile, baseDir, visited);
+          const deps = await this.extractPathsFromValue(
+            commands,
+            flowFile,
+            baseDir,
+            visited,
+          );
           dependencies.push(...deps);
         }
       }
@@ -698,7 +712,13 @@ export default class Maestro {
       // Generic handling for 'file' property in any command (e.g., retry: { file: ... })
       if ('file' in obj && typeof obj.file === 'string') {
         handledKeys.add('file');
-        await this.tryAddDependency(obj.file, flowFile, baseDir, dependencies, visited);
+        await this.tryAddDependency(
+          obj.file,
+          flowFile,
+          baseDir,
+          dependencies,
+          visited,
+        );
       }
 
       // Recursively check remaining object properties for nested structures
@@ -727,10 +747,10 @@ export default class Maestro {
     // Group by file type
     const groups: Record<string, string[]> = {
       'Flow files': [],
-      'Scripts': [],
+      Scripts: [],
       'Media files': [],
       'Config files': [],
-      'Other': [],
+      Other: [],
     };
 
     for (const filePath of relativePaths) {
@@ -743,7 +763,9 @@ export default class Maestro {
         }
       } else if (ext === '.js' || ext === '.ts') {
         groups['Scripts'].push(filePath);
-      } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov'].includes(ext)) {
+      } else if (
+        ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mov'].includes(ext)
+      ) {
         groups['Media files'].push(filePath);
       } else {
         groups['Other'].push(filePath);
@@ -804,12 +826,22 @@ export default class Maestro {
       const capabilities = this.options.getCapabilities(this.detectedPlatform);
       const maestroOptions = this.options.getMaestroOptions();
       const metadata = this.options.metadata;
+      console.log('sending', JSON.stringify({
+          capabilities: [capabilities],
+          ...(maestroOptions && { maestroOptions }),
+          ...(this.options.shardSplit && {
+            shardSplit: this.options.shardSplit,
+          }),
+          ...(metadata && { metadata }),
+        }))
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
           capabilities: [capabilities],
           ...(maestroOptions && { maestroOptions }),
-          ...(this.options.shardSplit && { shardSplit: this.options.shardSplit }),
+          ...(this.options.shardSplit && {
+            shardSplit: this.options.shardSplit,
+          }),
           ...(metadata && { metadata }),
         },
         {
@@ -932,11 +964,19 @@ export default class Maestro {
             // First time showing flows - display header and initial state
             console.log(); // Empty line before flows table
             this.displayFlowsTableHeader(hasFailures);
-            displayedLineCount = this.displayFlowsWithLimit(allFlows, previousFlowStatus, hasFailures);
+            displayedLineCount = this.displayFlowsWithLimit(
+              allFlows,
+              previousFlowStatus,
+              hasFailures,
+            );
             flowsTableDisplayed = true;
           } else {
             // Update flows in place
-            displayedLineCount = this.updateFlowsInPlace(allFlows, previousFlowStatus, displayedLineCount);
+            displayedLineCount = this.updateFlowsInPlace(
+              allFlows,
+              previousFlowStatus,
+              displayedLineCount,
+            );
           }
         } else {
           // No flows yet, show run status
@@ -956,10 +996,29 @@ export default class Maestro {
 
           const hasFailures = this.hasAnyFlowFailed(allFlows);
           if (hasFailures) {
-            // Clear previous in-place display and redraw with error messages
-            console.log(); // Empty line before final table
-            this.displayFlowsTableHeader(true);
+            // Move cursor up to overwrite the existing table
+            // +2 for header and separator lines
+            const linesToMove = displayedLineCount + 2;
+            process.stdout.write(`\x1b[${linesToMove}A`);
+
+            // Clear header line, write new header, then clear separator line
+            process.stdout.write('\x1b[2K');
+            console.log(
+              colors.dim(
+                ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Flow                              Fail reason`,
+              ),
+            );
+            process.stdout.write('\x1b[2K');
+            console.log(
+              colors.dim(
+                ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(30)} ${'─'.repeat(80)}`,
+              ),
+            );
+
+            // Redraw all flows with error messages
             for (const flow of allFlows) {
+              // Clear the line before writing
+              process.stdout.write('\x1b[2K');
               this.displayFlowRow(flow, false, true);
             }
           }
@@ -1051,19 +1110,6 @@ export default class Maestro {
     }
   }
 
-  private clearLine(): void {
-    platformUtil.clearLine();
-  }
-
-  private formatElapsedTime(seconds: number): string {
-    if (seconds < 60) {
-      return `${seconds}s`;
-    }
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
-  }
-
   private getStatusInfo(status: MaestroRunInfo['status']): {
     emoji: string;
     text: string;
@@ -1082,7 +1128,10 @@ export default class Maestro {
     }
   }
 
-  private getFlowStatusDisplay(flow: MaestroFlowInfo): { text: string; colored: string } {
+  private getFlowStatusDisplay(flow: MaestroFlowInfo): {
+    text: string;
+    colored: string;
+  } {
     switch (flow.status) {
       case 'WAITING':
         return { text: 'WAITING', colored: colors.white('WAITING') };
@@ -1230,7 +1279,9 @@ export default class Maestro {
     const duration = this.calculateFlowDuration(flow).padEnd(10);
     const statusDisplay = this.getFlowStatusDisplay(flow);
     // Pad based on display text length, add extra for color codes
-    const statusPadded = statusDisplay.colored + ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
+    const statusPadded =
+      statusDisplay.colored +
+      ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
     const name = flow.name.padEnd(30);
 
     let linesWritten = 0;
@@ -1311,7 +1362,9 @@ export default class Maestro {
     for (const flow of displayFlows) {
       const duration = this.calculateFlowDuration(flow).padEnd(10);
       const statusDisplay = this.getFlowStatusDisplay(flow);
-      const statusPadded = statusDisplay.colored + ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
+      const statusPadded =
+        statusDisplay.colored +
+        ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
       const name = flow.name;
 
       const row = ` ${duration} ${statusPadded} ${name}`;
@@ -1537,7 +1590,9 @@ export default class Maestro {
 
     if (!this.options.quiet) {
       if (downloadMode === 'failed') {
-        logger.info(`Downloading artifacts for ${runsToDownload.length} failed run(s)...`);
+        logger.info(
+          `Downloading artifacts for ${runsToDownload.length} failed run(s)...`,
+        );
       } else {
         logger.info('Downloading artifacts...');
       }
@@ -1627,7 +1682,10 @@ export default class Maestro {
             for (let i = 0; i < runDetails.assets.screenshots.length; i++) {
               const screenshotUrl = runDetails.assets.screenshots[i];
               const screenshotFileName = `screenshot_${i}.png`;
-              const screenshotPath = path.join(screenshotsDir, screenshotFileName);
+              const screenshotPath = path.join(
+                screenshotsDir,
+                screenshotFileName,
+              );
 
               try {
                 await this.downloadFile(screenshotUrl, screenshotPath);
@@ -1708,154 +1766,6 @@ export default class Maestro {
       archive.directory(sourceDir, false);
       archive.finalize();
     });
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private extractErrorMessage(cause: unknown): string | null {
-    if (typeof cause === 'string') {
-      return cause;
-    }
-
-    // Handle arrays of errors
-    if (Array.isArray(cause)) {
-      return cause.join('\n');
-    }
-
-    if (cause && typeof cause === 'object') {
-      // Handle axios errors which have response.data
-      const axiosError = cause as {
-        response?: {
-          status?: number;
-          data?: { error?: string; errors?: string[]; message?: string };
-        };
-        message?: string;
-      };
-
-      // Check for 429 status code (credits depleted)
-      if (axiosError.response?.status === 429) {
-        return 'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing';
-      }
-
-      if (axiosError.response?.data?.errors) {
-        return axiosError.response.data.errors.join('\n');
-      }
-      if (axiosError.response?.data?.error) {
-        return axiosError.response.data.error;
-      }
-      if (axiosError.response?.data?.message) {
-        return axiosError.response.data.message;
-      }
-
-      if (cause instanceof Error) {
-        return cause.message;
-      }
-
-      const obj = cause as {
-        errors?: string[];
-        error?: string;
-        message?: string;
-      };
-      if (obj.errors) {
-        return obj.errors.join('\n');
-      }
-      if (obj.error) {
-        return obj.error;
-      }
-      if (obj.message) {
-        return obj.message;
-      }
-    }
-
-    return null;
-  }
-
-  private setupSignalHandlers(): void {
-    this.signalHandler = () => {
-      this.handleShutdown();
-    };
-
-    platformUtil.setupSignalHandlers(this.signalHandler);
-  }
-
-  private removeSignalHandlers(): void {
-    if (this.signalHandler) {
-      platformUtil.removeSignalHandlers(this.signalHandler);
-      this.signalHandler = null;
-    }
-  }
-
-  private handleShutdown(): void {
-    if (this.isShuttingDown) {
-      // Already shutting down, force exit on second signal
-      logger.warn('Force exiting...');
-      process.exit(1);
-    }
-
-    this.isShuttingDown = true;
-    this.clearLine();
-    logger.info('Received interrupt signal, stopping test runs...');
-
-    // Stop all active runs
-    this.stopActiveRuns()
-      .then(() => {
-        logger.info('All test runs have been stopped.');
-        process.exit(1);
-      })
-      .catch((error) => {
-        logger.error(
-          `Failed to stop some test runs: ${error instanceof Error ? error.message : error}`,
-        );
-        process.exit(1);
-      });
-  }
-
-  private async stopActiveRuns(): Promise<void> {
-    if (!this.appId || this.activeRunIds.length === 0) {
-      return;
-    }
-
-    const stopPromises = this.activeRunIds.map((runId) =>
-      this.stopRun(runId).catch((error) => {
-        logger.error(
-          `Failed to stop run ${runId}: ${error instanceof Error ? error.message : error}`,
-        );
-      }),
-    );
-
-    await Promise.all(stopPromises);
-  }
-
-  private async stopRun(runId: number): Promise<void> {
-    if (!this.appId) {
-      return;
-    }
-
-    try {
-      await axios.post(
-        `${this.URL}/${this.appId}/${runId}/stop`,
-        {},
-        {
-          headers: {
-            'User-Agent': utils.getUserAgent(),
-          },
-          auth: {
-            username: this.credentials.userName,
-            password: this.credentials.accessKey,
-          },
-        },
-      );
-
-      if (!this.options.quiet) {
-        logger.info(`  Stopped run ${runId}`);
-      }
-    } catch (error) {
-      throw new TestingBotError(`Failed to stop run ${runId}`, {
-        cause: error,
-      });
-    }
   }
 
   private connectToUpdateServer(): void {

@@ -22,6 +22,7 @@ import MaestroOptions, {
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 import Login from './providers/login';
+import TestingBotError from './models/testingbot_error';
 
 const program = new Command();
 
@@ -137,9 +138,15 @@ const espressoCommand = program
   )
   // CI/CD metadata
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
-  .option('--pull-request-id <id>', 'The ID of the pull request this upload originated from.')
+  .option(
+    '--pull-request-id <id>',
+    'The ID of the pull request this upload originated from.',
+  )
   .option('--repo-name <name>', 'Repository name (e.g., GitHub repo slug).')
-  .option('--repo-owner <owner>', 'Repository owner (e.g., GitHub organization or user slug).')
+  .option(
+    '--repo-owner <owner>',
+    'Repository owner (e.g., GitHub organization or user slug).',
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -155,14 +162,14 @@ const espressoCommand = program
       }
 
       const metadata =
-          args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
-            ? {
-                commitSha: args.commitSha,
-                pullRequestId: args.pullRequestId,
-                repoName: args.repoName,
-                repoOwner: args.repoOwner,
-              }
-            : undefined;
+        args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
+          ? {
+              commitSha: args.commitSha,
+              pullRequestId: args.pullRequestId,
+              repoName: args.repoName,
+              repoOwner: args.repoOwner,
+            }
+          : undefined;
 
       const options = new EspressoOptions(app, testApp, args.device, {
         version: args.platformVersion,
@@ -195,7 +202,7 @@ const espressoCommand = program
         apiSecret: args.apiSecret,
       });
       if (credentials === null) {
-        throw new Error(
+        throw new TestingBotError(
           'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
             '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
             '  2. Use --api-key and --api-secret options\n' +
@@ -333,9 +340,15 @@ const maestroCommand = program
   )
   // CI/CD metadata
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
-  .option('--pull-request-id <id>', 'The ID of the pull request this upload originated from.')
+  .option(
+    '--pull-request-id <id>',
+    'The ID of the pull request this upload originated from.',
+  )
   .option('--repo-name <name>', 'Repository name (e.g., GitHub repo slug).')
-  .option('--repo-owner <owner>', 'Repository owner (e.g., GitHub organization or user slug).')
+  .option(
+    '--repo-owner <owner>',
+    'Repository owner (e.g., GitHub organization or user slug).',
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -373,14 +386,14 @@ const maestroCommand = program
       }
 
       const metadata =
-          args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
-            ? {
-                commitSha: args.commitSha,
-                pullRequestId: args.pullRequestId,
-                repoName: args.repoName,
-                repoOwner: args.repoOwner,
-              }
-            : undefined;
+        args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
+          ? {
+              commitSha: args.commitSha,
+              pullRequestId: args.pullRequestId,
+              repoName: args.repoName,
+              repoOwner: args.repoOwner,
+            }
+          : undefined;
 
       const options = new MaestroOptions(app, flows, args.device, {
         includeTags: args.includeTags,
@@ -414,7 +427,7 @@ const maestroCommand = program
         apiSecret: args.apiSecret,
       });
       if (credentials === null) {
-        throw new Error(
+        throw new TestingBotError(
           'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
             '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
             '  2. Use --api-key and --api-secret options\n' +
@@ -500,9 +513,15 @@ const xcuitestCommand = program
   )
   // CI/CD metadata
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
-  .option('--pull-request-id <id>', 'The ID of the pull request this upload originated from.')
+  .option(
+    '--pull-request-id <id>',
+    'The ID of the pull request this upload originated from.',
+  )
   .option('--repo-name <name>', 'Repository name (e.g., GitHub repo slug).')
-  .option('--repo-owner <owner>', 'Repository owner (e.g., GitHub organization or user slug).')
+  .option(
+    '--repo-owner <owner>',
+    'Repository owner (e.g., GitHub organization or user slug).',
+  )
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
@@ -518,14 +537,14 @@ const xcuitestCommand = program
       }
 
       const metadata =
-          args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
-            ? {
-                commitSha: args.commitSha,
-                pullRequestId: args.pullRequestId,
-                repoName: args.repoName,
-                repoOwner: args.repoOwner,
-              }
-            : undefined;
+        args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
+          ? {
+              commitSha: args.commitSha,
+              pullRequestId: args.pullRequestId,
+              repoName: args.repoName,
+              repoOwner: args.repoOwner,
+            }
+          : undefined;
 
       const options = new XCUITestOptions(app, testApp, args.device, {
         version: args.platformVersion,
@@ -551,7 +570,7 @@ const xcuitestCommand = program
         apiSecret: args.apiSecret,
       });
       if (credentials === null) {
-        throw new Error(
+        throw new TestingBotError(
           'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
             '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
             '  2. Use --api-key and --api-secret options\n' +

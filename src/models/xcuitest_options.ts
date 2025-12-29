@@ -1,3 +1,5 @@
+import TestingBotError from './testingbot_error';
+
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ReportFormat = 'html' | 'junit';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane';
@@ -99,6 +101,14 @@ export default class XCUITestOptions {
     this._realDevice = options?.realDevice ?? false;
     this._tabletOnly = options?.tabletOnly ?? false;
     this._phoneOnly = options?.phoneOnly ?? false;
+
+    // Validate contradictory options
+    if (this._tabletOnly && this._phoneOnly) {
+      throw new TestingBotError(
+        'Cannot specify both --phone-only and --tablet-only options',
+      );
+    }
+
     this._name = options?.name;
     this._build = options?.build;
     this._orientation = options?.orientation;
