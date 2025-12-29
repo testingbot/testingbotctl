@@ -534,7 +534,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       return;
     }
 
-    if ((await fs.promises.access(depPath).catch(() => false)) === undefined) {
+    try {
+      await fs.promises.access(depPath);
       dependencies.push(depPath);
 
       // If it's a YAML file, recursively discover its dependencies
@@ -551,6 +552,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         // For non-YAML files, add to visited here to prevent duplicates
         visited.add(depPath);
       }
+    } catch {
+      // File doesn't exist, skip it
     }
   }
 
@@ -826,14 +829,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const capabilities = this.options.getCapabilities(this.detectedPlatform);
       const maestroOptions = this.options.getMaestroOptions();
       const metadata = this.options.metadata;
-      console.log('sending', JSON.stringify({
-          capabilities: [capabilities],
-          ...(maestroOptions && { maestroOptions }),
-          ...(this.options.shardSplit && {
-            shardSplit: this.options.shardSplit,
-          }),
-          ...(metadata && { metadata }),
-        }))
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {

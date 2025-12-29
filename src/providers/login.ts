@@ -3,7 +3,11 @@ import { URL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import logger from '../logger';
+
+const execFileAsync = promisify(execFile);
 
 const AUTH_URL = 'https://testingbot.com/auth';
 
@@ -224,7 +228,17 @@ export default class Login {
     res.end(html);
   }
 
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   private sendErrorResponse(res: http.ServerResponse, error: string): void {
+    const safeError = this.escapeHtml(error);
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -270,7 +284,7 @@ export default class Login {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
         <h1>Authentication Failed</h1>
-        <p class="error">${error}</p>
+        <p class="error">${safeError}</p>
         <p>Please try again or contact support.</p>
     </div>
 </body>
@@ -286,20 +300,16 @@ export default class Login {
   }
 
   private async openBrowser(url: string): Promise<void> {
-    const { exec } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execAsync = promisify(exec);
-
     const platform = process.platform;
 
     try {
       if (platform === 'darwin') {
-        await execAsync(`open "${url}"`);
+        await execFileAsync('open', [url]);
       } else if (platform === 'win32') {
-        await execAsync(`start "" "${url}"`);
+        await execFileAsync('cmd', ['/c', 'start', '', url]);
       } else {
         // Linux and others
-        await execAsync(`xdg-open "${url}"`);
+        await execFileAsync('xdg-open', [url]);
       }
     } catch {
       // Browser open failed, user will need to open manually
