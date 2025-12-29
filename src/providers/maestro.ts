@@ -1210,7 +1210,7 @@ export default class Maestro {
   }
 
   private displayFlowsTableHeader(hasFailures: boolean = false): void {
-    let header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Test`;
+    let header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Flow`;
     let separator = ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(30)}`;
 
     if (hasFailures) {
