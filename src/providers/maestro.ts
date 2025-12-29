@@ -33,6 +33,7 @@ export interface MaestroFlowInfo {
   status: MaestroFlowStatus;
   success?: number;
   test_case_id?: number;
+  error_messages?: string[];
 }
 
 export interface MaestroRunInfo {
@@ -48,6 +49,7 @@ export interface MaestroRunInfo {
   options?: Record<string, unknown>;
   assets?: MaestroRunAssets;
   flows?: MaestroFlowInfo[];
+  error_messages?: string[];
 }
 
 export interface MaestroRunDetails extends MaestroRunInfo {
@@ -869,7 +871,6 @@ export default class Maestro {
       // Check for version update notification
       const latestVersion = response.headers?.['x-testingbotctl-version'];
       utils.checkForUpdate(latestVersion);
-
       return response.data;
     } catch (error) {
       throw new TestingBotError(`Failed to get Maestro test status`, {
@@ -924,11 +925,14 @@ export default class Maestro {
         }
 
         if (allFlows.length > 0) {
+          // Check if any flow has failed (for showing error column)
+          const hasFailures = this.hasAnyFlowFailed(allFlows);
+
           if (!flowsTableDisplayed) {
             // First time showing flows - display header and initial state
             console.log(); // Empty line before flows table
-            this.displayFlowsTableHeader();
-            displayedLineCount = this.displayFlowsWithLimit(allFlows, previousFlowStatus);
+            this.displayFlowsTableHeader(hasFailures);
+            displayedLineCount = this.displayFlowsWithLimit(allFlows, previousFlowStatus, hasFailures);
             flowsTableDisplayed = true;
           } else {
             // Update flows in place
@@ -941,6 +945,26 @@ export default class Maestro {
       }
 
       if (status.completed) {
+        // Display final flows table with error messages if there are failures
+        if (!this.options.quiet && flowsTableDisplayed) {
+          const allFlows: MaestroFlowInfo[] = [];
+          for (const run of status.runs) {
+            if (run.flows && run.flows.length > 0) {
+              allFlows.push(...run.flows);
+            }
+          }
+
+          const hasFailures = this.hasAnyFlowFailed(allFlows);
+          if (hasFailures) {
+            // Clear previous in-place display and redraw with error messages
+            console.log(); // Empty line before final table
+            this.displayFlowsTableHeader(true);
+            for (const flow of allFlows) {
+              this.displayFlowRow(flow, false, true);
+            }
+          }
+        }
+
         // Print final summary
         if (!this.options.quiet) {
           console.log(); // Empty line before summary
@@ -963,12 +987,7 @@ export default class Maestro {
           }
         } else {
           const failedRuns = status.runs.filter((run) => run.success !== 1);
-          logger.error(`${failedRuns.length} test run(s) failed:`);
-          for (const run of failedRuns) {
-            logger.error(
-              `  - Run ${run.id} (${run.capabilities.deviceName}): ${run.report}`,
-            );
-          }
+          logger.error(`${failedRuns.length} test run(s) failed`);
         }
 
         if (this.options.report && this.options.reportOutputDir) {
@@ -1082,6 +1101,15 @@ export default class Maestro {
     }
   }
 
+  private hasAnyFlowFailed(flows: MaestroFlowInfo[]): boolean {
+    return flows.some(
+      (flow) =>
+        (flow.status === 'DONE' && flow.success !== 1) ||
+        flow.status === 'FAILED' ||
+        (flow.error_messages && flow.error_messages.length > 0),
+    );
+  }
+
   private calculateFlowDuration(flow: MaestroFlowInfo): string {
     if (!flow.requested_at) {
       return '-';
@@ -1160,15 +1188,15 @@ export default class Maestro {
   private displayFlowsWithLimit(
     flows: MaestroFlowInfo[],
     previousFlowStatus: Map<number, MaestroFlowStatus>,
+    hasFailures: boolean = false,
   ): number {
     const maxFlows = this.getMaxDisplayableFlows();
     const displayFlows = flows.slice(0, maxFlows);
     let linesWritten = 0;
 
     for (const flow of displayFlows) {
-      this.displayFlowRow(flow, false);
+      linesWritten += this.displayFlowRow(flow, false, hasFailures);
       previousFlowStatus.set(flow.id, flow.status);
-      linesWritten++;
     }
 
     // Show summary for remaining flows
@@ -1181,37 +1209,70 @@ export default class Maestro {
     return linesWritten;
   }
 
-  private displayFlowsTableHeader(): void {
-    const header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Test`;
-    const separator = ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(40)}`;
+  private displayFlowsTableHeader(hasFailures: boolean = false): void {
+    let header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Test`;
+    let separator = ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(30)}`;
+
+    if (hasFailures) {
+      header += '                              Fail reason';
+      separator += ` ${'─'.repeat(80)}`;
+    }
+
     console.log(colors.dim(header));
     console.log(colors.dim(separator));
   }
 
-  private displayFlowRow(flow: MaestroFlowInfo, isUpdate: boolean = false): void {
+  private displayFlowRow(
+    flow: MaestroFlowInfo,
+    isUpdate: boolean = false,
+    hasFailures: boolean = false,
+  ): number {
     const duration = this.calculateFlowDuration(flow).padEnd(10);
     const statusDisplay = this.getFlowStatusDisplay(flow);
     // Pad based on display text length, add extra for color codes
     const statusPadded = statusDisplay.colored + ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
-    const name = flow.name;
+    const name = flow.name.padEnd(30);
 
-    const row = ` ${duration} ${statusPadded} ${name}`;
+    let linesWritten = 0;
+    const isFailed = flow.status === 'DONE' && flow.success !== 1;
+    const errorMessages = flow.error_messages || [];
+
+    // Build the main row
+    let row = ` ${duration} ${statusPadded} ${name}`;
+
+    // Add first error message on the same line if failed and has errors
+    if (hasFailures && isFailed && errorMessages.length > 0) {
+      row += ` ${colors.red(errorMessages[0])}`;
+    }
 
     if (isUpdate) {
-      // Move cursor up and clear line before writing
       process.stdout.write(`\r${row}`);
     } else {
       console.log(row);
     }
+    linesWritten++;
+
+    // Display remaining error messages on continuation lines
+    if (!isUpdate && hasFailures && isFailed && errorMessages.length > 1) {
+      // Indent to align with the Fail reason column: Duration(11) + Status(9) + Test(31) = 51 chars
+      const indent = ' '.repeat(51);
+      for (let i = 1; i < errorMessages.length; i++) {
+        console.log(`${indent} ${colors.red(errorMessages[i])}`);
+        linesWritten++;
+      }
+    }
+
+    return linesWritten;
   }
 
   private displayFlowsTable(
     flows: MaestroFlowInfo[],
     previousFlowStatus: Map<number, MaestroFlowStatus>,
     showHeader: boolean,
+    hasFailures: boolean = false,
   ): number {
     if (showHeader) {
-      this.displayFlowsTableHeader();
+      this.displayFlowsTableHeader(hasFailures);
     }
 
     let linesWritten = 0;
@@ -1221,8 +1282,7 @@ export default class Maestro {
       const isNewFlow = prevStatus === undefined;
 
       if (isNewFlow) {
-        this.displayFlowRow(flow, false);
-        linesWritten++;
+        linesWritten += this.displayFlowRow(flow, false, hasFailures);
       }
 
       previousFlowStatus.set(flow.id, flow.status);
