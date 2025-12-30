@@ -7,6 +7,7 @@ import progress from 'progress-stream';
 import Credentials from './models/credentials';
 import TestingBotError from './models/testingbot_error';
 import utils from './utils';
+import { handleAxiosError } from './utils/error-helpers';
 
 export type ContentType =
   | 'application/vnd.android.package-archive'
@@ -112,25 +113,11 @@ export default class Upload {
         throw error;
       }
       if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          throw new TestingBotError(
-            'Invalid TestingBot credentials. Please check your API key and secret.\n' +
-              'You can update your credentials by running "testingbot login" or by using:\n' +
-              '  --api-key and --api-secret options\n' +
-              '  TB_KEY and TB_SECRET environment variables\n' +
-              '  ~/.testingbot file with content: key:secret',
-          );
-        }
-        if (error.response?.status === 429) {
-          throw new TestingBotError(
-            'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing',
-          );
-        }
-        const message = error.response?.data?.error || error.message;
-        throw new TestingBotError(`Upload failed: ${message}`);
+        throw handleAxiosError(error, 'Upload failed');
       }
       throw new TestingBotError(
         `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error instanceof Error ? error : undefined },
       );
     }
   }

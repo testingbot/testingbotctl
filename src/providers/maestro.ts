@@ -35,6 +35,12 @@ export interface MaestroFlowInfo {
   error_messages?: string[];
 }
 
+export interface MaestroRunEnvironment {
+  device?: string;
+  name?: string;
+  version?: string;
+}
+
 export interface MaestroRunInfo {
   id: number;
   status: 'WAITING' | 'READY' | 'DONE' | 'FAILED';
@@ -43,6 +49,7 @@ export interface MaestroRunInfo {
     platformName: string;
     version?: string;
   };
+  environment?: MaestroRunEnvironment;
   success: number;
   report?: string;
   options?: Record<string, unknown>;
@@ -149,6 +156,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       return { success: false, runs: [] };
     }
     try {
+      // Quick connectivity check before starting uploads
+      await this.ensureConnectivity();
+
       // Detect platform from file content if not explicitly provided
       if (!this.options.platformName) {
         this.detectedPlatform = await this.detectPlatform();
@@ -848,6 +858,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
+          timeout: 30000, // 30 second timeout
         },
       );
 
@@ -877,9 +888,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       if (error instanceof TestingBotError) {
         throw error;
       }
-      throw new TestingBotError(`Running Maestro test failed`, {
-        cause: error,
-      });
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        'Running Maestro test failed',
+      );
     }
   }
 
@@ -893,6 +905,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           username: this.credentials.userName,
           password: this.credentials.accessKey,
         },
+        timeout: 30000, // 30 second timeout
       });
 
       // Check for version update notification
@@ -900,9 +913,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       utils.checkForUpdate(latestVersion);
       return response.data;
     } catch (error) {
-      throw new TestingBotError(`Failed to get Maestro test status`, {
-        cause: error,
-      });
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        'Failed to get Maestro test status',
+      );
     }
   }
 
@@ -942,7 +956,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         for (const run of status.runs) {
           if (!urlDisplayed.has(run.id)) {
             console.log(
-              `  🔗 Run ${run.id} (${run.capabilities.deviceName}): Watch in realtime:`,
+              `  🔗 Run ${run.id} (${this.getRunDisplayName(run)}): Watch in realtime:`,
             );
             console.log(
               `     https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
@@ -1028,7 +1042,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             const statusText =
               run.success === 1 ? 'Test completed successfully' : 'Test failed';
             console.log(
-              `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusText}`,
+              `  ${statusEmoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusText}`,
             );
           }
         }
@@ -1094,15 +1108,23 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       if (run.status === 'WAITING' || run.status === 'READY') {
         // Update the same line for WAITING and READY states
-        const message = `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text} (${elapsedStr})`;
+        const message = `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text} (${elapsedStr})`;
         process.stdout.write(`\r${message}`);
       } else if (statusChanged) {
         // For other states (DONE, FAILED), print on a new line only when status changes
         console.log(
-          `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text}`,
+          `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text}`,
         );
       }
     }
+  }
+
+  /**
+   * Get the display name for a run, preferring environment.name over capabilities.deviceName
+   * This shows the actual device used when a wildcard (*) was specified
+   */
+  private getRunDisplayName(run: MaestroRunInfo): string {
+    return run.environment?.name || run.capabilities.deviceName;
   }
 
   private getStatusInfo(status: MaestroRunInfo['status']): {
@@ -1406,6 +1428,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
               username: this.credentials.userName,
               password: this.credentials.accessKey,
             },
+            timeout: 30000, // 30 second timeout
           },
         );
 
@@ -1450,6 +1473,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           username: this.credentials.userName,
           password: this.credentials.accessKey,
         },
+        timeout: 30000, // 30 second timeout
       });
 
       const latestVersion = response.headers?.['x-testingbotctl-version'];
@@ -1457,9 +1481,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       return response.data;
     } catch (error) {
-      throw new TestingBotError(`Failed to get run details for run ${runId}`, {
-        cause: error,
-      });
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        `Failed to get run details for run ${runId}`,
+      );
     }
   }
 

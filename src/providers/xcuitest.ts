@@ -9,6 +9,12 @@ import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import BaseProvider from './base_provider';
 
+export interface XCUITestRunEnvironment {
+  device?: string;
+  name?: string;
+  version?: string;
+}
+
 export interface XCUITestRunInfo {
   id: number;
   status: 'WAITING' | 'READY' | 'DONE' | 'FAILED';
@@ -17,6 +23,7 @@ export interface XCUITestRunInfo {
     platformName: string;
     version?: string;
   };
+  environment?: XCUITestRunEnvironment;
   success: number;
   report?: string;
 }
@@ -94,6 +101,9 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
     }
 
     try {
+      // Quick connectivity check before starting uploads
+      await this.ensureConnectivity();
+
       if (!this.options.quiet) {
         logger.info('Uploading XCUITest App');
       }
@@ -195,6 +205,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
+          timeout: 30000, // 30 second timeout
         },
       );
 
@@ -223,9 +234,10 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       if (error instanceof TestingBotError) {
         throw error;
       }
-      throw new TestingBotError(`Running XCUITest failed`, {
-        cause: error,
-      });
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        'Running XCUITest failed',
+      );
     }
   }
 
@@ -239,6 +251,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           username: this.credentials.userName,
           password: this.credentials.accessKey,
         },
+        timeout: 30000, // 30 second timeout
       });
 
       // Check for version update notification
@@ -247,9 +260,10 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
 
       return response.data;
     } catch (error) {
-      throw new TestingBotError(`Failed to get XCUITest status`, {
-        cause: error,
-      });
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        'Failed to get XCUITest status',
+      );
     }
   }
 
@@ -284,7 +298,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             const statusText =
               run.success === 1 ? 'Test completed successfully' : 'Test failed';
             console.log(
-              `  ${statusEmoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusText}`,
+              `  ${statusEmoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusText}`,
             );
           }
         }
@@ -300,7 +314,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           logger.error(`${failedRuns.length} test run(s) failed:`);
           for (const run of failedRuns) {
             logger.error(
-              `  - Run ${run.id} (${run.capabilities.deviceName}): ${run.report || 'No report available'}`,
+              `  - Run ${run.id} (${this.getRunDisplayName(run)}): ${run.report || 'No report available'}`,
             );
           }
         }
@@ -350,14 +364,22 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       const statusInfo = this.getStatusInfo(run.status);
 
       if (run.status === 'WAITING' || run.status === 'READY') {
-        const message = `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text} (${elapsedStr})`;
+        const message = `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text} (${elapsedStr})`;
         process.stdout.write(`\r${message}`);
       } else if (statusChanged) {
         console.log(
-          `  ${statusInfo.emoji} Run ${run.id} (${run.capabilities.deviceName}): ${statusInfo.text}`,
+          `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text}`,
         );
       }
     }
+  }
+
+  /**
+   * Get the display name for a run, preferring environment.name over capabilities.deviceName
+   * This shows the actual device used when a wildcard (*) was specified
+   */
+  private getRunDisplayName(run: XCUITestRunInfo): string {
+    return run.environment?.name || run.capabilities.deviceName;
   }
 
   private getStatusInfo(status: XCUITestRunInfo['status']): {
@@ -406,6 +428,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             password: this.credentials.accessKey,
           },
           responseType: reportFormat === 'html' ? 'arraybuffer' : 'text',
+          timeout: 30000, // 30 second timeout
         });
 
         // Check for version update notification

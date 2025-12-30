@@ -550,9 +550,7 @@ describe('Espresso', () => {
       axios.post = jest.fn().mockRejectedValueOnce(mockError);
 
       await expect(espresso['runTests']()).rejects.toThrow(
-        new TestingBotError('Running Espresso test failed', {
-          cause: mockError,
-        }),
+        /Running Espresso test failed.*Test failed/,
       );
     });
   });

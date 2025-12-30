@@ -515,9 +515,7 @@ describe('XCUITest', () => {
       axios.post = jest.fn().mockRejectedValueOnce(mockError);
 
       await expect(xcuiTest['runTests']()).rejects.toThrow(
-        new TestingBotError('Running XCUITest failed', {
-          cause: mockError,
-        }),
+        /Running XCUITest failed.*Test failed/,
       );
     });
   });

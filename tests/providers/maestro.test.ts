@@ -512,9 +512,7 @@ describe('Maestro', () => {
       axios.post = jest.fn().mockRejectedValueOnce(mockError);
 
       await expect(maestro['runTests']()).rejects.toThrow(
-        new TestingBotError('Running Maestro test failed', {
-          cause: mockError,
-        }),
+        /Running Maestro test failed.*Test failed/,
       );
     });
 
@@ -650,9 +648,7 @@ describe('Maestro', () => {
       axios.get = jest.fn().mockRejectedValueOnce(mockError);
 
       await expect(maestro['getStatus']()).rejects.toThrow(
-        new TestingBotError('Failed to get Maestro test status', {
-          cause: mockError,
-        }),
+        /Failed to get Maestro test status.*Network error/,
       );
     });
   });

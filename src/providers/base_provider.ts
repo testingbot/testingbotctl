@@ -6,6 +6,11 @@ import utils from '../utils';
 import Upload from '../upload';
 import platform from '../utils/platform';
 import logger from '../logger';
+import { handleAxiosError, isNetworkError } from '../utils/error-helpers';
+import {
+  checkInternetConnectivity,
+  formatConnectivityResults,
+} from '../utils/connectivity';
 
 /**
  * Common interface for run information shared by all providers
@@ -208,7 +213,8 @@ export default abstract class BaseProvider<
   }
 
   /**
-   * Extracts an error message from various error types
+   * Extracts an error message from various error types.
+   * For Axios errors, uses enhanced error handling with diagnostics.
    */
   protected extractErrorMessage(cause: unknown): string | null {
     if (typeof cause === 'string') {
@@ -220,7 +226,14 @@ export default abstract class BaseProvider<
     }
 
     if (cause && typeof cause === 'object') {
-      const axiosError = cause as {
+      // Use enhanced error handling for real Axios errors
+      if (axios.isAxiosError(cause)) {
+        const enhanced = handleAxiosError(cause, 'Request failed');
+        return enhanced.message;
+      }
+
+      // Handle error-like objects with response property (for backwards compatibility)
+      const axiosLikeError = cause as {
         response?: {
           status?: number;
           data?: { error?: string; errors?: string[]; message?: string };
@@ -229,18 +242,19 @@ export default abstract class BaseProvider<
       };
 
       // Check for 429 status code (credits depleted)
-      if (axiosError.response?.status === 429) {
+      if (axiosLikeError.response?.status === 429) {
         return 'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing';
       }
 
-      if (axiosError.response?.data?.errors) {
-        return axiosError.response.data.errors.join('\n');
+      // Extract error message from response data
+      if (axiosLikeError.response?.data?.errors) {
+        return axiosLikeError.response.data.errors.join('\n');
       }
-      if (axiosError.response?.data?.error) {
-        return axiosError.response.data.error;
+      if (axiosLikeError.response?.data?.error) {
+        return axiosLikeError.response.data.error;
       }
-      if (axiosError.response?.data?.message) {
-        return axiosError.response.data.message;
+      if (axiosLikeError.response?.data?.message) {
+        return axiosLikeError.response.data.message;
       }
 
       if (cause instanceof Error) {
@@ -264,6 +278,58 @@ export default abstract class BaseProvider<
     }
 
     return null;
+  }
+
+  /**
+   * Checks internet connectivity and logs diagnostic information.
+   * Useful when network errors occur to help users troubleshoot.
+   */
+  protected async checkAndReportConnectivity(): Promise<boolean> {
+    logger.info('Checking internet connectivity...');
+    const result = await checkInternetConnectivity();
+    logger.info(formatConnectivityResults(result));
+    return result.connected;
+  }
+
+  /**
+   * Performs a quick connectivity check before starting operations.
+   * Throws an error with diagnostics if no connection is available.
+   */
+  protected async ensureConnectivity(): Promise<void> {
+    const result = await checkInternetConnectivity();
+    if (!result.connected) {
+      logger.error('No internet connection detected.');
+      logger.error(formatConnectivityResults(result));
+      throw new TestingBotError(
+        'No internet connection. Please check your network and try again.',
+      );
+    }
+  }
+
+  /**
+   * Handles errors with enhanced diagnostics.
+   * For network errors, performs connectivity check.
+   */
+  protected async handleErrorWithDiagnostics(
+    error: unknown,
+    operation: string,
+  ): Promise<TestingBotError> {
+    if (axios.isAxiosError(error)) {
+      // For network errors, check connectivity
+      if (isNetworkError(error)) {
+        await this.checkAndReportConnectivity();
+      }
+      return handleAxiosError(error, operation);
+    }
+
+    if (error instanceof TestingBotError) {
+      return error;
+    }
+
+    return new TestingBotError(
+      `${operation}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error instanceof Error ? error : undefined },
+    );
   }
 
   /**

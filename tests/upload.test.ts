@@ -199,7 +199,7 @@ describe('Upload', () => {
       const options = createUploadOptions();
 
       await expect(upload.upload(options)).rejects.toThrow(
-        new TestingBotError('Upload failed: Network Error'),
+        /Network request failed|Network Error/,
       );
     });
 
@@ -208,6 +208,7 @@ describe('Upload', () => {
         isAxiosError: true,
         message: 'Request failed',
         response: {
+          status: 400,
           data: {
             error: 'Unauthorized',
           },
@@ -220,9 +221,7 @@ describe('Upload', () => {
 
       const options = createUploadOptions();
 
-      await expect(upload.upload(options)).rejects.toThrow(
-        new TestingBotError('Upload failed: Unauthorized'),
-      );
+      await expect(upload.upload(options)).rejects.toThrow(/Unauthorized/);
     });
 
     it('should handle generic errors', async () => {
@@ -235,7 +234,7 @@ describe('Upload', () => {
       const options = createUploadOptions();
 
       await expect(upload.upload(options)).rejects.toThrow(
-        new TestingBotError('Upload failed: Something went wrong'),
+        /Upload failed:.*Something went wrong/,
       );
     });
 
@@ -256,13 +255,7 @@ describe('Upload', () => {
       const options = createUploadOptions();
 
       await expect(upload.upload(options)).rejects.toThrow(
-        new TestingBotError(
-          'Invalid TestingBot credentials. Please check your API key and secret.\n' +
-            'You can update your credentials by running "testingbot login" or by using:\n' +
-            '  --api-key and --api-secret options\n' +
-            '  TB_KEY and TB_SECRET environment variables\n' +
-            '  ~/.testingbot file with content: key:secret',
-        ),
+        /Invalid TestingBot credentials/,
       );
     });
 
@@ -283,9 +276,7 @@ describe('Upload', () => {
       const options = createUploadOptions();
 
       await expect(upload.upload(options)).rejects.toThrow(
-        new TestingBotError(
-          'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing',
-        ),
+        /Rate limit exceeded|credits/i,
       );
     });
   });
