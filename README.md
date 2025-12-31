@@ -83,8 +83,24 @@ testingbot maestro <app> <flows...> [options]
 | `-q, --quiet` | Suppress progress output |
 | `--report <format>` | Download report after completion: html or junit |
 | `--report-output-dir <path>` | Directory to save reports (required with --report) |
-| `--download-artifacts` | Download test artifacts (logs, screenshots, video) |
+| `--download-artifacts [mode]` | Download test artifacts (logs, screenshots, video). Mode: `all` (default) or `failed` |
 | `--artifacts-output-dir <path>` | Directory to save artifacts zip (defaults to current directory) |
+
+**Advanced Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--shard-split <number>` | Split flows into N parallel sessions for faster execution |
+| `--ignore-checksum-check` | Skip checksum verification and always upload the app |
+
+**CI/CD Integration:**
+
+| Option | Description |
+|--------|-------------|
+| `--commit-sha <sha>` | Git commit SHA associated with this test run |
+| `--pull-request-id <id>` | Pull request ID this test run originated from |
+| `--repo-name <name>` | Repository name (e.g., GitHub repo slug) |
+| `--repo-owner <owner>` | Repository owner (e.g., GitHub organization or username) |
 
 **Examples:**
 
@@ -110,8 +126,21 @@ testingbot maestro app.apk ./flows --report junit --report-output-dir ./reports
 # Download all artifacts (logs, screenshots, video)
 testingbot maestro app.apk ./flows --download-artifacts --build "build-123"
 
+# Download artifacts only for failed tests
+testingbot maestro app.apk ./flows --download-artifacts failed --artifacts-output-dir ./artifacts
+
 # Run in background (async)
 testingbot maestro app.apk ./flows --async
+
+# Split flows across 3 shards, grouping all flows over 3 parallel sessions
+testingbot maestro app.apk ./flows --shard-split 3
+
+# CI/CD integration with Git metadata
+testingbot maestro app.apk ./flows \
+  --commit-sha "abc123def" \
+  --pull-request-id "42" \
+  --repo-owner "myorg" \
+  --repo-name "myapp"
 ```
 
 ---
@@ -325,7 +354,7 @@ testingbot xcuitest app.ipa app-test.zip \
 ### Real-time Progress
 
 By default, the CLI shows real-time progress updates including:
-- Test status updates
+- Test status updates with actual device names (even when using wildcards)
 - Device allocation status
 - Live output from Maestro flows
 
