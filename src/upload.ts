@@ -36,7 +36,6 @@ export default class Upload {
     const fileName = path.basename(filePath);
     const fileStats = await fs.promises.stat(filePath);
     const totalSize = fileStats.size;
-    const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
 
     const progressTracker = progress({
       length: totalSize,
@@ -46,13 +45,13 @@ export default class Upload {
     let lastPercent = 0;
 
     if (showProgress) {
-      this.drawProgressBar(fileName, sizeMB, 0);
+      this.drawProgressBar(fileName, totalSize, 0);
 
       progressTracker.on('progress', (prog) => {
         const percent = Math.round(prog.percentage);
         if (percent !== lastPercent) {
           lastPercent = percent;
-          this.drawProgressBar(fileName, sizeMB, percent);
+          this.drawProgressBar(fileName, totalSize, percent);
         }
       });
     }
@@ -93,7 +92,7 @@ export default class Upload {
       const result = response.data;
       if (result.id) {
         if (showProgress) {
-          this.drawProgressBar(fileName, sizeMB, 100);
+          this.drawProgressBar(fileName, totalSize, 100);
           console.log('');
         }
         return { id: result.id };
@@ -124,18 +123,34 @@ export default class Upload {
 
   private drawProgressBar(
     fileName: string,
-    sizeMB: string,
+    totalBytes: number,
     percent: number,
   ): void {
     const barWidth = 30;
     const filled = Math.round((barWidth * percent) / 100);
     const empty = barWidth - filled;
     const bar = '█'.repeat(filled) + '░'.repeat(empty);
-    const transferred = ((percent / 100) * parseFloat(sizeMB)).toFixed(2);
+
+    const transferredBytes = (percent / 100) * totalBytes;
+    const transferred = this.formatFileSize(transferredBytes);
+    const total = this.formatFileSize(totalBytes);
 
     process.stdout.write(
-      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${sizeMB} MB)`,
+      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${total})`,
     );
+  }
+
+  /**
+   * Format file size in human-readable format (KB for small files, MB for larger)
+   */
+  private formatFileSize(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    } else if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    } else {
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
   }
 
   private async validateFile(filePath: string): Promise<void> {
