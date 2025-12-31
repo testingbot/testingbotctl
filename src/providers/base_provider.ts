@@ -6,7 +6,11 @@ import utils from '../utils';
 import Upload from '../upload';
 import platform from '../utils/platform';
 import logger from '../logger';
-import { handleAxiosError, isNetworkError } from '../utils/error-helpers';
+import {
+  handleAxiosError,
+  isNetworkError,
+  isRetryableError,
+} from '../utils/error-helpers';
 import {
   checkInternetConnectivity,
   formatConnectivityResults,
@@ -210,6 +214,66 @@ export default abstract class BaseProvider<
    */
   protected sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Maximum number of retries for transient errors
+   */
+  protected readonly MAX_RETRIES = 3;
+
+  /**
+   * Base delay for exponential backoff (in milliseconds)
+   */
+  protected readonly BASE_RETRY_DELAY_MS = 2000;
+
+  /**
+   * Executes an async operation with automatic retry for transient errors.
+   * Uses exponential backoff between retries.
+   *
+   * @param operation - Description of the operation (for logging)
+   * @param fn - Async function to execute
+   * @returns The result of the function
+   * @throws The last error if all retries fail
+   */
+  protected async withRetry<T>(
+    operation: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+
+        // Check if this is a retryable error
+        const isRetryable =
+          axios.isAxiosError(error) && isRetryableError(error);
+
+        // Don't retry non-retryable errors or on the last attempt
+        if (!isRetryable || attempt === this.MAX_RETRIES) {
+          break;
+        }
+
+        // Calculate delay with exponential backoff: 2s, 4s, 8s
+        const delay = this.BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+
+        if (!this.options.quiet) {
+          const statusCode = axios.isAxiosError(error)
+            ? error.response?.status
+            : undefined;
+          logger.warn(
+            `${operation} failed${statusCode ? ` (HTTP ${statusCode})` : ''}, retrying in ${delay / 1000}s... (attempt ${attempt + 1}/${this.MAX_RETRIES})`,
+          );
+        }
+
+        await this.sleep(delay);
+      }
+    }
+
+    // All retries failed, throw the error
+    throw lastError;
   }
 
   /**

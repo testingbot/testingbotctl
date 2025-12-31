@@ -651,6 +651,307 @@ describe('Maestro', () => {
         /Failed to get Maestro test status.*Network error/,
       );
     });
+
+    it('should retry on 502 Bad Gateway error and succeed', async () => {
+      maestro['appId'] = 1234;
+      // Speed up retries for testing
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error502 = {
+        isAxiosError: true,
+        response: { status: 502, statusText: 'Bad Gateway' },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      const mockSuccessResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(error502) // First call fails with 502
+        .mockResolvedValueOnce(mockSuccessResponse); // Second call succeeds
+
+      const result = await maestro['getStatus']();
+
+      expect(axios.get).toHaveBeenCalledTimes(2);
+      expect(result.completed).toBe(true);
+      expect(result.success).toBe(true);
+    });
+
+    it('should retry on 503 Service Unavailable error and succeed', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error503 = {
+        isAxiosError: true,
+        response: { status: 503, statusText: 'Service Unavailable' },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      const mockSuccessResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(error503)
+        .mockResolvedValueOnce(mockSuccessResponse);
+
+      const result = await maestro['getStatus']();
+
+      expect(axios.get).toHaveBeenCalledTimes(2);
+      expect(result.completed).toBe(true);
+    });
+
+    it('should retry multiple times on consecutive 502 errors', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error502 = {
+        isAxiosError: true,
+        response: { status: 502, statusText: 'Bad Gateway' },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      const mockSuccessResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(error502) // First call fails
+        .mockRejectedValueOnce(error502) // Second call fails
+        .mockResolvedValueOnce(mockSuccessResponse); // Third call succeeds
+
+      const result = await maestro['getStatus']();
+
+      expect(axios.get).toHaveBeenCalledTimes(3);
+      expect(result.completed).toBe(true);
+    });
+
+    it('should throw error after max retries exceeded', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error502 = {
+        isAxiosError: true,
+        response: {
+          status: 502,
+          statusText: 'Bad Gateway',
+          data: 'Bad Gateway',
+        },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      // All 4 calls (1 initial + 3 retries) fail
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(error502)
+        .mockRejectedValueOnce(error502)
+        .mockRejectedValueOnce(error502)
+        .mockRejectedValueOnce(error502);
+
+      await expect(maestro['getStatus']()).rejects.toThrow(
+        /Failed to get Maestro test status/,
+      );
+
+      expect(axios.get).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+    });
+
+    it('should NOT retry on 401 Unauthorized error', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error401 = {
+        isAxiosError: true,
+        response: {
+          status: 401,
+          statusText: 'Unauthorized',
+          data: { error: 'Invalid credentials' },
+        },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      axios.get = jest.fn().mockRejectedValueOnce(error401);
+
+      await expect(maestro['getStatus']()).rejects.toThrow(
+        /Failed to get Maestro test status/,
+      );
+
+      // Should only be called once - no retries for 401
+      expect(axios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT retry on 404 Not Found error', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error404 = {
+        isAxiosError: true,
+        response: { status: 404, statusText: 'Not Found' },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      axios.get = jest.fn().mockRejectedValueOnce(error404);
+
+      await expect(maestro['getStatus']()).rejects.toThrow(
+        /Failed to get Maestro test status/,
+      );
+
+      expect(axios.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('should retry on network errors (ECONNRESET)', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const networkError = {
+        isAxiosError: true,
+        response: undefined,
+        code: 'ECONNRESET',
+        message: 'Connection reset',
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      const mockSuccessResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce(mockSuccessResponse);
+
+      const result = await maestro['getStatus']();
+
+      expect(axios.get).toHaveBeenCalledTimes(2);
+      expect(result.completed).toBe(true);
+    });
+
+    it('should retry on 500 Internal Server Error', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error500 = {
+        isAxiosError: true,
+        response: { status: 500, statusText: 'Internal Server Error' },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      const mockSuccessResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(error500)
+        .mockResolvedValueOnce(mockSuccessResponse);
+
+      const result = await maestro['getStatus']();
+
+      expect(axios.get).toHaveBeenCalledTimes(2);
+      expect(result.completed).toBe(true);
+    });
+
+    it('should retry on 504 Gateway Timeout error', async () => {
+      maestro['appId'] = 1234;
+      maestro['BASE_RETRY_DELAY_MS'] = 10;
+
+      const error504 = {
+        isAxiosError: true,
+        response: { status: 504, statusText: 'Gateway Timeout' },
+        code: undefined,
+      };
+      axios.isAxiosError = jest.fn().mockReturnValue(true);
+
+      const mockSuccessResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 1,
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+
+      axios.get = jest
+        .fn()
+        .mockRejectedValueOnce(error504)
+        .mockResolvedValueOnce(mockSuccessResponse);
+
+      const result = await maestro['getStatus']();
+
+      expect(axios.get).toHaveBeenCalledTimes(2);
+      expect(result.completed).toBe(true);
+    });
   });
 
   describe('Wait For Completion', () => {
@@ -3508,8 +3809,14 @@ flows:
   });
 
   describe('extractErrorMessage', () => {
+    beforeEach(() => {
+      // Reset axios.isAxiosError to return false for these tests
+      // (they test the fallback behavior for non-axios error-like objects)
+      axios.isAxiosError = jest.fn().mockReturnValue(false);
+    });
+
     it('should return credits depleted message for 429 status code', () => {
-      const axiosError = {
+      const axiosLikeError = {
         response: {
           status: 429,
           data: {},
@@ -3517,7 +3824,7 @@ flows:
         message: 'Request failed with status code 429',
       };
 
-      const result = maestro['extractErrorMessage'](axiosError);
+      const result = maestro['extractErrorMessage'](axiosLikeError);
 
       expect(result).toBe(
         'Your TestingBot credits are depleted. Please upgrade your plan at https://testingbot.com/pricing',
@@ -3525,7 +3832,7 @@ flows:
     });
 
     it('should return error message from response data for non-429 errors', () => {
-      const axiosError = {
+      const axiosLikeError = {
         response: {
           status: 400,
           data: {
@@ -3535,7 +3842,7 @@ flows:
         message: 'Request failed',
       };
 
-      const result = maestro['extractErrorMessage'](axiosError);
+      const result = maestro['extractErrorMessage'](axiosLikeError);
 
       expect(result).toBe('Invalid request');
     });

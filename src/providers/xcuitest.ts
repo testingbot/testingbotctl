@@ -243,22 +243,24 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
 
   private async getStatus(): Promise<XCUITestStatusResponse> {
     try {
-      const response = await axios.get(`${this.URL}/${this.appId}`, {
-        headers: {
-          'User-Agent': utils.getUserAgent(),
-        },
-        auth: {
-          username: this.credentials.userName,
-          password: this.credentials.accessKey,
-        },
-        timeout: 30000, // 30 second timeout
+      return await this.withRetry('Getting XCUITest status', async () => {
+        const response = await axios.get(`${this.URL}/${this.appId}`, {
+          headers: {
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+          timeout: 30000, // 30 second timeout
+        });
+
+        // Check for version update notification
+        const latestVersion = response.headers?.['x-testingbotctl-version'];
+        utils.checkForUpdate(latestVersion);
+
+        return response.data;
       });
-
-      // Check for version update notification
-      const latestVersion = response.headers?.['x-testingbotctl-version'];
-      utils.checkForUpdate(latestVersion);
-
-      return response.data;
     } catch (error) {
       throw await this.handleErrorWithDiagnostics(
         error,

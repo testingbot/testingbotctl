@@ -897,21 +897,23 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   private async getStatus(): Promise<MaestroStatusResponse> {
     try {
-      const response = await axios.get(`${this.URL}/${this.appId}`, {
-        headers: {
-          'User-Agent': utils.getUserAgent(),
-        },
-        auth: {
-          username: this.credentials.userName,
-          password: this.credentials.accessKey,
-        },
-        timeout: 30000, // 30 second timeout
-      });
+      return await this.withRetry('Getting Maestro test status', async () => {
+        const response = await axios.get(`${this.URL}/${this.appId}`, {
+          headers: {
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+          timeout: 30000, // 30 second timeout
+        });
 
-      // Check for version update notification
-      const latestVersion = response.headers?.['x-testingbotctl-version'];
-      utils.checkForUpdate(latestVersion);
-      return response.data;
+        // Check for version update notification
+        const latestVersion = response.headers?.['x-testingbotctl-version'];
+        utils.checkForUpdate(latestVersion);
+        return response.data;
+      });
     } catch (error) {
       throw await this.handleErrorWithDiagnostics(
         error,
@@ -1465,21 +1467,29 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   private async getRunDetails(runId: number): Promise<MaestroRunDetails> {
     try {
-      const response = await axios.get(`${this.URL}/${this.appId}/${runId}`, {
-        headers: {
-          'User-Agent': utils.getUserAgent(),
-        },
-        auth: {
-          username: this.credentials.userName,
-          password: this.credentials.accessKey,
-        },
-        timeout: 30000, // 30 second timeout
-      });
+      return await this.withRetry(
+        `Getting run details for run ${runId}`,
+        async () => {
+          const response = await axios.get(
+            `${this.URL}/${this.appId}/${runId}`,
+            {
+              headers: {
+                'User-Agent': utils.getUserAgent(),
+              },
+              auth: {
+                username: this.credentials.userName,
+                password: this.credentials.accessKey,
+              },
+              timeout: 30000, // 30 second timeout
+            },
+          );
 
-      const latestVersion = response.headers?.['x-testingbotctl-version'];
-      utils.checkForUpdate(latestVersion);
+          const latestVersion = response.headers?.['x-testingbotctl-version'];
+          utils.checkForUpdate(latestVersion);
 
-      return response.data;
+          return response.data;
+        },
+      );
     } catch (error) {
       throw await this.handleErrorWithDiagnostics(
         error,
