@@ -1,0 +1,49 @@
+name: Generate Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit the generated demo files'
+        required: false
+        default: 'true'
+        type: boolean
+
+jobs:
+  generate-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install VHS
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+          sudo apt update && sudo apt install -y vhs ffmpeg
+
+      - name: Generate Demo
+        run: |
+          cd demo
+          ln -sf demo-testingbot testingbot
+          vhs demo.tape
+          rm testingbot
+          ls -la
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-files
+          path: |
+            demo/demo.webm
+            demo/demo.gif
+
+      - name: Commit demo files
+        if: ${{ inputs.commit == true || inputs.commit == 'true' }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add demo/demo.webm demo/demo.gif
+          git diff --staged --quiet || git commit -m "chore: regenerate demo video"
+          git push

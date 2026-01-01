@@ -1,0 +1,32 @@
+#!/bin/bash
+# Fake testingbot command for demo recording
+
+echo -e '\033[1;36m11:55:59.10\033[0m Uploading Maestro App'
+echo '  app-debug.apk: [██████████████████████████████] 100% (12.4 MB/12.4 MB)'
+echo -e '\033[1;36m11:55:59.82\033[0m Uploading Maestro Flows'
+echo -e '\033[1;36m11:55:59.83\033[0m Bundling 4 files into flows.zip:'
+echo '11:55:59.83   Flow files (3):'
+echo '11:55:59.83     - login-flow.yaml'
+echo '11:55:59.83     - home-flow.yaml'
+echo '11:55:59.83     - checkout-flow.yaml'
+echo '11:55:59.83   Scripts (1):'
+echo '11:55:59.83     - scripts/helpers.js'
+echo '  flows.zip: [██████████████████████████████] 100% (2.1 KB/2.1 KB)'
+echo -e '\033[1;36m11:56:00.38\033[0m Running Maestro Tests'
+echo -e '\033[1;36m11:56:00.47\033[0m Waiting for test results...'
+echo '  🔗 Run 21289 (*): Watch in realtime:'
+echo '     https://testingbot.com/members/maestro/19687/runs/21289'
+sleep 2
+echo ''
+echo ' Duration   Status   Flow                           Fail reason'
+echo ' ────────── ──────── ────────────────────────────── ──────────────────────────────────────'
+sleep 0.5
+echo -e ' 32s        \033[1;32mPASSED\033[0m   Login Flow'
+sleep 0.3
+echo -e ' 28s        \033[1;32mPASSED\033[0m   Home Flow'
+sleep 0.3
+echo -e ' 45s        \033[1;32mPASSED\033[0m   Checkout Flow'
+echo ''
+echo '  ✅ Run 21289 (Pixel 9 - 15.0): All tests passed'
+echo ''
+echo -e '\033[1;36m11:58:45.21\033[0m All tests completed successfully!'

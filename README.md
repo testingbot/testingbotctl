@@ -1,9 +1,63 @@
-[![Run Tests](https://github.com/testingbot/testingbotctl/actions/workflows/test.yml/badge.svg)](https://github.com/testingbot/testingbotctl/actions/workflows/test.yml)
-[![npm version](https://img.shields.io/npm/v/@testingbot/cli.svg)](https://www.npmjs.com/package/@testingbot/cli)
+<p align="center">
+  <a href="https://testingbot.com">
+    <img src="resources/logo.svg" alt="Maestro Cloud Testing" width="400">
+  </a>
+  <br>
+  <strong>Run mobile tests on real devices in the cloud</strong>
+</p>
 
-# TestingBot CLI
+<p align="center">
+  <a href="https://github.com/testingbot/testingbotctl/actions/workflows/test.yml">
+    <img src="https://github.com/testingbot/testingbotctl/actions/workflows/test.yml/badge.svg" alt="Run Tests">
+  </a>
+  <a href="https://www.npmjs.com/package/@testingbot/cli">
+    <img src="https://img.shields.io/npm/v/@testingbot/cli.svg" alt="npm version">
+  </a>
+  <a href="https://www.npmjs.com/package/@testingbot/cli">
+    <img src="https://img.shields.io/npm/dm/@testingbot/cli.svg" alt="npm downloads">
+  </a>
+  <a href="https://github.com/testingbot/testingbotctl/blob/main/LICENSE">
+    <img src="https://img.shields.io/npm/l/@testingbot/cli.svg" alt="license">
+  </a>
+</p>
 
-CLI tool to run Espresso, XCUITest and Maestro tests on [TestingBot's](https://testingbot.com) cloud infrastructure.
+<p align="center">
+  <a href="https://testingbot.com">Website</a>
+  ·
+  <a href="https://testingbot.com/support/app-automate/maestro">Documentation</a>
+  ·
+  <a href="https://www.npmjs.com/package/@testingbot/cli">npm</a>
+</p>
+
+---
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Run Espresso, XCUITest and Maestro tests on TestingBot's cloud infrastructure.**
+
+- **Real Devices** — Test on thousands of real iOS and Android devices
+- **Emulators & Simulators** — Fast feedback with virtual devices
+- **Parallel Execution** — Split tests across multiple devices
+- **CI/CD Ready** — Integrates with GitHub Actions, Jenkins, and more
+- **Live Results** — Watch tests run in real-time
+- **Artifacts** — Download videos, screenshots, and logs
+
+</td>
+<td width="50%">
+
+<img src="demo/demo.webm" alt="TestingBot CLI Demo">
+
+</td>
+</tr>
+</table>
+
+<p align="center">
+  <a href="#installation"><strong>Get Started →</strong></a>
+</p>
+
+---
 
 ## Installation
 
