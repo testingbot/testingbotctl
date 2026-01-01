@@ -17,8 +17,67 @@ export interface ConnectivityCheckResult {
 }
 
 /**
+ * Test a single endpoint and return the result
+ */
+async function testEndpoint(
+  url: string,
+  description: string,
+): Promise<EndpointResult> {
+  const startTime = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: controller.signal,
+      redirect: 'manual',
+    });
+
+    clearTimeout(timeoutId);
+    const latencyMs = Date.now() - startTime;
+
+    return {
+      endpoint: `${description} (${url})`,
+      success: true,
+      statusCode: response.status,
+      latencyMs,
+    };
+  } catch (error) {
+    const latencyMs = Date.now() - startTime;
+    let errorMessage = 'Unknown error';
+
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        errorMessage = 'Request timeout (>3s)';
+      } else if (error.message.includes('fetch failed')) {
+        errorMessage = 'Network request failed (DNS/connection error)';
+      } else if (error.message.includes('ENOTFOUND')) {
+        errorMessage = 'DNS resolution failed';
+      } else if (error.message.includes('ECONNREFUSED')) {
+        errorMessage = 'Connection refused';
+      } else if (error.message.includes('ETIMEDOUT')) {
+        errorMessage = 'Connection timeout';
+      } else if (error.message.includes('ENETUNREACH')) {
+        errorMessage = 'Network unreachable';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+
+    return {
+      endpoint: `${description} (${url})`,
+      success: false,
+      error: errorMessage,
+      latencyMs,
+    };
+  }
+}
+
+/**
  * Check if the system has internet connectivity by testing against
- * multiple reliable third-party endpoints with detailed diagnostics.
+ * multiple reliable third-party endpoints in parallel.
+ * Returns as soon as one endpoint succeeds, reducing latency significantly.
  */
 export async function checkInternetConnectivity(): Promise<ConnectivityCheckResult> {
   const testEndpoints = [
@@ -30,79 +89,40 @@ export async function checkInternetConnectivity(): Promise<ConnectivityCheckResu
     { url: 'https://1.1.1.1/', description: 'Cloudflare DNS' },
   ];
 
-  const endpointResults: EndpointResult[] = [];
-  let anySuccess = false;
+  // Test all endpoints in parallel
+  const endpointPromises = testEndpoints.map(({ url, description }) =>
+    testEndpoint(url, description),
+  );
 
-  for (const { url, description } of testEndpoints) {
-    const startTime = Date.now();
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      const response = await fetch(url, {
-        method: 'HEAD',
-        signal: controller.signal,
-        redirect: 'manual',
-      });
-
-      clearTimeout(timeoutId);
-      const latencyMs = Date.now() - startTime;
-
-      if (response) {
-        anySuccess = true;
-        endpointResults.push({
-          endpoint: `${description} (${url})`,
-          success: true,
-          statusCode: response.status,
-          latencyMs,
-        });
-        break;
+  // Use Promise.any to return on first success, or collect all failures
+  try {
+    // Create promises that only resolve on success
+    const successPromises = endpointPromises.map(async (promise) => {
+      const result = await promise;
+      if (result.success) {
+        return result;
       }
-    } catch (error) {
-      const latencyMs = Date.now() - startTime;
-      let errorMessage = 'Unknown error';
+      throw result; // Throw failures so Promise.any continues to next
+    });
 
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = 'Request timeout (>3s)';
-        } else if (error.message.includes('fetch failed')) {
-          errorMessage = 'Network request failed (DNS/connection error)';
-        } else if (error.message.includes('ENOTFOUND')) {
-          errorMessage = 'DNS resolution failed';
-        } else if (error.message.includes('ECONNREFUSED')) {
-          errorMessage = 'Connection refused';
-        } else if (error.message.includes('ETIMEDOUT')) {
-          errorMessage = 'Connection timeout';
-        } else if (error.message.includes('ENETUNREACH')) {
-          errorMessage = 'Network unreachable';
-        } else {
-          errorMessage = error.message;
-        }
-      }
+    const successResult = await Promise.any(successPromises);
 
-      endpointResults.push({
-        endpoint: `${description} (${url})`,
-        success: false,
-        error: errorMessage,
-        latencyMs,
-      });
-    }
-  }
-
-  let message: string;
-  if (anySuccess) {
-    const successfulEndpoint = endpointResults.find((r) => r.success);
-    message = `Internet connectivity verified via ${successfulEndpoint?.endpoint} (${successfulEndpoint?.latencyMs}ms)`;
-  } else {
+    return {
+      connected: true,
+      endpointResults: [successResult],
+      message: `Internet connectivity verified via ${successResult.endpoint} (${successResult.latencyMs}ms)`,
+    };
+  } catch (aggregateError) {
+    // All endpoints failed - collect all results
+    const endpointResults = await Promise.all(endpointPromises);
     const testedEndpoints = endpointResults.map((r) => r.endpoint).join(', ');
-    message = `No internet connectivity detected. Tested endpoints: ${testedEndpoints}`;
-  }
 
-  return {
-    connected: anySuccess,
-    endpointResults,
-    message,
-  };
+    return {
+      connected: false,
+      endpointResults,
+      message: `No internet connectivity detected. Tested endpoints: ${testedEndpoints}`,
+    };
+  }
 }
 
 /**

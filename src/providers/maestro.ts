@@ -96,17 +96,24 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       throw new TestingBotError(`app option is required`);
     }
 
-    try {
-      await fs.promises.access(this.options.app, fs.constants.R_OK);
-    } catch {
-      throw new TestingBotError(
-        `Provided app path does not exist ${this.options.app}`,
-      );
-    }
-
     if (this.options.flows === undefined || this.options.flows.length === 0) {
       throw new TestingBotError(`flows option is required`);
     }
+
+    if (this.options.report && !this.options.reportOutputDir) {
+      throw new TestingBotError(
+        `--report-output-dir is required when --report is specified`,
+      );
+    }
+
+    // Build list of all file checks to run in parallel
+    const fileChecks: Promise<void>[] = [
+      fs.promises.access(this.options.app, fs.constants.R_OK).catch(() => {
+        throw new TestingBotError(
+          `Provided app path does not exist ${this.options.app}`,
+        );
+      }),
+    ];
 
     // Check if all flows paths exist (can be files, directories or glob patterns)
     for (const flowsPath of this.options.flows) {
@@ -116,27 +123,25 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         flowsPath.includes('{');
 
       if (!isGlobPattern) {
-        try {
-          await fs.promises.access(flowsPath, fs.constants.R_OK);
-        } catch {
-          throw new TestingBotError(`flows path does not exist ${flowsPath}`);
-        }
+        fileChecks.push(
+          fs.promises.access(flowsPath, fs.constants.R_OK).catch(() => {
+            throw new TestingBotError(`flows path does not exist ${flowsPath}`);
+          }),
+        );
       }
     }
 
-    if (this.options.report && !this.options.reportOutputDir) {
-      throw new TestingBotError(
-        `--report-output-dir is required when --report is specified`,
-      );
-    }
-
     if (this.options.reportOutputDir) {
-      await this.ensureOutputDirectory(this.options.reportOutputDir);
+      fileChecks.push(this.ensureOutputDirectory(this.options.reportOutputDir));
     }
 
     if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
-      await this.ensureOutputDirectory(this.options.artifactsOutputDir);
+      fileChecks.push(
+        this.ensureOutputDirectory(this.options.artifactsOutputDir),
+      );
     }
+
+    await Promise.all(fileChecks);
 
     return true;
   }

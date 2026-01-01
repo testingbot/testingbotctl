@@ -61,24 +61,8 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       throw new TestingBotError(`app option is required`);
     }
 
-    try {
-      await fs.promises.access(this.options.app, fs.constants.R_OK);
-    } catch {
-      throw new TestingBotError(
-        `Provided app path does not exist ${this.options.app}`,
-      );
-    }
-
     if (this.options.testApp === undefined) {
       throw new TestingBotError(`testApp option is required`);
-    }
-
-    try {
-      await fs.promises.access(this.options.testApp, fs.constants.R_OK);
-    } catch {
-      throw new TestingBotError(
-        `testApp path does not exist ${this.options.testApp}`,
-      );
     }
 
     // Validate report options
@@ -88,9 +72,25 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       );
     }
 
+    // Validate file access in parallel for better performance
+    const fileChecks = [
+      fs.promises.access(this.options.app, fs.constants.R_OK).catch(() => {
+        throw new TestingBotError(
+          `Provided app path does not exist ${this.options.app}`,
+        );
+      }),
+      fs.promises.access(this.options.testApp, fs.constants.R_OK).catch(() => {
+        throw new TestingBotError(
+          `testApp path does not exist ${this.options.testApp}`,
+        );
+      }),
+    ];
+
     if (this.options.reportOutputDir) {
-      await this.ensureOutputDirectory(this.options.reportOutputDir);
+      fileChecks.push(this.ensureOutputDirectory(this.options.reportOutputDir));
     }
+
+    await Promise.all(fileChecks);
 
     return true;
   }
