@@ -1,6 +1,8 @@
 # Source files (we publish compiled dist/)
 src/
 tests/
+demo/
+resources/
 
 # Config files
 .github/
