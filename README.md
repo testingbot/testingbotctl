@@ -47,7 +47,7 @@
 </td>
 <td width="50%">
 
-<video src="https://github.com/testingbot/testingbotctl/raw/main/demo/demo.webm" autoplay loop muted playsinline></video>
+<img src="demo/demo.gif" alt="TestingBot CLI Demo">
 
 </td>
 </tr>

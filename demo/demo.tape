@@ -3,7 +3,7 @@
 # Requires: vhs (https://github.com/charmbracelet/vhs)
 
 # Terminal settings
-Output demo.webm
+Output demo.gif
 Set FontSize 14
 Set Width 1400
 Set Height 750
