@@ -31,27 +31,20 @@
 
 ---
 
-<table>
-<tr>
-<td width="50%" valign="top">
+<p align="center">
+  <img src="demo/demo.gif" alt="TestingBot CLI Demo" width="700">
+</p>
 
-**Run Espresso, XCUITest and Maestro tests on TestingBot's cloud infrastructure.**
+---
+
+Run **Espresso**, **XCUITest** and **Maestro** tests on real devices in the cloud.
 
 - **Real Devices** — Test on thousands of real iOS and Android devices
 - **Emulators & Simulators** — Fast feedback with virtual devices
-- **Parallel Execution** — Split tests across multiple devices
+- **Parallel Execution** — Split tests across multiple devices with sharding
 - **CI/CD Ready** — Integrates with GitHub Actions, Jenkins, and more
 - **Live Results** — Watch tests run in real-time
 - **Artifacts** — Download videos, screenshots, and logs
-
-</td>
-<td width="50%">
-
-<img src="demo/demo.gif" alt="TestingBot CLI Demo">
-
-</td>
-</tr>
-</table>
 
 <p align="center">
   <a href="#installation"><strong>Get Started →</strong></a>
