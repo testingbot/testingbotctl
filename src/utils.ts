@@ -1,6 +1,6 @@
 import packageJson from '../package.json';
 import logger from './logger';
-import colors from 'colors';
+import pc from 'picocolors';
 
 let versionCheckDisplayed = false;
 
@@ -43,20 +43,20 @@ export default {
       versionCheckDisplayed = true;
       const border = '─'.repeat(80);
 
-      logger.info(`\nCLI Version: ${colors.cyan(currentVersion)}\n`);
-      logger.warn(colors.yellow(border));
-      logger.warn(colors.yellow('⚠  Update Available'));
+      logger.info(`\nCLI Version: ${pc.cyan(currentVersion)}\n`);
+      logger.warn(pc.yellow(border));
+      logger.warn(pc.yellow('⚠  Update Available'));
       logger.warn(
-        colors.yellow(
-          `   A new version of the TestingBot CLI is available: ${colors.green(latestVersion)}`,
+        pc.yellow(
+          `   A new version of the TestingBot CLI is available: ${pc.green(latestVersion)}`,
         ),
       );
       logger.warn(
-        colors.yellow(
-          `   Run: ${colors.cyan('npm install -g @testingbot/cli@latest')}`,
+        pc.yellow(
+          `   Run: ${pc.cyan('npm install -g @testingbot/cli@latest')}`,
         ),
       );
-      logger.warn(colors.yellow(border) + '\n');
+      logger.warn(pc.yellow(border) + '\n');
     }
   },
 };

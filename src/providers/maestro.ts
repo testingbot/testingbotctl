@@ -12,7 +12,7 @@ import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
-import colors from 'colors';
+import pc from 'picocolors';
 import BaseProvider from './base_provider';
 
 export interface MaestroRunAssets {
@@ -1020,13 +1020,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             // Clear header line, write new header, then clear separator line
             process.stdout.write('\x1b[2K');
             console.log(
-              colors.dim(
+              pc.dim(
                 ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Flow                              Fail reason`,
               ),
             );
             process.stdout.write('\x1b[2K');
             console.log(
-              colors.dim(
+              pc.dim(
                 ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(30)} ${'─'.repeat(80)}`,
               ),
             );
@@ -1158,17 +1158,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   } {
     switch (flow.status) {
       case 'WAITING':
-        return { text: 'WAITING', colored: colors.white('WAITING') };
+        return { text: 'WAITING', colored: pc.white('WAITING') };
       case 'READY':
-        return { text: 'RUNNING', colored: colors.blue('RUNNING') };
+        return { text: 'RUNNING', colored: pc.blue('RUNNING') };
       case 'DONE':
         if (flow.success === 1) {
-          return { text: 'PASSED', colored: colors.green('PASSED') };
+          return { text: 'PASSED', colored: pc.green('PASSED') };
         } else {
-          return { text: 'FAILED', colored: colors.red('FAILED') };
+          return { text: 'FAILED', colored: pc.red('FAILED') };
         }
       case 'FAILED':
-        return { text: 'FAILED', colored: colors.red('FAILED') };
+        return { text: 'FAILED', colored: pc.red('FAILED') };
       default:
         return { text: flow.status, colored: flow.status };
     }
@@ -1250,10 +1250,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     const parts: string[] = [];
-    if (waiting > 0) parts.push(colors.white(`${waiting} waiting`));
-    if (running > 0) parts.push(colors.blue(`${running} running`));
-    if (passed > 0) parts.push(colors.green(`${passed} passed`));
-    if (failed > 0) parts.push(colors.red(`${failed} failed`));
+    if (waiting > 0) parts.push(pc.white(`${waiting} waiting`));
+    if (running > 0) parts.push(pc.blue(`${running} running`));
+    if (passed > 0) parts.push(pc.green(`${passed} passed`));
+    if (failed > 0) parts.push(pc.red(`${failed} failed`));
 
     return ` ... and ${remaining.length} more: ${parts.join(', ')}`;
   }
@@ -1275,7 +1275,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     // Show summary for remaining flows
     if (flows.length > maxFlows) {
       const summary = this.getRemainingSummary(flows, maxFlows);
-      console.log(colors.dim(summary));
+      console.log(pc.dim(summary));
       linesWritten++;
     }
 
@@ -1291,8 +1291,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       separator += ` ${'─'.repeat(80)}`;
     }
 
-    console.log(colors.dim(header));
-    console.log(colors.dim(separator));
+    console.log(pc.dim(header));
+    console.log(pc.dim(separator));
   }
 
   private displayFlowRow(
@@ -1317,7 +1317,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     // Add first error message on the same line if failed and has errors
     if (hasFailures && isFailed && errorMessages.length > 0) {
-      row += ` ${colors.red(errorMessages[0])}`;
+      row += ` ${pc.red(errorMessages[0])}`;
     }
 
     if (isUpdate) {
@@ -1332,7 +1332,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       // Indent to align with the Fail reason column: Duration(11) + Status(9) + Test(31) = 51 chars
       const indent = ' '.repeat(51);
       for (let i = 1; i < errorMessages.length; i++) {
-        console.log(`${indent} ${colors.red(errorMessages[i])}`);
+        console.log(`${indent} ${pc.red(errorMessages[i])}`);
         linesWritten++;
       }
     }
@@ -1401,7 +1401,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     // Update or add summary line for remaining flows
     if (hasRemaining) {
       const summary = this.getRemainingSummary(flows, maxFlows);
-      process.stdout.write(`\r\x1b[K${colors.dim(summary)}\n`);
+      process.stdout.write(`\r\x1b[K${pc.dim(summary)}\n`);
       linesWritten++;
     }
 

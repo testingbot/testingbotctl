@@ -1,4 +1,4 @@
-import colors from 'colors';
+import pc from 'picocolors';
 import tracer from 'tracer';
 
 const logger = tracer.colorConsole({
@@ -7,9 +7,9 @@ const logger = tracer.colorConsole({
   dateformat: 'HH:MM:ss.L',
   filters: [
     {
-      warn: colors.red,
-      debug: colors.blue,
-      error: [colors.red, colors.bold],
+      warn: pc.red,
+      debug: pc.blue,
+      error: (text: string) => pc.bold(pc.red(text)),
     },
   ],
 });
