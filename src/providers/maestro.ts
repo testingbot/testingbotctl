@@ -91,9 +91,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     super(credentials, options);
   }
 
+  private static readonly SUPPORTED_APP_EXTENSIONS = [
+    '.apk',
+    '.apks',
+    '.ipa',
+    '.app',
+    '.zip',
+  ];
+
   private async validate(): Promise<boolean> {
     if (this.options.app === undefined) {
       throw new TestingBotError(`app option is required`);
+    }
+
+    // Validate app file extension
+    const appExt = path.extname(this.options.app).toLowerCase();
+    if (!Maestro.SUPPORTED_APP_EXTENSIONS.includes(appExt)) {
+      throw new TestingBotError(
+        `Unsupported app file format: ${appExt || '(no extension)'}. ` +
+          `Supported formats: ${Maestro.SUPPORTED_APP_EXTENSIONS.join(', ')}`,
+      );
     }
 
     if (this.options.flows === undefined || this.options.flows.length === 0) {
