@@ -449,6 +449,7 @@ describe('Maestro', () => {
             {
               deviceName: '*',
               platformName: 'iOS',
+              realDevice: 'true', // IPA files require real devices
             },
           ],
         }),

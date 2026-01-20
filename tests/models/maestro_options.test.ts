@@ -116,6 +116,7 @@ describe('MaestroOptions', () => {
       expect(caps).toEqual({
         deviceName: '*',
         platformName: 'iOS',
+        realDevice: 'true', // IPA files require real devices
       });
     });
 
@@ -196,6 +197,7 @@ describe('MaestroOptions', () => {
         timeZone: 'Europe/London',
         throttleNetwork: 'Edge',
         geoCountryCode: 'GB',
+        realDevice: 'true', // IPA files require real devices
       });
     });
 
@@ -454,10 +456,26 @@ describe('MaestroOptions', () => {
   });
 
   describe('realDevice option', () => {
-    it('should have realDevice as false by default', () => {
+    it('should have realDevice as false by default for APK files', () => {
       const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
 
       expect(options.realDevice).toBe(false);
+    });
+
+    it('should automatically enable realDevice for IPA files', () => {
+      const options = new MaestroOptions('app.ipa', './flows', 'iPhone 15');
+
+      // IPA files can only be tested on real iOS devices
+      expect(options.realDevice).toBe(true);
+    });
+
+    it('should automatically enable realDevice for IPA files even without explicit option', () => {
+      const options = new MaestroOptions('app.ipa', './flows', 'iPhone 15', {
+        platformName: 'iOS',
+        realDevice: false, // Even when explicitly set to false, IPA should force it to true
+      });
+
+      expect(options.realDevice).toBe(true);
     });
 
     it('should store realDevice when set to true', () => {

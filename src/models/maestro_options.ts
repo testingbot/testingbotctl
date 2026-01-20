@@ -38,6 +38,10 @@ export interface MaestroRunOptions {
 }
 
 export default class MaestroOptions {
+  private static isIpaFile(app?: string): boolean {
+    return app?.toLowerCase().endsWith('.ipa') ?? false;
+  }
+
   private _app: string;
   private _flows: string[];
   private _device?: string;
@@ -113,7 +117,8 @@ export default class MaestroOptions {
     this._async = options?.async ?? false;
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
-    this._realDevice = options?.realDevice ?? false;
+    // IPA files can only be tested on real iOS devices, so automatically enable realDevice
+    this._realDevice = MaestroOptions.isIpaFile(app) || (options?.realDevice ?? false);
     this._downloadArtifacts = options?.downloadArtifacts;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
