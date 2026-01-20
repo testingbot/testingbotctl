@@ -4022,4 +4022,291 @@ flows:
       consoleSpy.mockRestore();
     });
   });
+
+  describe('Find Missing References', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should find missing runScript references', async () => {
+      const flowContent = `
+- runScript: ../api/login.js
+- tapOn: "Login"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      // File does not exist
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath], // Only flow file in included files
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(1);
+      expect(missingRefs[0].flowFile).toBe(flowPath);
+      expect(missingRefs[0].referencedFile).toBe('../api/login.js');
+      expect(missingRefs[0].resolvedPath).toBe(
+        path.join(projectDir, 'api', 'login.js'),
+      );
+    });
+
+    it('should find missing runScript with object format', async () => {
+      const flowContent = `
+- runScript:
+    file: ../api/login.js
+    env:
+      TARGET_ENV: \${ENV}
+- tapOn: "Login"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(1);
+      expect(missingRefs[0].referencedFile).toBe('../api/login.js');
+    });
+
+    it('should find missing runFlow references', async () => {
+      const flowContent = `
+- runFlow: subflows/nonexistent.yaml
+- tapOn: "Continue"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'main.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(1);
+      expect(missingRefs[0].referencedFile).toBe('subflows/nonexistent.yaml');
+    });
+
+    it('should find missing addMedia references', async () => {
+      const flowContent = `
+- addMedia:
+    - ../assets/photo.png
+    - ../assets/video.mp4
+- tapOn: "Upload"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'upload.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(2);
+      expect(missingRefs.map((r) => r.referencedFile)).toContain(
+        '../assets/photo.png',
+      );
+      expect(missingRefs.map((r) => r.referencedFile)).toContain(
+        '../assets/video.mp4',
+      );
+    });
+
+    it('should not report references that exist in included files', async () => {
+      const flowContent = `
+- runScript: ../config/setup.js
+- tapOn: "Login"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
+      const scriptPath = path.join(projectDir, 'config', 'setup.js');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      // File exists (but we check included files first)
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath, scriptPath], // Script is included
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(0);
+    });
+
+    it('should not report references that exist on disk', async () => {
+      const flowContent = `
+- runScript: ../config/setup.js
+- tapOn: "Login"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      // File exists on disk
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath], // Script not in included files
+        projectDir,
+      );
+
+      // File exists on disk, so no missing reference reported
+      expect(missingRefs).toHaveLength(0);
+    });
+
+    it('should find multiple missing references in same flow', async () => {
+      const flowContent = `
+- runScript: ../scripts/setup.js
+- runScript:
+    file: ../scripts/teardown.js
+- runFlow: helpers/missing.yaml
+- addMedia: ../assets/missing.png
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'test.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(4);
+      const refs = missingRefs.map((r) => r.referencedFile);
+      expect(refs).toContain('../scripts/setup.js');
+      expect(refs).toContain('../scripts/teardown.js');
+      expect(refs).toContain('helpers/missing.yaml');
+      expect(refs).toContain('../assets/missing.png');
+    });
+
+    it('should find missing references in nested commands', async () => {
+      const flowContent = `
+- repeat:
+    times: 3
+    commands:
+      - runScript: ../helpers/wait.js
+      - tapOn: "Retry"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'retry.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(1);
+      expect(missingRefs[0].referencedFile).toBe('../helpers/wait.js');
+    });
+
+    it('should find missing references in onFlowStart', async () => {
+      const flowContent = `appId: com.example.app
+onFlowStart:
+  - runScript: ../setup/init.js
+---
+- tapOn: "Login"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(1);
+      expect(missingRefs[0].referencedFile).toBe('../setup/init.js');
+    });
+
+    it('should handle YAML parsing errors gracefully', async () => {
+      const invalidYaml = `
+- runScript: [invalid: yaml: syntax
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'broken.yaml');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(invalidYaml);
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath],
+        projectDir,
+      );
+
+      // Should not throw, just return empty
+      expect(missingRefs).toHaveLength(0);
+    });
+
+    it('should skip non-yaml files', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const jsPath = path.join(projectDir, 'scripts', 'helper.js');
+
+      fs.promises.readFile = jest.fn();
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [jsPath],
+        [jsPath],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(0);
+      expect(fs.promises.readFile).not.toHaveBeenCalled();
+    });
+
+    it('should find missing references across multiple flow files', async () => {
+      const flowContent1 = `
+- runScript: ../missing1.js
+`;
+      const flowContent2 = `
+- runScript: ../missing2.js
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath1 = path.join(projectDir, 'flows', 'flow1.yaml');
+      const flowPath2 = path.join(projectDir, 'flows', 'flow2.yaml');
+
+      fs.promises.readFile = jest
+        .fn()
+        .mockResolvedValueOnce(flowContent1)
+        .mockResolvedValueOnce(flowContent2);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath1, flowPath2],
+        [flowPath1, flowPath2],
+        projectDir,
+      );
+
+      expect(missingRefs).toHaveLength(2);
+      expect(missingRefs[0].flowFile).toBe(flowPath1);
+      expect(missingRefs[1].flowFile).toBe(flowPath2);
+    });
+  });
 });

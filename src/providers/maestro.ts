@@ -79,6 +79,12 @@ export interface MaestroSocketMessage {
   payload: string;
 }
 
+export interface MissingFileReference {
+  flowFile: string;
+  referencedFile: string;
+  resolvedPath: string;
+}
+
 export default class Maestro extends BaseProvider<MaestroOptions> {
   protected readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
 
@@ -403,6 +409,16 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     if (!this.options.quiet) {
       this.logIncludedFiles(allFlowFiles, baseDir);
+    }
+
+    // Check for missing file references and warn the user
+    const missingReferences = await this.findMissingReferences(
+      allFlowFiles,
+      allFlowFiles,
+      baseDir,
+    );
+    if (!this.options.quiet && missingReferences.length > 0) {
+      this.logMissingReferences(missingReferences, baseDir);
     }
 
     zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
@@ -771,6 +787,254 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     return dependencies;
+  }
+
+  /**
+   * Find all file references in flow files that don't exist on disk.
+   * This validates that all referenced files (runScript, runFlow, addMedia, etc.)
+   * will be included in the zip.
+   */
+  public async findMissingReferences(
+    flowFiles: string[],
+    allIncludedFiles: string[],
+    baseDir?: string,
+  ): Promise<MissingFileReference[]> {
+    const missingReferences: MissingFileReference[] = [];
+    const includedFilesSet = new Set(allIncludedFiles.map((f) => path.resolve(f)));
+
+    for (const flowFile of flowFiles) {
+      const ext = path.extname(flowFile).toLowerCase();
+      if (ext !== '.yaml' && ext !== '.yml') {
+        continue;
+      }
+
+      try {
+        const content = await fs.promises.readFile(flowFile, 'utf-8');
+        const documents: unknown[] = [];
+        yaml.loadAll(content, (doc) => documents.push(doc));
+
+        for (const flowData of documents) {
+          if (flowData !== null && typeof flowData === 'object') {
+            const missing = await this.findMissingInValue(
+              flowData,
+              flowFile,
+              includedFilesSet,
+            );
+            missingReferences.push(...missing);
+          }
+        }
+      } catch {
+        // Ignore parsing errors
+      }
+    }
+
+    return missingReferences;
+  }
+
+  /**
+   * Recursively find missing file references in a YAML value
+   */
+  private async findMissingInValue(
+    value: unknown,
+    flowFile: string,
+    includedFiles: Set<string>,
+  ): Promise<MissingFileReference[]> {
+    const missingReferences: MissingFileReference[] = [];
+
+    if (typeof value === 'string') {
+      if (this.looksLikePath(value)) {
+        const resolvedPath = path.resolve(path.dirname(flowFile), value);
+        // Check if the file is in included files OR exists on disk
+        if (!includedFiles.has(resolvedPath)) {
+          try {
+            await fs.promises.access(resolvedPath);
+            // File exists on disk but won't be included - also warn
+          } catch {
+            // File doesn't exist
+            missingReferences.push({
+              flowFile,
+              referencedFile: value,
+              resolvedPath,
+            });
+          }
+        }
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        const missing = await this.findMissingInValue(
+          item,
+          flowFile,
+          includedFiles,
+        );
+        missingReferences.push(...missing);
+      }
+    } else if (value !== null && typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const handledKeys = new Set<string>();
+
+      // Handle runScript - extract file reference but don't recurse
+      // (runScript objects only contain file, env, when - no nested file refs)
+      if ('runScript' in obj) {
+        handledKeys.add('runScript');
+        const runScript = obj.runScript;
+        const scriptFile =
+          typeof runScript === 'string'
+            ? runScript
+            : (runScript as Record<string, unknown>)?.file;
+        if (typeof scriptFile === 'string') {
+          const resolved = path.resolve(path.dirname(flowFile), scriptFile);
+          if (!includedFiles.has(resolved)) {
+            try {
+              await fs.promises.access(resolved);
+            } catch {
+              missingReferences.push({
+                flowFile,
+                referencedFile: scriptFile,
+                resolvedPath: resolved,
+              });
+            }
+          }
+        }
+        // Don't recurse into runScript - it only has file, env, when (no nested file refs)
+      }
+
+      // Handle runFlow - extract file reference and recurse only into commands
+      if ('runFlow' in obj) {
+        handledKeys.add('runFlow');
+        const runFlow = obj.runFlow;
+        const flowRef =
+          typeof runFlow === 'string'
+            ? runFlow
+            : (runFlow as Record<string, unknown>)?.file;
+        if (typeof flowRef === 'string') {
+          const resolved = path.resolve(path.dirname(flowFile), flowRef);
+          if (!includedFiles.has(resolved)) {
+            try {
+              await fs.promises.access(resolved);
+            } catch {
+              missingReferences.push({
+                flowFile,
+                referencedFile: flowRef,
+                resolvedPath: resolved,
+              });
+            }
+          }
+        }
+        // Only recurse into 'commands' if present (for inline commands)
+        if (
+          typeof runFlow === 'object' &&
+          runFlow !== null &&
+          'commands' in (runFlow as Record<string, unknown>)
+        ) {
+          const commands = (runFlow as Record<string, unknown>).commands;
+          if (Array.isArray(commands)) {
+            const nestedMissing = await this.findMissingInValue(
+              commands,
+              flowFile,
+              includedFiles,
+            );
+            missingReferences.push(...nestedMissing);
+          }
+        }
+      }
+
+      // Handle addMedia
+      if ('addMedia' in obj) {
+        handledKeys.add('addMedia');
+        const addMedia = obj.addMedia;
+        const mediaFiles = Array.isArray(addMedia) ? addMedia : [addMedia];
+        for (const mediaFile of mediaFiles) {
+          if (typeof mediaFile === 'string') {
+            const resolved = path.resolve(path.dirname(flowFile), mediaFile);
+            if (!includedFiles.has(resolved)) {
+              try {
+                await fs.promises.access(resolved);
+              } catch {
+                missingReferences.push({
+                  flowFile,
+                  referencedFile: mediaFile,
+                  resolvedPath: resolved,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Handle file property
+      if ('file' in obj && typeof obj.file === 'string') {
+        handledKeys.add('file');
+        const resolved = path.resolve(path.dirname(flowFile), obj.file);
+        if (!includedFiles.has(resolved)) {
+          try {
+            await fs.promises.access(resolved);
+          } catch {
+            missingReferences.push({
+              flowFile,
+              referencedFile: obj.file,
+              resolvedPath: resolved,
+            });
+          }
+        }
+      }
+
+      // Handle onFlowStart, onFlowComplete, commands
+      for (const key of ['onFlowStart', 'onFlowComplete', 'commands']) {
+        if (key in obj) {
+          handledKeys.add(key);
+          const nested = obj[key];
+          if (Array.isArray(nested)) {
+            const nestedMissing = await this.findMissingInValue(
+              nested,
+              flowFile,
+              includedFiles,
+            );
+            missingReferences.push(...nestedMissing);
+          }
+        }
+      }
+
+      // Recursively check remaining properties
+      for (const [key, propValue] of Object.entries(obj)) {
+        if (!handledKeys.has(key)) {
+          const nestedMissing = await this.findMissingInValue(
+            propValue,
+            flowFile,
+            includedFiles,
+          );
+          missingReferences.push(...nestedMissing);
+        }
+      }
+    }
+
+    return missingReferences;
+  }
+
+  /**
+   * Log warnings for missing file references
+   */
+  private logMissingReferences(
+    missingReferences: MissingFileReference[],
+    baseDir?: string,
+  ): void {
+    if (missingReferences.length === 0) {
+      return;
+    }
+
+    logger.warn(
+      `Warning: ${missingReferences.length} referenced file(s) not found:`,
+    );
+
+    for (const ref of missingReferences) {
+      const flowRelative = baseDir
+        ? path.relative(baseDir, ref.flowFile)
+        : path.basename(ref.flowFile);
+      logger.warn(`  In ${flowRelative}: ${ref.referencedFile}`);
+    }
+
+    logger.warn(
+      'These files will not be included in the upload and may cause test failures.',
+    );
   }
 
   private logIncludedFiles(files: string[], baseDir?: string): void {
