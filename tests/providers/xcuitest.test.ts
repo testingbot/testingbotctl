@@ -35,6 +35,7 @@ jest.mock('node:fs', () => ({
     stat: jest.fn(),
     mkdir: jest.fn(),
     writeFile: jest.fn(),
+    open: jest.fn(),
   },
 }));
 
@@ -48,9 +49,25 @@ describe('XCUITest', () => {
     'iPhone 15',
   );
 
+  // Helper to create a mock file handle for zip validation
+  const createMockFileHandle = () => ({
+    read: jest.fn().mockImplementation((buffer: Buffer) => {
+      // Write valid ZIP magic bytes (PK\x03\x04) to the provided buffer
+      const zipMagic = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+      zipMagic.copy(buffer, 0, 0, 4);
+      return Promise.resolve({ bytesRead: 4, buffer });
+    }),
+    close: jest.fn().mockResolvedValue(undefined),
+  });
+
   beforeEach(() => {
     xcuiTest = new XCUITest(mockCredentials, mockOptions);
     jest.clearAllMocks();
+
+    // Default mock for fs.promises.open - returns valid zip magic bytes
+    fs.promises.open = jest
+      .fn()
+      .mockResolvedValue(createMockFileHandle() as unknown as fs.promises.FileHandle);
   });
 
   describe('Validation', () => {

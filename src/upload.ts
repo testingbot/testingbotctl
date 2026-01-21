@@ -21,6 +21,8 @@ export interface UploadOptions {
   contentType: ContentType;
   showProgress?: boolean;
   checksum?: string;
+  /** Validate that the file is a valid zip-based archive (APK, IPA, ZIP) */
+  validateZipFormat?: boolean;
 }
 
 export interface UploadResult {
@@ -32,6 +34,10 @@ export default class Upload {
     const { filePath, url, credentials, showProgress = false } = options;
 
     await this.validateFile(filePath);
+
+    if (options.validateZipFormat) {
+      await this.validateZipFormat(filePath);
+    }
 
     const fileName = path.basename(filePath);
     const fileStats = await fs.promises.stat(filePath);
@@ -112,6 +118,14 @@ export default class Upload {
         throw error;
       }
       if (axios.isAxiosError(error)) {
+        // Handle 400 errors specifically for file uploads
+        if (error.response?.status === 400) {
+          const serverMessage = this.extractErrorMessage(error.response.data);
+          throw new TestingBotError(
+            `Upload rejected: ${serverMessage || 'The file was not accepted by the server'}`,
+            { cause: error },
+          );
+        }
         throw handleAxiosError(error, 'Upload failed');
       }
       throw new TestingBotError(
@@ -159,6 +173,57 @@ export default class Upload {
     } catch {
       throw new TestingBotError(`File not found or not readable: ${filePath}`);
     }
+  }
+
+  /**
+   * Validate that the file is a valid zip-based archive.
+   * ZIP, APK, IPA files all start with the ZIP magic bytes (PK\x03\x04).
+   */
+  private async validateZipFormat(filePath: string): Promise<void> {
+    const ZIP_MAGIC_BYTES = Buffer.from([0x50, 0x4b, 0x03, 0x04]); // PK\x03\x04
+
+    const fd = await fs.promises.open(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(4);
+      const { bytesRead } = await fd.read(buffer, 0, 4, 0);
+
+      if (bytesRead < 4 || !buffer.subarray(0, 4).equals(ZIP_MAGIC_BYTES)) {
+        const fileName = path.basename(filePath);
+        const ext = path.extname(filePath).toLowerCase();
+        throw new TestingBotError(
+          `Invalid file format: "${fileName}" is not a valid ${ext || 'archive'} file. ` +
+            `The file does not appear to be a valid zip-based archive (APK, IPA, or ZIP).`,
+        );
+      }
+    } finally {
+      await fd.close();
+    }
+  }
+
+  /**
+   * Extract error message from server response data
+   */
+  private extractErrorMessage(data: unknown): string | undefined {
+    if (!data) return undefined;
+
+    if (typeof data === 'string') {
+      try {
+        const parsed = JSON.parse(data);
+        return parsed.message || parsed.error || parsed.errors || data;
+      } catch {
+        return data;
+      }
+    }
+
+    if (typeof data === 'object') {
+      const obj = data as Record<string, unknown>;
+      if (typeof obj.message === 'string') return obj.message;
+      if (typeof obj.error === 'string') return obj.error;
+      if (typeof obj.errors === 'string') return obj.errors;
+      if (Array.isArray(obj.errors)) return obj.errors.join(', ');
+    }
+
+    return undefined;
   }
 
   /**

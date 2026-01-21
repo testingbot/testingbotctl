@@ -165,6 +165,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       credentials: this.credentials,
       contentType: 'application/octet-stream',
       showProgress: !this.options.quiet,
+      validateZipFormat: true,
     });
 
     this.appId = result.id;
@@ -178,6 +179,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       credentials: this.credentials,
       contentType: 'application/zip',
       showProgress: !this.options.quiet,
+      validateZipFormat: true,
     });
 
     return true;

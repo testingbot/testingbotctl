@@ -287,6 +287,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       credentials: this.credentials,
       contentType,
       showProgress: !this.options.quiet,
+      validateZipFormat: true,
     });
 
     this.appId = result.id;
@@ -346,6 +347,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           credentials: this.credentials,
           contentType: 'application/zip',
           showProgress: !this.options.quiet,
+          validateZipFormat: true,
         });
         return true;
       }

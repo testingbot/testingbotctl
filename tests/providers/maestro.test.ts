@@ -60,6 +60,7 @@ jest.mock('node:fs', () => ({
     unlink: jest.fn(),
     mkdir: jest.fn(),
     writeFile: jest.fn(),
+    open: jest.fn(),
   },
   createWriteStream: jest.fn(() => ({
     on: jest.fn((event, cb) => {
@@ -81,9 +82,25 @@ describe('Maestro', () => {
     'Pixel 6',
   );
 
+  // Helper to create a mock file handle for zip validation
+  const createMockFileHandle = () => ({
+    read: jest.fn().mockImplementation((buffer: Buffer) => {
+      // Write valid ZIP magic bytes (PK\x03\x04) to the provided buffer
+      const zipMagic = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+      zipMagic.copy(buffer, 0, 0, 4);
+      return Promise.resolve({ bytesRead: 4, buffer });
+    }),
+    close: jest.fn().mockResolvedValue(undefined),
+  });
+
   beforeEach(() => {
     maestro = new Maestro(mockCredentials, mockOptions);
     jest.clearAllMocks();
+
+    // Default mock for fs.promises.open - returns valid zip magic bytes
+    fs.promises.open = jest
+      .fn()
+      .mockResolvedValue(createMockFileHandle() as unknown as fs.promises.FileHandle);
   });
 
   describe('Validation', () => {

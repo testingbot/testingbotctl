@@ -29,6 +29,23 @@ describe('Upload', () => {
     ...overrides,
   });
 
+  // Helper to create a mock file handle for zip validation
+  const createMockFileHandle = (magicBytes: number[]) => ({
+    read: jest.fn().mockImplementation((buffer: Buffer) => {
+      // Write the magic bytes to the provided buffer
+      const srcBuffer = Buffer.from(magicBytes);
+      srcBuffer.copy(buffer, 0, 0, Math.min(4, magicBytes.length));
+      return Promise.resolve({
+        bytesRead: Math.min(4, magicBytes.length),
+        buffer,
+      });
+    }),
+    close: jest.fn().mockResolvedValue(undefined),
+  });
+
+  // Valid ZIP magic bytes (PK\x03\x04)
+  const ZIP_MAGIC_BYTES = [0x50, 0x4b, 0x03, 0x04];
+
   beforeEach(() => {
     upload = new Upload();
     jest.clearAllMocks();
@@ -51,6 +68,14 @@ describe('Upload', () => {
     jest
       .spyOn(fs, 'createReadStream')
       .mockReturnValue(mockStream as fs.ReadStream);
+
+    // Default mock for fs.promises.open - returns valid zip magic bytes
+    // Tests that need different behavior should override this
+    jest
+      .spyOn(fs.promises, 'open')
+      .mockResolvedValue(
+        createMockFileHandle(ZIP_MAGIC_BYTES) as unknown as fs.promises.FileHandle,
+      );
   });
 
   afterEach(() => {
@@ -159,6 +184,66 @@ describe('Upload', () => {
 
       await expect(upload.upload(options)).rejects.toThrow(TestingBotError);
     });
+
+    it('should validate zip format when validateZipFormat is true', async () => {
+      // Override with invalid magic bytes (not a zip file)
+      const invalidFileHandle = createMockFileHandle([0x00, 0x00, 0x00, 0x00]);
+      jest
+        .spyOn(fs.promises, 'open')
+        .mockResolvedValue(invalidFileHandle as unknown as fs.promises.FileHandle);
+
+      const options = createUploadOptions({
+        filePath: '/path/to/invalid.apk',
+        validateZipFormat: true,
+      });
+
+      await expect(upload.upload(options)).rejects.toThrow(
+        /Invalid file format.*not a valid.*archive/,
+      );
+      expect(invalidFileHandle.close).toHaveBeenCalled();
+    });
+
+    it('should accept valid zip files when validateZipFormat is true', async () => {
+      // Default mock already returns valid ZIP magic bytes
+      const mockResponse = { data: { id: 12345 }, headers: {} };
+      (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
+
+      const options = createUploadOptions({
+        validateZipFormat: true,
+      });
+
+      const result = await upload.upload(options);
+      expect(result).toEqual({ id: 12345 });
+    });
+
+    it('should skip zip validation when validateZipFormat is not set', async () => {
+      const mockResponse = { data: { id: 12345 }, headers: {} };
+      (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
+
+      // Clear the default open mock and set up a fresh spy
+      jest.restoreAllMocks();
+      jest.spyOn(fs.promises, 'access').mockResolvedValue(undefined);
+      jest.spyOn(fs.promises, 'stat').mockResolvedValue({
+        size: 1024 * 1024,
+      } as fs.Stats);
+      const mockStream = new Readable({
+        read() {
+          this.push(Buffer.alloc(1024));
+          this.push(null);
+        },
+      });
+      jest
+        .spyOn(fs, 'createReadStream')
+        .mockReturnValue(mockStream as fs.ReadStream);
+      const openSpy = jest.spyOn(fs.promises, 'open');
+
+      const options = createUploadOptions();
+      // validateZipFormat is not set, so it defaults to undefined (falsy)
+
+      const result = await upload.upload(options);
+      expect(result).toEqual({ id: 12345 });
+      expect(openSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('API error handling', () => {
@@ -203,14 +288,14 @@ describe('Upload', () => {
       );
     });
 
-    it('should handle axios errors with response data', async () => {
+    it('should handle 400 bad request with server error message', async () => {
       const axiosError = {
         isAxiosError: true,
         message: 'Request failed',
         response: {
           status: 400,
           data: {
-            error: 'Unauthorized',
+            error: 'Invalid file format: expected APK but got ZIP',
           },
         },
       };
@@ -221,7 +306,74 @@ describe('Upload', () => {
 
       const options = createUploadOptions();
 
-      await expect(upload.upload(options)).rejects.toThrow(/Unauthorized/);
+      await expect(upload.upload(options)).rejects.toThrow(
+        /Upload rejected:.*Invalid file format/,
+      );
+    });
+
+    it('should handle 400 bad request with message field', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        message: 'Request failed',
+        response: {
+          status: 400,
+          data: {
+            message: 'The uploaded file is corrupted',
+          },
+        },
+      };
+      (axios.post as jest.Mock).mockRejectedValueOnce(axiosError);
+      (axios.isAxiosError as unknown as jest.Mock) = jest
+        .fn()
+        .mockReturnValue(true);
+
+      const options = createUploadOptions();
+
+      await expect(upload.upload(options)).rejects.toThrow(
+        /Upload rejected:.*corrupted/,
+      );
+    });
+
+    it('should handle 400 bad request with no error message', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        message: 'Request failed',
+        response: {
+          status: 400,
+          data: {},
+        },
+      };
+      (axios.post as jest.Mock).mockRejectedValueOnce(axiosError);
+      (axios.isAxiosError as unknown as jest.Mock) = jest
+        .fn()
+        .mockReturnValue(true);
+
+      const options = createUploadOptions();
+
+      await expect(upload.upload(options)).rejects.toThrow(
+        /Upload rejected:.*not accepted/,
+      );
+    });
+
+    it('should handle 500 server errors via handleAxiosError', async () => {
+      const axiosError = {
+        isAxiosError: true,
+        message: 'Request failed',
+        response: {
+          status: 500,
+          data: {
+            error: 'Internal server error',
+          },
+        },
+      };
+      (axios.post as jest.Mock).mockRejectedValueOnce(axiosError);
+      (axios.isAxiosError as unknown as jest.Mock) = jest
+        .fn()
+        .mockReturnValue(true);
+
+      const options = createUploadOptions();
+
+      await expect(upload.upload(options)).rejects.toThrow(/Server error/);
     });
 
     it('should handle generic errors', async () => {

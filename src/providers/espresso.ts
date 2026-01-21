@@ -165,6 +165,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       credentials: this.credentials,
       contentType: 'application/vnd.android.package-archive',
       showProgress: !this.options.quiet,
+      validateZipFormat: true,
     });
 
     this.appId = result.id;
@@ -178,6 +179,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       credentials: this.credentials,
       contentType: 'application/vnd.android.package-archive',
       showProgress: !this.options.quiet,
+      validateZipFormat: true,
     });
 
     return true;
