@@ -3,6 +3,7 @@ import logger from './logger';
 import pc from 'picocolors';
 
 let versionCheckDisplayed = false;
+let realDeviceFlowsInfoDisplayed = false;
 
 export default {
   getUserAgent(): string {
@@ -28,6 +29,88 @@ export default {
       if (p1 > p2) return 1;
     }
     return 0;
+  },
+
+  /**
+   * Check if a device specification is a wildcard or regex pattern
+   */
+  isWildcardDevice(device: string | undefined): boolean {
+    if (!device) return true;
+    // Check for common wildcard/regex characters
+    return device === '*' || device.includes('*') || device.includes('?') || device.includes('.*');
+  },
+
+  /**
+   * Check if a version specification is a wildcard or regex pattern
+   */
+  isWildcardVersion(version: string | undefined): boolean {
+    if (!version) return true;
+    // Check for common wildcard/regex characters
+    return version === '*' || version.includes('*') || version.includes('?') || version.includes('.*');
+  },
+
+  /**
+   * Show info message when running many flows on a specific real device without sharding
+   */
+  showRealDeviceFlowsInfo(options: {
+    realDevice: boolean;
+    device?: string;
+    version?: string;
+    flowCount: number;
+    shardSplit?: number;
+  }): void {
+    // Only show once
+    if (realDeviceFlowsInfoDisplayed) {
+      return;
+    }
+
+    // Check conditions: real device, specific device, more than 2 flows, no shards
+    if (
+      !options.realDevice ||
+      this.isWildcardDevice(options.device) ||
+      options.flowCount <= 2 ||
+      options.shardSplit
+    ) {
+      return;
+    }
+
+    realDeviceFlowsInfoDisplayed = true;
+    const border = '─'.repeat(80);
+
+    logger.info('');
+    logger.info(pc.cyan(border));
+    logger.info(pc.cyan('ℹ  Performance Tip'));
+    logger.info(
+      pc.cyan(
+        `   Running ${options.flowCount} flows on a specific device (${options.device}) in real device mode.`,
+      ),
+    );
+    logger.info(
+      pc.cyan(
+        '   Each flow runs in its own session on that device, which may be slow.',
+      ),
+    );
+    logger.info(pc.cyan(''));
+    logger.info(pc.cyan('   Consider these alternatives for faster execution:'));
+    logger.info(
+      pc.cyan(
+        `   • Use ${pc.white('--shard-split <n>')} to run multiple flows in the same session`,
+      ),
+    );
+    logger.info(
+      pc.cyan(
+        `   • Use wildcards for device (e.g., ${pc.white('"Pixel.*"')}) to parallelize across devices`,
+      ),
+    );
+    if (!this.isWildcardVersion(options.version)) {
+      logger.info(
+        pc.cyan(
+          `   • Use wildcards for version (e.g., ${pc.white('"15.*"')}) for broader device selection`,
+        ),
+      );
+    }
+    logger.info(pc.cyan(border));
+    logger.info('');
   },
 
   /**

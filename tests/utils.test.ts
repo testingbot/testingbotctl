@@ -3,6 +3,7 @@ import logger from '../src/logger';
 
 jest.mock('../src/logger', () => ({
   warn: jest.fn(),
+  info: jest.fn(),
 }));
 
 describe('utils', () => {
@@ -68,6 +69,120 @@ describe('utils', () => {
     it('should not warn when current version is higher than latest', () => {
       utils.checkForUpdate('0.0.1');
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isWildcardDevice', () => {
+    it('should return true for undefined device', () => {
+      expect(utils.isWildcardDevice(undefined)).toBe(true);
+    });
+
+    it('should return true for wildcard "*"', () => {
+      expect(utils.isWildcardDevice('*')).toBe(true);
+    });
+
+    it('should return true for patterns containing "*"', () => {
+      expect(utils.isWildcardDevice('Pixel*')).toBe(true);
+      expect(utils.isWildcardDevice('Pixel 9*')).toBe(true);
+      expect(utils.isWildcardDevice('*Pro')).toBe(true);
+    });
+
+    it('should return true for patterns containing ".*"', () => {
+      expect(utils.isWildcardDevice('Pixel.*')).toBe(true);
+      expect(utils.isWildcardDevice('iPhone.*Pro')).toBe(true);
+    });
+
+    it('should return true for patterns containing "?"', () => {
+      expect(utils.isWildcardDevice('Pixel ?')).toBe(true);
+      expect(utils.isWildcardDevice('iPhone 1?')).toBe(true);
+    });
+
+    it('should return false for specific device names', () => {
+      expect(utils.isWildcardDevice('Pixel 9 Pro')).toBe(false);
+      expect(utils.isWildcardDevice('iPhone 15')).toBe(false);
+      expect(utils.isWildcardDevice('Samsung Galaxy S24')).toBe(false);
+    });
+  });
+
+  describe('isWildcardVersion', () => {
+    it('should return true for undefined version', () => {
+      expect(utils.isWildcardVersion(undefined)).toBe(true);
+    });
+
+    it('should return true for wildcard "*"', () => {
+      expect(utils.isWildcardVersion('*')).toBe(true);
+    });
+
+    it('should return true for patterns containing "*"', () => {
+      expect(utils.isWildcardVersion('15*')).toBe(true);
+      expect(utils.isWildcardVersion('15.*')).toBe(true);
+    });
+
+    it('should return true for patterns containing "?"', () => {
+      expect(utils.isWildcardVersion('15.?')).toBe(true);
+    });
+
+    it('should return false for specific versions', () => {
+      expect(utils.isWildcardVersion('15')).toBe(false);
+      expect(utils.isWildcardVersion('15.0')).toBe(false);
+      expect(utils.isWildcardVersion('15.0.1')).toBe(false);
+    });
+  });
+
+  describe('showRealDeviceFlowsInfo', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should not show info when not using real device', () => {
+      utils.showRealDeviceFlowsInfo({
+        realDevice: false,
+        device: 'Pixel 9 Pro',
+        flowCount: 5,
+      });
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it('should not show info when device is a wildcard', () => {
+      utils.showRealDeviceFlowsInfo({
+        realDevice: true,
+        device: '*',
+        flowCount: 5,
+      });
+      expect(logger.info).not.toHaveBeenCalled();
+
+      utils.showRealDeviceFlowsInfo({
+        realDevice: true,
+        device: 'Pixel.*',
+        flowCount: 5,
+      });
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it('should not show info when flow count is 2 or less', () => {
+      utils.showRealDeviceFlowsInfo({
+        realDevice: true,
+        device: 'Pixel 9 Pro',
+        flowCount: 2,
+      });
+      expect(logger.info).not.toHaveBeenCalled();
+
+      utils.showRealDeviceFlowsInfo({
+        realDevice: true,
+        device: 'Pixel 9 Pro',
+        flowCount: 1,
+      });
+      expect(logger.info).not.toHaveBeenCalled();
+    });
+
+    it('should not show info when shardSplit is specified', () => {
+      utils.showRealDeviceFlowsInfo({
+        realDevice: true,
+        device: 'Pixel 9 Pro',
+        flowCount: 5,
+        shardSplit: 2,
+      });
+      expect(logger.info).not.toHaveBeenCalled();
     });
   });
 });

@@ -411,6 +411,20 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     if (!this.options.quiet) {
       this.logIncludedFiles(allFlowFiles, baseDir);
+
+      // Show info about potential slow execution on specific real devices
+      utils.showRealDeviceFlowsInfo({
+        realDevice: this.options.realDevice,
+        device: this.options.device,
+        version: this.options.version,
+        flowCount: allFlowFiles.filter(
+          (f) =>
+            f.endsWith('.yaml') || f.endsWith('.yml'),
+        ).filter(
+          (f) => !f.endsWith('config.yaml'),
+        ).length,
+        shardSplit: this.options.shardSplit,
+      });
     }
 
     // Check for missing file references and warn the user
