@@ -247,52 +247,97 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private async uploadApp() {
-    const appPath = this.options.app;
+    let appPath = this.options.app;
     const ext = path.extname(appPath).toLowerCase();
+    let tempZipPath: string | null = null;
 
-    let contentType:
-      | 'application/vnd.android.package-archive'
-      | 'application/octet-stream'
-      | 'application/zip';
-    if (ext === '.apk') {
-      contentType = 'application/vnd.android.package-archive';
-    } else if (ext === '.ipa' || ext === '.app') {
-      contentType = 'application/octet-stream';
-    } else if (ext === '.zip') {
-      contentType = 'application/zip';
-    } else {
-      contentType = 'application/octet-stream';
-    }
-
-    if (!this.options.ignoreChecksumCheck) {
-      const checksum = await this.upload.calculateChecksum(appPath);
-      const existingApp = await this.checkAppChecksum(checksum);
-
-      if (existingApp) {
-        this.appId = existingApp.id;
+    // If .app bundle (directory), zip it first
+    if (ext === '.app') {
+      const stat = await fs.promises.stat(appPath);
+      if (stat.isDirectory()) {
         if (!this.options.quiet) {
-          logger.info('  App already uploaded, skipping upload');
+          logger.info('Zipping .app bundle for upload');
         }
-        return true;
+        tempZipPath = await this.zipAppBundle(appPath);
+        appPath = tempZipPath;
       }
     }
 
-    if (!this.options.quiet) {
-      logger.info('Uploading Maestro App');
+    try {
+      let contentType:
+        | 'application/vnd.android.package-archive'
+        | 'application/octet-stream'
+        | 'application/zip';
+      if (ext === '.apk') {
+        contentType = 'application/vnd.android.package-archive';
+      } else if (ext === '.ipa') {
+        contentType = 'application/octet-stream';
+      } else if (ext === '.zip' || ext === '.app') {
+        // .app bundles are zipped, so use application/zip
+        contentType = 'application/zip';
+      } else {
+        contentType = 'application/octet-stream';
+      }
+
+      if (!this.options.ignoreChecksumCheck) {
+        const checksum = await this.upload.calculateChecksum(appPath);
+        const existingApp = await this.checkAppChecksum(checksum);
+
+        if (existingApp) {
+          this.appId = existingApp.id;
+          if (!this.options.quiet) {
+            logger.info('  App already uploaded, skipping upload');
+          }
+          return true;
+        }
+      }
+
+      if (!this.options.quiet) {
+        logger.info('Uploading Maestro App');
+      }
+
+      const result = await this.upload.upload({
+        filePath: appPath,
+        url: `${this.URL}/app`,
+        credentials: this.credentials,
+        contentType,
+        showProgress: !this.options.quiet,
+        validateZipFormat: true,
+      });
+
+      this.appId = result.id;
+
+      return true;
+    } finally {
+      // Clean up temporary zip file
+      if (tempZipPath) {
+        await fs.promises.unlink(tempZipPath).catch(() => {});
+      }
     }
+  }
 
-    const result = await this.upload.upload({
-      filePath: appPath,
-      url: `${this.URL}/app`,
-      credentials: this.credentials,
-      contentType,
-      showProgress: !this.options.quiet,
-      validateZipFormat: true,
+  /**
+   * Zip a .app bundle directory into a temporary zip file
+   */
+  private async zipAppBundle(appPath: string): Promise<string> {
+    const appName = path.basename(appPath);
+    const tmpDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), 'testingbot-app-'),
+    );
+    const zipPath = path.join(tmpDir, `${appName}.zip`);
+
+    return new Promise((resolve, reject) => {
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+
+      output.on('close', () => resolve(zipPath));
+      archive.on('error', (err) => reject(err));
+
+      archive.pipe(output);
+      // Add the .app directory with its name preserved
+      archive.directory(appPath, appName);
+      archive.finalize();
     });
-
-    this.appId = result.id;
-
-    return true;
   }
 
   private async checkAppChecksum(
