@@ -466,7 +466,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           (f) =>
             f.endsWith('.yaml') || f.endsWith('.yml'),
         ).filter(
-          (f) => !f.endsWith('config.yaml'),
+          (f) => !this.isConfigFile(f),
         ).length,
         shardSplit: this.options.shardSplit,
       });
@@ -508,15 +508,20 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     });
 
     const flowFiles: string[] = [];
-    const configPath = path.join(directory, 'config.yaml');
+    let configPath: string | null = null;
     let config: MaestroConfig | null = null;
 
-    // Check for config.yaml
-    try {
-      const configContent = await fs.promises.readFile(configPath, 'utf-8');
-      config = yaml.load(configContent) as MaestroConfig;
-    } catch {
-      // No config.yaml, that's fine
+    // Check for config.yaml or config.yml
+    for (const configName of ['config.yaml', 'config.yml']) {
+      const candidatePath = path.join(directory, configName);
+      try {
+        const configContent = await fs.promises.readFile(candidatePath, 'utf-8');
+        config = yaml.load(configContent) as MaestroConfig;
+        configPath = candidatePath;
+        break; // Use the first config file found
+      } catch {
+        // Config file doesn't exist, try next
+      }
     }
 
     // If config specifies flows, use those
@@ -532,7 +537,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           const ext = path.extname(entry.name).toLowerCase();
           if (
             (ext === '.yaml' || ext === '.yml') &&
-            entry.name !== 'config.yaml'
+            !this.isConfigFile(entry.name)
           ) {
             flowFiles.push(path.join(directory, entry.name));
           }
@@ -547,8 +552,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       dependencies.forEach((dep) => allFiles.add(dep));
     }
 
-    // Include config.yaml if it exists
-    if (config) {
+    // Include config file if it exists
+    if (configPath) {
       allFiles.add(configPath);
     }
 
@@ -595,6 +600,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     return dependencies;
+  }
+
+  /**
+   * Check if a file path is a Maestro config file (config.yaml or config.yml)
+   */
+  private isConfigFile(filePath: string): boolean {
+    const basename = path.basename(filePath);
+    return basename === 'config.yaml' || basename === 'config.yml';
   }
 
   /**
@@ -1116,7 +1129,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     for (const filePath of relativePaths) {
       const ext = path.extname(filePath).toLowerCase();
       if (ext === '.yaml' || ext === '.yml') {
-        if (filePath === 'config.yaml' || filePath.endsWith('/config.yaml')) {
+        if (this.isConfigFile(filePath)) {
           groups['Config files'].push(filePath);
         } else {
           groups['Flow files'].push(filePath);

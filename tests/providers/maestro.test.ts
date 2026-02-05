@@ -2937,6 +2937,69 @@ flows:
         path.join(projectDir, 'web', 'flows', 'test.yaml'),
       );
     });
+
+    it('should include config.yml (alternative extension) in discovered files when it exists', async () => {
+      const configContent = `
+flows:
+  - "app/flows/**"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      // First call (config.yaml) fails, second call (config.yml) succeeds
+      fs.promises.readFile = jest.fn()
+        .mockRejectedValueOnce(new Error('ENOENT: no such file'))
+        .mockResolvedValueOnce(configContent);
+      fs.promises.readdir = jest.fn().mockResolvedValue([]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      (glob as jest.Mock).mockResolvedValue([
+        path.join(projectDir, 'app', 'flows', 'login.yaml'),
+      ]);
+
+      const files = await maestro['discoverFlows'](projectDir);
+
+      expect(files).toContain(path.join(projectDir, 'config.yml'));
+      expect(files).not.toContain(path.join(projectDir, 'config.yaml'));
+      expect(files).toContain(
+        path.join(projectDir, 'app', 'flows', 'login.yaml'),
+      );
+    });
+
+    it('should prefer config.yaml over config.yml when both exist', async () => {
+      const configContent = `
+flows:
+  - "flows/**"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      // First call (config.yaml) succeeds
+      fs.promises.readFile = jest.fn().mockResolvedValue(configContent);
+      fs.promises.readdir = jest.fn().mockResolvedValue([]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      (glob as jest.Mock).mockResolvedValue([
+        path.join(projectDir, 'flows', 'test.yaml'),
+      ]);
+
+      const files = await maestro['discoverFlows'](projectDir);
+
+      // Should only include config.yaml, not config.yml
+      expect(files).toContain(path.join(projectDir, 'config.yaml'));
+      expect(files).not.toContain(path.join(projectDir, 'config.yml'));
+    });
+
+    it('should exclude config.yml from flow files when no config exists', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      // Both config.yaml and config.yml fail
+      fs.promises.readFile = jest.fn()
+        .mockRejectedValue(new Error('ENOENT: no such file'));
+      fs.promises.readdir = jest.fn().mockResolvedValue([
+        { name: 'flow1.yaml', isFile: () => true },
+        { name: 'config.yml', isFile: () => true },  // Should be excluded as a config file
+      ]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const files = await maestro['discoverFlows'](projectDir);
+
+      expect(files).toContain(path.join(projectDir, 'flow1.yaml'));
+      expect(files).not.toContain(path.join(projectDir, 'config.yml'));
+    });
   });
 
   describe('Flow Status Display', () => {
