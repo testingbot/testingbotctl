@@ -454,6 +454,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     // If we have a single directory, use it as base; otherwise use common ancestor or flatten
     const baseDir = baseDirs.length === 1 ? baseDirs[0] : undefined;
 
+    // Discover dependencies (addMedia, runScript, runFlow, etc.) for all flow files
+    // This ensures referenced files are included even when individual YAML files are passed
+    const allFilesSet = new Set(allFlowFiles.map((f) => path.resolve(f)));
+    for (const flowFile of [...allFlowFiles]) {
+      const ext = path.extname(flowFile).toLowerCase();
+      if (ext === '.yaml' || ext === '.yml') {
+        const deps = await this.discoverDependencies(
+          flowFile,
+          baseDir || path.dirname(flowFile),
+        );
+        for (const dep of deps) {
+          const resolved = path.resolve(dep);
+          if (!allFilesSet.has(resolved)) {
+            allFilesSet.add(resolved);
+            allFlowFiles.push(dep);
+          }
+        }
+      }
+    }
+
     if (!this.options.quiet) {
       this.logIncludedFiles(allFlowFiles, baseDir);
 
@@ -918,19 +938,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     if (typeof value === 'string') {
       if (this.looksLikePath(value)) {
         const resolvedPath = path.resolve(path.dirname(flowFile), value);
-        // Check if the file is in included files OR exists on disk
         if (!includedFiles.has(resolvedPath)) {
-          try {
-            await fs.promises.access(resolvedPath);
-            // File exists on disk but won't be included - also warn
-          } catch {
-            // File doesn't exist
-            missingReferences.push({
-              flowFile,
-              referencedFile: value,
-              resolvedPath,
-            });
-          }
+          missingReferences.push({
+            flowFile,
+            referencedFile: value,
+            resolvedPath,
+          });
         }
       }
     } else if (Array.isArray(value)) {
@@ -958,15 +971,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         if (typeof scriptFile === 'string') {
           const resolved = path.resolve(path.dirname(flowFile), scriptFile);
           if (!includedFiles.has(resolved)) {
-            try {
-              await fs.promises.access(resolved);
-            } catch {
-              missingReferences.push({
-                flowFile,
-                referencedFile: scriptFile,
-                resolvedPath: resolved,
-              });
-            }
+            missingReferences.push({
+              flowFile,
+              referencedFile: scriptFile,
+              resolvedPath: resolved,
+            });
           }
         }
         // Don't recurse into runScript - it only has file, env, when (no nested file refs)
@@ -983,15 +992,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         if (typeof flowRef === 'string') {
           const resolved = path.resolve(path.dirname(flowFile), flowRef);
           if (!includedFiles.has(resolved)) {
-            try {
-              await fs.promises.access(resolved);
-            } catch {
-              missingReferences.push({
-                flowFile,
-                referencedFile: flowRef,
-                resolvedPath: resolved,
-              });
-            }
+            missingReferences.push({
+              flowFile,
+              referencedFile: flowRef,
+              resolvedPath: resolved,
+            });
           }
         }
         // Only recurse into 'commands' if present (for inline commands)
@@ -1021,15 +1026,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           if (typeof mediaFile === 'string') {
             const resolved = path.resolve(path.dirname(flowFile), mediaFile);
             if (!includedFiles.has(resolved)) {
-              try {
-                await fs.promises.access(resolved);
-              } catch {
-                missingReferences.push({
-                  flowFile,
-                  referencedFile: mediaFile,
-                  resolvedPath: resolved,
-                });
-              }
+              missingReferences.push({
+                flowFile,
+                referencedFile: mediaFile,
+                resolvedPath: resolved,
+              });
             }
           }
         }
@@ -1040,15 +1041,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         handledKeys.add('file');
         const resolved = path.resolve(path.dirname(flowFile), obj.file);
         if (!includedFiles.has(resolved)) {
-          try {
-            await fs.promises.access(resolved);
-          } catch {
-            missingReferences.push({
-              flowFile,
-              referencedFile: obj.file,
-              resolvedPath: resolved,
-            });
-          }
+          missingReferences.push({
+            flowFile,
+            referencedFile: obj.file,
+            resolvedPath: resolved,
+          });
         }
       }
 
@@ -1113,8 +1110,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   private logIncludedFiles(files: string[], baseDir?: string): void {
     // Get relative paths for display
+    const effectiveBase = baseDir || this.computeCommonDirectory(files);
     const relativePaths = files
-      .map((f) => (baseDir ? path.relative(baseDir, f) : path.basename(f)))
+      .map((f) => path.relative(effectiveBase, f))
       .sort();
 
     // Group by file type
@@ -1179,19 +1177,41 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       archive.pipe(output);
 
+      // Compute effective base directory for archive paths
+      const effectiveBase = baseDir || this.computeCommonDirectory(files);
+
       for (const file of files) {
-        // Determine the name in the archive
-        let archiveName: string;
-        if (baseDir) {
-          archiveName = path.relative(baseDir, file);
-        } else {
-          archiveName = path.basename(file);
-        }
+        const archiveName = path.relative(effectiveBase, file);
         archive.file(file, { name: archiveName });
       }
 
       archive.finalize();
     });
+  }
+
+  /**
+   * Compute the common parent directory of all files
+   */
+  private computeCommonDirectory(files: string[]): string {
+    if (files.length === 0) return process.cwd();
+    if (files.length === 1) return path.dirname(files[0]);
+
+    const dirs = files.map((f) => path.dirname(path.resolve(f)));
+    const parts = dirs[0].split(path.sep);
+    let commonLength = parts.length;
+
+    for (let i = 1; i < dirs.length; i++) {
+      const dirParts = dirs[i].split(path.sep);
+      commonLength = Math.min(commonLength, dirParts.length);
+      for (let j = 0; j < commonLength; j++) {
+        if (parts[j] !== dirParts[j]) {
+          commonLength = j;
+          break;
+        }
+      }
+    }
+
+    return parts.slice(0, commonLength).join(path.sep) || path.sep;
   }
 
   private async runTests() {
@@ -1272,6 +1292,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         // Check for version update notification
         const latestVersion = response.headers?.['x-testingbotctl-version'];
         utils.checkForUpdate(latestVersion);
+
+        if (this.options.debug) {
+          logger.debug(`API response: ${JSON.stringify(response.data, null, 2)}`);
+        }
+
         return response.data;
       });
     } catch (error) {

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import logger from './logger';
+import logger, { enableDebugLogging } from './logger';
 import Auth from './auth';
 import Espresso from './providers/espresso';
 import EspressoOptions, {
@@ -352,6 +352,7 @@ const maestroCommand = program
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
+  .option('--debug', 'Enable debug logging of API responses.')
   .action(async (appFileArg, flowsArgs, args) => {
     try {
       let app: string;
@@ -420,6 +421,7 @@ const maestroCommand = program
         artifactsOutputDir: args.artifactsOutputDir,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
+        debug: args.debug,
         metadata,
       });
       const credentials = await Auth.getCredentials({
@@ -434,6 +436,9 @@ const maestroCommand = program
             '  3. Set TB_KEY and TB_SECRET environment variables\n' +
             '  4. Create ~/.testingbot file with content: key:secret',
         );
+      }
+      if (args.debug) {
+        enableDebugLogging();
       }
       const maestro = new Maestro(credentials, options);
       const result = await maestro.run();

@@ -14,4 +14,8 @@ const logger = tracer.colorConsole({
   ],
 });
 
+export function enableDebugLogging(): void {
+  tracer.setLevel('debug');
+}
+
 export default logger;

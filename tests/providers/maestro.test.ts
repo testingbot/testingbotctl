@@ -4229,7 +4229,7 @@ flows:
       expect(missingRefs).toHaveLength(0);
     });
 
-    it('should not report references that exist on disk', async () => {
+    it('should report references that exist on disk but are not in included files', async () => {
       const flowContent = `
 - runScript: ../config/setup.js
 - tapOn: "Login"
@@ -4247,7 +4247,29 @@ flows:
         projectDir,
       );
 
-      // File exists on disk, so no missing reference reported
+      // File is not in included files, so it should be reported
+      expect(missingRefs).toHaveLength(1);
+      expect(missingRefs[0].referencedFile).toBe('../config/setup.js');
+    });
+
+    it('should not report references that are in included files', async () => {
+      const flowContent = `
+- runScript: ../config/setup.js
+- tapOn: "Login"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'login.yaml');
+      const scriptPath = path.resolve(projectDir, 'config', 'setup.js');
+
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+
+      const missingRefs = await maestro['findMissingReferences'](
+        [flowPath],
+        [flowPath, scriptPath], // Script is in included files
+        projectDir,
+      );
+
+      // File is in included files, so no missing reference reported
       expect(missingRefs).toHaveLength(0);
     });
 
