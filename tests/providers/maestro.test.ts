@@ -100,7 +100,9 @@ describe('Maestro', () => {
     // Default mock for fs.promises.open - returns valid zip magic bytes
     fs.promises.open = jest
       .fn()
-      .mockResolvedValue(createMockFileHandle() as unknown as fs.promises.FileHandle);
+      .mockResolvedValue(
+        createMockFileHandle() as unknown as fs.promises.FileHandle,
+      );
   });
 
   describe('Validation', () => {
@@ -2945,7 +2947,8 @@ flows:
 `;
       const projectDir = path.resolve(path.sep, 'project');
       // First call (config.yaml) fails, second call (config.yml) succeeds
-      fs.promises.readFile = jest.fn()
+      fs.promises.readFile = jest
+        .fn()
         .mockRejectedValueOnce(new Error('ENOENT: no such file'))
         .mockResolvedValueOnce(configContent);
       fs.promises.readdir = jest.fn().mockResolvedValue([]);
@@ -2987,11 +2990,12 @@ flows:
     it('should exclude config.yml from flow files when no config exists', async () => {
       const projectDir = path.resolve(path.sep, 'project');
       // Both config.yaml and config.yml fail
-      fs.promises.readFile = jest.fn()
+      fs.promises.readFile = jest
+        .fn()
         .mockRejectedValue(new Error('ENOENT: no such file'));
       fs.promises.readdir = jest.fn().mockResolvedValue([
         { name: 'flow1.yaml', isFile: () => true },
-        { name: 'config.yml', isFile: () => true },  // Should be excluded as a config file
+        { name: 'config.yml', isFile: () => true }, // Should be excluded as a config file
       ]);
       fs.promises.access = jest.fn().mockResolvedValue(undefined);
 
@@ -4123,7 +4127,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath], // Only flow file in included files
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(1);
@@ -4151,7 +4154,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(1);
@@ -4172,7 +4174,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(1);
@@ -4195,7 +4196,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(2);
@@ -4223,7 +4223,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath, scriptPath], // Script is included
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(0);
@@ -4244,7 +4243,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath], // Script not in included files
-        projectDir,
       );
 
       // File is not in included files, so it should be reported
@@ -4266,7 +4264,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath, scriptPath], // Script is in included files
-        projectDir,
       );
 
       // File is in included files, so no missing reference reported
@@ -4290,7 +4287,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(4);
@@ -4318,7 +4314,6 @@ flows:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(1);
@@ -4341,7 +4336,6 @@ onFlowStart:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(1);
@@ -4360,7 +4354,6 @@ onFlowStart:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath],
         [flowPath],
-        projectDir,
       );
 
       // Should not throw, just return empty
@@ -4376,7 +4369,6 @@ onFlowStart:
       const missingRefs = await maestro['findMissingReferences'](
         [jsPath],
         [jsPath],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(0);
@@ -4403,7 +4395,6 @@ onFlowStart:
       const missingRefs = await maestro['findMissingReferences'](
         [flowPath1, flowPath2],
         [flowPath1, flowPath2],
-        projectDir,
       );
 
       expect(missingRefs).toHaveLength(2);

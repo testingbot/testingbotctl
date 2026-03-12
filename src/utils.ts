@@ -37,7 +37,12 @@ export default {
   isWildcardDevice(device: string | undefined): boolean {
     if (!device) return true;
     // Check for common wildcard/regex characters
-    return device === '*' || device.includes('*') || device.includes('?') || device.includes('.*');
+    return (
+      device === '*' ||
+      device.includes('*') ||
+      device.includes('?') ||
+      device.includes('.*')
+    );
   },
 
   /**
@@ -46,7 +51,12 @@ export default {
   isWildcardVersion(version: string | undefined): boolean {
     if (!version) return true;
     // Check for common wildcard/regex characters
-    return version === '*' || version.includes('*') || version.includes('?') || version.includes('.*');
+    return (
+      version === '*' ||
+      version.includes('*') ||
+      version.includes('?') ||
+      version.includes('.*')
+    );
   },
 
   /**
@@ -91,7 +101,9 @@ export default {
       ),
     );
     logger.info(pc.cyan(''));
-    logger.info(pc.cyan('   Consider these alternatives for faster execution:'));
+    logger.info(
+      pc.cyan('   Consider these alternatives for faster execution:'),
+    );
     logger.info(
       pc.cyan(
         `   • Use ${pc.white('--shard-split <n>')} to run multiple flows in the same session`,

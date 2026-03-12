@@ -112,7 +112,7 @@ export async function checkInternetConnectivity(): Promise<ConnectivityCheckResu
       endpointResults: [successResult],
       message: `Internet connectivity verified via ${successResult.endpoint} (${successResult.latencyMs}ms)`,
     };
-  } catch (aggregateError) {
+  } catch {
     // All endpoints failed - collect all results
     const endpointResults = await Promise.all(endpointPromises);
     const testedEndpoints = endpointResults.map((r) => r.endpoint).join(', ');

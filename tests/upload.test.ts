@@ -74,7 +74,9 @@ describe('Upload', () => {
     jest
       .spyOn(fs.promises, 'open')
       .mockResolvedValue(
-        createMockFileHandle(ZIP_MAGIC_BYTES) as unknown as fs.promises.FileHandle,
+        createMockFileHandle(
+          ZIP_MAGIC_BYTES,
+        ) as unknown as fs.promises.FileHandle,
       );
   });
 
@@ -190,7 +192,9 @@ describe('Upload', () => {
       const invalidFileHandle = createMockFileHandle([0x00, 0x00, 0x00, 0x00]);
       jest
         .spyOn(fs.promises, 'open')
-        .mockResolvedValue(invalidFileHandle as unknown as fs.promises.FileHandle);
+        .mockResolvedValue(
+          invalidFileHandle as unknown as fs.promises.FileHandle,
+        );
 
       const options = createUploadOptions({
         filePath: '/path/to/invalid.apk',

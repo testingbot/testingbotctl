@@ -120,7 +120,8 @@ export default class MaestroOptions {
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
     // IPA files can only be tested on real iOS devices, so automatically enable realDevice
-    this._realDevice = MaestroOptions.isIpaFile(app) || (options?.realDevice ?? false);
+    this._realDevice =
+      MaestroOptions.isIpaFile(app) || (options?.realDevice ?? false);
     this._downloadArtifacts = options?.downloadArtifacts;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;

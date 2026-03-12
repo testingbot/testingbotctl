@@ -67,7 +67,9 @@ describe('XCUITest', () => {
     // Default mock for fs.promises.open - returns valid zip magic bytes
     fs.promises.open = jest
       .fn()
-      .mockResolvedValue(createMockFileHandle() as unknown as fs.promises.FileHandle);
+      .mockResolvedValue(
+        createMockFileHandle() as unknown as fs.promises.FileHandle,
+      );
   });
 
   describe('Validation', () => {

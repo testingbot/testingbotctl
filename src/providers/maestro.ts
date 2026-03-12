@@ -378,7 +378,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     const flowsPaths = this.options.flows;
 
     let zipPath: string;
-    let shouldCleanup = false;
 
     // Special case: single zip file - upload directly
     if (flowsPaths.length === 1) {
@@ -482,12 +481,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         realDevice: this.options.realDevice,
         device: this.options.device,
         version: this.options.version,
-        flowCount: allFlowFiles.filter(
-          (f) =>
-            f.endsWith('.yaml') || f.endsWith('.yml'),
-        ).filter(
-          (f) => !this.isConfigFile(f),
-        ).length,
+        flowCount: allFlowFiles
+          .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+          .filter((f) => !this.isConfigFile(f)).length,
         shardSplit: this.options.shardSplit,
       });
     }
@@ -496,14 +492,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     const missingReferences = await this.findMissingReferences(
       allFlowFiles,
       allFlowFiles,
-      baseDir,
     );
     if (!this.options.quiet && missingReferences.length > 0) {
       this.logMissingReferences(missingReferences, baseDir);
     }
 
     zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
-    shouldCleanup = true;
 
     try {
       await this.upload.upload({
@@ -514,9 +508,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         showProgress: !this.options.quiet,
       });
     } finally {
-      if (shouldCleanup) {
-        await fs.promises.unlink(zipPath).catch(() => {});
-      }
+      await fs.promises.unlink(zipPath).catch(() => {});
     }
 
     return true;
@@ -535,7 +527,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     for (const configName of ['config.yaml', 'config.yml']) {
       const candidatePath = path.join(directory, configName);
       try {
-        const configContent = await fs.promises.readFile(candidatePath, 'utf-8');
+        const configContent = await fs.promises.readFile(
+          candidatePath,
+          'utf-8',
+        );
         config = yaml.load(configContent) as MaestroConfig;
         configPath = candidatePath;
         break; // Use the first config file found
@@ -891,10 +886,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   public async findMissingReferences(
     flowFiles: string[],
     allIncludedFiles: string[],
-    baseDir?: string,
   ): Promise<MissingFileReference[]> {
     const missingReferences: MissingFileReference[] = [];
-    const includedFilesSet = new Set(allIncludedFiles.map((f) => path.resolve(f)));
+    const includedFilesSet = new Set(
+      allIncludedFiles.map((f) => path.resolve(f)),
+    );
 
     for (const flowFile of flowFiles) {
       const ext = path.extname(flowFile).toLowerCase();
@@ -1294,7 +1290,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         utils.checkForUpdate(latestVersion);
 
         if (this.options.debug) {
-          logger.debug(`API response: ${JSON.stringify(response.data, null, 2)}`);
+          logger.debug(
+            `API response: ${JSON.stringify(response.data, null, 2)}`,
+          );
         }
 
         return response.data;
