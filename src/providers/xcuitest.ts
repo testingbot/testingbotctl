@@ -100,6 +100,36 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       return { success: false, runs: [] };
     }
 
+    if (this.options.dryRun) {
+      const capabilities = this.options.getCapabilities();
+      const xcuitestOptions = this.options.getXCUITestOptions();
+      const metadata = this.options.metadata;
+
+      this.printDryRunSummary({
+        provider: 'XCUITest',
+        apiUrl: this.URL,
+        uploads: [
+          {
+            label: 'App',
+            filePath: this.options.app,
+            endpoint: `${this.URL}/app`,
+          },
+          {
+            label: 'Test App',
+            filePath: this.options.testApp,
+            endpoint: `${this.URL}/<appId>/tests`,
+          },
+        ],
+        runPayload: {
+          capabilities: [capabilities],
+          ...(xcuitestOptions && { options: xcuitestOptions }),
+          ...(metadata && { metadata }),
+        },
+      });
+
+      return { success: true, runs: [] };
+    }
+
     try {
       // Quick connectivity check before starting uploads
       await this.ensureConnectivity();

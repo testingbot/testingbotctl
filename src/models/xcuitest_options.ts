@@ -65,6 +65,7 @@ export default class XCUITestOptions {
   // Execution mode
   private _quiet: boolean;
   private _async: boolean;
+  private _dryRun: boolean;
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
   // Metadata
@@ -89,6 +90,7 @@ export default class XCUITestOptions {
       throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
       quiet?: boolean;
       async?: boolean;
+      dryRun?: boolean;
       report?: ReportFormat;
       reportOutputDir?: string;
       metadata?: RunMetadata;
@@ -119,6 +121,7 @@ export default class XCUITestOptions {
     this._throttleNetwork = options?.throttleNetwork;
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
+    this._dryRun = options?.dryRun ?? false;
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
     this._metadata = options?.metadata;
@@ -193,6 +196,10 @@ export default class XCUITestOptions {
 
   public get async(): boolean {
     return this._async;
+  }
+
+  public get dryRun(): boolean {
+    return this._dryRun;
   }
 
   public get report(): ReportFormat | undefined {

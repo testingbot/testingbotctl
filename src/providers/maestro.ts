@@ -183,6 +183,45 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     if (!(await this.validate())) {
       return { success: false, runs: [] };
     }
+
+    if (this.options.dryRun) {
+      // Detect platform for dry-run output (no network call needed)
+      if (!this.options.platformName) {
+        this.detectedPlatform = await this.detectPlatform();
+      }
+
+      const capabilities = this.options.getCapabilities(this.detectedPlatform);
+      const maestroOptions = this.options.getMaestroOptions();
+      const metadata = this.options.metadata;
+
+      this.printDryRunSummary({
+        provider: 'Maestro',
+        apiUrl: this.URL,
+        uploads: [
+          {
+            label: 'App',
+            filePath: this.options.app,
+            endpoint: `${this.URL}/app`,
+          },
+          {
+            label: 'Flows',
+            filePath: this.options.flows.join(', '),
+            endpoint: `${this.URL}/<appId>/tests`,
+          },
+        ],
+        runPayload: {
+          capabilities: [capabilities],
+          ...(maestroOptions && { maestroOptions }),
+          ...(this.options.shardSplit && {
+            shardSplit: this.options.shardSplit,
+          }),
+          ...(metadata && { metadata }),
+        },
+      });
+
+      return { success: true, runs: [] };
+    }
+
     try {
       // Quick connectivity check before starting uploads
       await this.ensureConnectivity();

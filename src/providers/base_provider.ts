@@ -37,6 +37,7 @@ export interface BaseRunInfo {
 export interface BaseProviderOptions {
   quiet?: boolean;
   reportOutputDir?: string;
+  dryRun?: boolean;
 }
 
 /**
@@ -407,5 +408,29 @@ export default abstract class BaseProvider<
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  /**
+   * Prints dry-run summary showing what would be sent to the API.
+   */
+  protected printDryRunSummary(sections: {
+    provider: string;
+    apiUrl: string;
+    uploads: { label: string; filePath: string; endpoint: string }[];
+    runPayload: Record<string, unknown>;
+  }): void {
+    logger.info(`[DRY RUN] ${sections.provider}`);
+    logger.info('');
+    logger.info('Files to upload:');
+    for (const upload of sections.uploads) {
+      logger.info(`  ${upload.label}: ${upload.filePath}`);
+      logger.info(`    -> POST ${upload.endpoint}`);
+    }
+    logger.info('');
+    logger.info('Test run payload:');
+    logger.info(`  POST ${sections.apiUrl}/<appId>/run`);
+    logger.info(JSON.stringify(sections.runPayload, null, 2));
+    logger.info('');
+    logger.info('No HTTP requests were made.');
   }
 }

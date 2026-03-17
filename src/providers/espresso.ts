@@ -100,6 +100,36 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       return { success: false, runs: [] };
     }
 
+    if (this.options.dryRun) {
+      const capabilities = this.options.getCapabilities();
+      const espressoOptions = this.options.getEspressoOptions();
+      const metadata = this.options.metadata;
+
+      this.printDryRunSummary({
+        provider: 'Espresso',
+        apiUrl: this.URL,
+        uploads: [
+          {
+            label: 'App',
+            filePath: this.options.app,
+            endpoint: `${this.URL}/app`,
+          },
+          {
+            label: 'Test App',
+            filePath: this.options.testApp,
+            endpoint: `${this.URL}/<appId>/tests`,
+          },
+        ],
+        runPayload: {
+          capabilities: [capabilities],
+          ...(espressoOptions && { espressoOptions }),
+          ...(metadata && { metadata }),
+        },
+      });
+
+      return { success: true, runs: [] };
+    }
+
     try {
       // Quick connectivity check before starting uploads
       await this.ensureConnectivity();

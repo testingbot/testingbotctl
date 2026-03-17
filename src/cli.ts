@@ -126,6 +126,10 @@ const espressoCommand = program
     '--async',
     'Start tests and exit immediately without waiting for results.',
   )
+  .option(
+    '--dry-run',
+    'Validate and prepare everything but skip HTTP calls. Shows what would be sent.',
+  )
   // Report options
   .option(
     '--report <format>',
@@ -193,6 +197,7 @@ const espressoCommand = program
         throttleNetwork: args.throttleNetwork,
         quiet: args.quiet,
         async: args.async,
+        dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         metadata,
@@ -309,6 +314,10 @@ const maestroCommand = program
     '--async',
     'Start tests and exit immediately without waiting for results.',
   )
+  .option(
+    '--dry-run',
+    'Validate and prepare everything but skip HTTP calls. Shows what would be sent.',
+  )
   // Report options
   .option(
     '--report <format>',
@@ -411,6 +420,7 @@ const maestroCommand = program
         maestroVersion: args.maestroVersion,
         quiet: args.quiet,
         async: args.async,
+        dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         realDevice: args.realDevice,
@@ -506,6 +516,10 @@ const xcuitestCommand = program
     '--async',
     'Start tests and exit immediately without waiting for results.',
   )
+  .option(
+    '--dry-run',
+    'Validate and prepare everything but skip HTTP calls. Shows what would be sent.',
+  )
   // Report options
   .option(
     '--report <format>',
@@ -566,6 +580,7 @@ const xcuitestCommand = program
         throttleNetwork: args.throttleNetwork,
         quiet: args.quiet,
         async: args.async,
+        dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         metadata,

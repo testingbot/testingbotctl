@@ -59,6 +59,7 @@ export default class MaestroOptions {
   private _maestroVersion?: string;
   private _quiet: boolean;
   private _async: boolean;
+  private _dryRun: boolean;
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
   private _realDevice: boolean;
@@ -89,6 +90,7 @@ export default class MaestroOptions {
       maestroVersion?: string;
       quiet?: boolean;
       async?: boolean;
+      dryRun?: boolean;
       report?: ReportFormat;
       reportOutputDir?: string;
       realDevice?: boolean;
@@ -117,6 +119,7 @@ export default class MaestroOptions {
     this._maestroVersion = options?.maestroVersion;
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
+    this._dryRun = options?.dryRun ?? false;
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
     // IPA files can only be tested on real iOS devices, so automatically enable realDevice
@@ -196,6 +199,10 @@ export default class MaestroOptions {
 
   public get async(): boolean {
     return this._async;
+  }
+
+  public get dryRun(): boolean {
+    return this._dryRun;
   }
 
   public get report(): ReportFormat | undefined {
