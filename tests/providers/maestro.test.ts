@@ -4402,4 +4402,101 @@ onFlowStart:
       expect(missingRefs[1].flowFile).toBe(flowPath2);
     });
   });
+
+  describe('findMaestroProjectRoot', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should find config.yaml in ancestor directory', async () => {
+      const flowFile = path.resolve(
+        path.sep,
+        'project',
+        'e2e',
+        'flows',
+        'auth',
+        'ch-sign-up.yaml',
+      );
+      // config.yaml exists at /project/e2e/config.yaml
+      fs.promises.access = jest.fn().mockImplementation((p: string) => {
+        if (
+          p === path.resolve(path.sep, 'project', 'e2e', 'config.yaml')
+        ) {
+          return Promise.resolve();
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+
+      const result = await maestro['findMaestroProjectRoot']([flowFile]);
+      expect(result).not.toBeNull();
+      expect(result!.dir).toBe(
+        path.resolve(path.sep, 'project', 'e2e'),
+      );
+      expect(result!.configPath).toBe(
+        path.resolve(path.sep, 'project', 'e2e', 'config.yaml'),
+      );
+    });
+
+    it('should return null when no config.yaml exists in ancestors', async () => {
+      const flowFile = path.resolve(
+        path.sep,
+        'project',
+        'flows',
+        'test.yaml',
+      );
+      fs.promises.access = jest
+        .fn()
+        .mockRejectedValue(new Error('ENOENT'));
+
+      const result = await maestro['findMaestroProjectRoot']([flowFile]);
+      expect(result).toBeNull();
+    });
+
+    it('should prefer config.yaml over config.yml', async () => {
+      const flowFile = path.resolve(
+        path.sep,
+        'project',
+        'e2e',
+        'flows',
+        'test.yaml',
+      );
+      fs.promises.access = jest.fn().mockImplementation((p: string) => {
+        if (
+          p === path.resolve(path.sep, 'project', 'e2e', 'config.yaml')
+        ) {
+          return Promise.resolve();
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+
+      const result = await maestro['findMaestroProjectRoot']([flowFile]);
+      expect(result!.configPath).toBe(
+        path.resolve(path.sep, 'project', 'e2e', 'config.yaml'),
+      );
+    });
+
+    it('should find config.yml when config.yaml does not exist', async () => {
+      const flowFile = path.resolve(
+        path.sep,
+        'project',
+        'e2e',
+        'flows',
+        'test.yaml',
+      );
+      fs.promises.access = jest.fn().mockImplementation((p: string) => {
+        if (
+          p === path.resolve(path.sep, 'project', 'e2e', 'config.yml')
+        ) {
+          return Promise.resolve();
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+
+      const result = await maestro['findMaestroProjectRoot']([flowFile]);
+      expect(result).not.toBeNull();
+      expect(result!.configPath).toBe(
+        path.resolve(path.sep, 'project', 'e2e', 'config.yml'),
+      );
+    });
+  });
 });

@@ -194,6 +194,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const maestroOptions = this.options.getMaestroOptions();
       const metadata = this.options.metadata;
 
+      // Process flows to show actual zip structure
+      const flowResult = await this.collectFlows();
+
       this.printDryRunSummary({
         provider: 'Maestro',
         apiUrl: this.URL,
@@ -218,6 +221,21 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           ...(metadata && { metadata }),
         },
       });
+
+      // Show zip structure details
+      if (flowResult) {
+        const { allFlowFiles, baseDir } = flowResult;
+        const effectiveBase =
+          baseDir || this.computeCommonDirectory(allFlowFiles);
+        logger.info('Zip structure (files as they will appear in the archive):');
+        for (const file of allFlowFiles) {
+          const archiveName = path.relative(effectiveBase, path.resolve(file));
+          logger.info(`  ${archiveName}`);
+        }
+        logger.info(`  Base directory: ${path.resolve(effectiveBase)}`);
+      } else {
+        logger.info('Flows: single .zip file (uploaded as-is)');
+      }
 
       return { success: true, runs: [] };
     }
@@ -413,26 +431,28 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
   }
 
-  private async uploadFlows() {
+  /**
+   * Collect and resolve all flow files, their dependencies, and determine the
+   * base directory for the zip structure. This is shared by both uploadFlows
+   * and the dry-run path.
+   *
+   * Returns null if the input is a single .zip file (direct upload, no processing).
+   */
+  async collectFlows(): Promise<{
+    allFlowFiles: string[];
+    baseDir: string | undefined;
+  } | null> {
     const flowsPaths = this.options.flows;
 
-    let zipPath: string;
-
-    // Special case: single zip file - upload directly
+    // Special case: single zip file - no processing needed
     if (flowsPaths.length === 1) {
       const singlePath = flowsPaths[0];
       const stat = await fs.promises.stat(singlePath).catch(() => null);
-      if (stat?.isFile() && path.extname(singlePath).toLowerCase() === '.zip') {
-        zipPath = singlePath;
-        await this.upload.upload({
-          filePath: zipPath,
-          url: `${this.URL}/${this.appId}/tests`,
-          credentials: this.credentials,
-          contentType: 'application/zip',
-          showProgress: !this.options.quiet,
-          validateZipFormat: true,
-        });
-        return true;
+      if (
+        stat?.isFile() &&
+        path.extname(singlePath).toLowerCase() === '.zip'
+      ) {
+        return null;
       }
     }
 
@@ -489,8 +509,25 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     // Determine base directory for zip structure
-    // If we have a single directory, use it as base; otherwise use common ancestor or flatten
-    const baseDir = baseDirs.length === 1 ? baseDirs[0] : undefined;
+    // If we have a single directory, use it as base; otherwise try to find the Maestro project root
+    let baseDir = baseDirs.length === 1 ? baseDirs[0] : undefined;
+
+    // When individual files are passed (not a directory), search ancestor directories
+    // for config.yaml to find the Maestro project root. This ensures the zip preserves
+    // the full directory structure needed for relative runFlow paths (e.g., ../../screens/).
+    if (!baseDir && allFlowFiles.length > 0) {
+      const projectRoot = await this.findMaestroProjectRoot(allFlowFiles);
+      if (projectRoot) {
+        baseDir = projectRoot.dir;
+        // Include config.yaml and discover its dependencies
+        const configResolved = path.resolve(projectRoot.configPath);
+        if (
+          !allFlowFiles.some((f) => path.resolve(f) === configResolved)
+        ) {
+          allFlowFiles.push(projectRoot.configPath);
+        }
+      }
+    }
 
     // Discover dependencies (addMedia, runScript, runFlow, etc.) for all flow files
     // This ensures referenced files are included even when individual YAML files are passed
@@ -536,7 +573,28 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       this.logMissingReferences(missingReferences, baseDir);
     }
 
-    zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
+    return { allFlowFiles, baseDir };
+  }
+
+  private async uploadFlows() {
+    const result = await this.collectFlows();
+
+    if (result === null) {
+      // Single zip file - upload directly
+      const zipPath = this.options.flows[0];
+      await this.upload.upload({
+        filePath: zipPath,
+        url: `${this.URL}/${this.appId}/tests`,
+        credentials: this.credentials,
+        contentType: 'application/zip',
+        showProgress: !this.options.quiet,
+        validateZipFormat: true,
+      });
+      return true;
+    }
+
+    const { allFlowFiles, baseDir } = result;
+    const zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
 
     try {
       await this.upload.upload({
@@ -551,6 +609,35 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     return true;
+  }
+
+  /**
+   * Search ancestor directories of the given flow files for a Maestro config file
+   * (config.yaml or config.yml). This identifies the project root so the zip
+   * preserves the directory structure needed for relative paths like ../../screens/.
+   */
+  private async findMaestroProjectRoot(
+    flowFiles: string[],
+  ): Promise<{ dir: string; configPath: string } | null> {
+    // Start from the first flow file and walk up
+    const startDir = path.dirname(path.resolve(flowFiles[0]));
+    const rootDir = path.parse(startDir).root;
+
+    let currentDir = startDir;
+    while (currentDir !== rootDir) {
+      for (const configName of ['config.yaml', 'config.yml']) {
+        const candidatePath = path.join(currentDir, configName);
+        try {
+          await fs.promises.access(candidatePath);
+          return { dir: currentDir, configPath: candidatePath };
+        } catch {
+          // Config not found here, keep searching
+        }
+      }
+      currentDir = path.dirname(currentDir);
+    }
+
+    return null;
   }
 
   private async discoverFlows(directory: string): Promise<string[]> {
@@ -901,8 +988,19 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
 
       // Recursively check remaining object properties for nested structures
+      // Skip config-only keys that contain path-like strings but aren't runtime
+      // file dependencies (e.g., executionOrder.flowsOrder, flows glob patterns)
+      const configOnlyKeys = new Set([
+        'executionOrder',
+        'flows',
+        'tags',
+        'includeTags',
+        'excludeTags',
+        'env',
+      ]);
+
       for (const [key, propValue] of Object.entries(obj)) {
-        if (!handledKeys.has(key)) {
+        if (!handledKeys.has(key) && !configOnlyKeys.has(key)) {
           const deps = await this.extractPathsFromValue(
             propValue,
             flowFile,
@@ -1101,8 +1199,19 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
 
       // Recursively check remaining properties
+      // Skip config-only keys that contain path-like strings but aren't runtime
+      // file dependencies (e.g., executionOrder.flowsOrder, flows glob patterns)
+      const configOnlyKeys = new Set([
+        'executionOrder',
+        'flows',
+        'tags',
+        'includeTags',
+        'excludeTags',
+        'env',
+      ]);
+
       for (const [key, propValue] of Object.entries(obj)) {
-        if (!handledKeys.has(key)) {
+        if (!handledKeys.has(key) && !configOnlyKeys.has(key)) {
           const nestedMissing = await this.findMissingInValue(
             propValue,
             flowFile,
