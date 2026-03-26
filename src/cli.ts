@@ -111,7 +111,7 @@ const espressoCommand = program
   )
   // Geolocation
   .option(
-    '--geo-location <code>',
+    '--geo-country-code <code>',
     'Geographic IP location (ISO country code, e.g., "US", "DE").',
   )
   // Network throttling
@@ -193,7 +193,7 @@ const espressoCommand = program
         language: args.language,
         locale: args.locale,
         timeZone: args.timezone,
-        geoLocation: args.geoLocation,
+        geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
         quiet: args.quiet,
         async: args.async,
@@ -501,7 +501,7 @@ const xcuitestCommand = program
   )
   // Geolocation
   .option(
-    '--geo-location <code>',
+    '--geo-country-code <code>',
     'Geographic IP location (ISO country code, e.g., "US", "DE").',
   )
   // Network throttling
@@ -576,7 +576,7 @@ const xcuitestCommand = program
         language: args.language,
         locale: args.locale,
         timeZone: args.timezone,
-        geoLocation: args.geoLocation,
+        geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
         quiet: args.quiet,
         async: args.async,

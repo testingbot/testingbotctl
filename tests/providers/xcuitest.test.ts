@@ -366,13 +366,13 @@ describe('XCUITest', () => {
       );
     });
 
-    it('should send geolocation option when provided', async () => {
+    it('should send geolocation as capability when provided', async () => {
       const optionsWithGeo = new XCUITestOptions(
         'path/to/app.ipa',
         'path/to/testApp.zip',
         'iPhone 15',
         {
-          geoLocation: 'DE',
+          geoCountryCode: 'DE',
         },
       );
       const xcuiTestWithGeo = new XCUITest(mockCredentials, optionsWithGeo);
@@ -386,9 +386,11 @@ describe('XCUITest', () => {
       expect(axios.post).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          options: {
-            geoLocation: 'DE',
-          },
+          capabilities: [
+            expect.objectContaining({
+              'testingbot.geoCountryCode': 'DE',
+            }),
+          ],
         }),
         expect.any(Object),
       );

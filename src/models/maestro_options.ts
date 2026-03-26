@@ -26,7 +26,7 @@ export interface MaestroCapabilities {
   locale?: string;
   timeZone?: string;
   throttleNetwork?: ThrottleNetwork;
-  geoCountryCode?: string;
+  'testingbot.geoCountryCode'?: string;
   realDevice?: string;
 }
 
@@ -290,7 +290,8 @@ export default class MaestroOptions {
     if (this._locale) caps.locale = this._locale;
     if (this._timeZone) caps.timeZone = this._timeZone;
     if (this._throttleNetwork) caps.throttleNetwork = this._throttleNetwork;
-    if (this._geoCountryCode) caps.geoCountryCode = this._geoCountryCode;
+    if (this._geoCountryCode)
+      caps['testingbot.geoCountryCode'] = this._geoCountryCode;
     if (this._realDevice) caps.realDevice = 'true';
 
     return caps;

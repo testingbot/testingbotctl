@@ -196,7 +196,7 @@ describe('MaestroOptions', () => {
         locale: 'en_GB',
         timeZone: 'Europe/London',
         throttleNetwork: 'Edge',
-        geoCountryCode: 'GB',
+        'testingbot.geoCountryCode': 'GB',
         realDevice: 'true', // IPA files require real devices
       });
     });
@@ -219,7 +219,7 @@ describe('MaestroOptions', () => {
       expect(caps).not.toHaveProperty('locale');
       expect(caps).not.toHaveProperty('timeZone');
       expect(caps).not.toHaveProperty('throttleNetwork');
-      expect(caps).not.toHaveProperty('geoCountryCode');
+      expect(caps).not.toHaveProperty('testingbot.geoCountryCode');
     });
 
     it('should not include includeTags and excludeTags in capabilities', () => {

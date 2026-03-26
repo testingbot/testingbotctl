@@ -115,7 +115,7 @@ describe('TestingBotCTL CLI', () => {
       'test-app.apk',
       '--device',
       'Pixel 6',
-      '--geo-location',
+      '--geo-country-code',
       'DE',
       '--throttle-network',
       '3G',

@@ -27,6 +27,7 @@ export interface XCUITestCapabilities {
   phoneOnly?: boolean;
   name?: string;
   build?: string;
+  'testingbot.geoCountryCode'?: string;
 }
 
 export interface XCUITestRunOptions {
@@ -36,8 +37,6 @@ export interface XCUITestRunOptions {
   language?: string;
   locale?: string;
   timeZone?: string;
-  // Geolocation
-  geoLocation?: string;
   // Network throttling
   throttle_network?: ThrottleNetwork | CustomNetworkProfile;
 }
@@ -59,7 +58,7 @@ export default class XCUITestOptions {
   private _locale?: string;
   private _timeZone?: string;
   // Geolocation
-  private _geoLocation?: string;
+  private _geoCountryCode?: string;
   // Network throttling
   private _throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
   // Execution mode
@@ -86,7 +85,7 @@ export default class XCUITestOptions {
       language?: string;
       locale?: string;
       timeZone?: string;
-      geoLocation?: string;
+      geoCountryCode?: string;
       throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
       quiet?: boolean;
       async?: boolean;
@@ -117,7 +116,7 @@ export default class XCUITestOptions {
     this._language = options?.language;
     this._locale = options?.locale;
     this._timeZone = options?.timeZone;
-    this._geoLocation = options?.geoLocation;
+    this._geoCountryCode = options?.geoCountryCode;
     this._throttleNetwork = options?.throttleNetwork;
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
@@ -179,8 +178,8 @@ export default class XCUITestOptions {
     return this._timeZone;
   }
 
-  public get geoLocation(): string | undefined {
-    return this._geoLocation;
+  public get geoCountryCode(): string | undefined {
+    return this._geoCountryCode;
   }
 
   public get throttleNetwork():
@@ -226,6 +225,8 @@ export default class XCUITestOptions {
     if (this._phoneOnly) caps.phoneOnly = true;
     if (this._name) caps.name = this._name;
     if (this._build) caps.build = this._build;
+    if (this._geoCountryCode)
+      caps['testingbot.geoCountryCode'] = this._geoCountryCode;
 
     return caps;
   }
@@ -239,8 +240,6 @@ export default class XCUITestOptions {
     if (this._language) opts.language = this._language;
     if (this._locale) opts.locale = this._locale;
     if (this._timeZone) opts.timeZone = this._timeZone;
-    // Geolocation
-    if (this._geoLocation) opts.geoLocation = this._geoLocation;
     // Network throttling
     if (this._throttleNetwork) opts.throttle_network = this._throttleNetwork;
 

@@ -391,7 +391,7 @@ describe('Maestro', () => {
               locale: 'en_US',
               timeZone: 'America/New_York',
               throttleNetwork: '4G',
-              geoCountryCode: 'US',
+              'testingbot.geoCountryCode': 'US',
             },
           ],
         }),

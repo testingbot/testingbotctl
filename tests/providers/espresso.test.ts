@@ -370,13 +370,13 @@ describe('Espresso', () => {
       );
     });
 
-    it('should send geolocation option when provided', async () => {
+    it('should send geolocation as capability when provided', async () => {
       const optionsWithGeo = new EspressoOptions(
         'path/to/app.apk',
         'path/to/testApp.apk',
         'Pixel 6',
         {
-          geoLocation: 'DE',
+          geoCountryCode: 'DE',
         },
       );
       const espressoWithGeo = new Espresso(mockCredentials, optionsWithGeo);
@@ -390,9 +390,11 @@ describe('Espresso', () => {
       expect(axios.post).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          espressoOptions: {
-            geoLocation: 'DE',
-          },
+          capabilities: [
+            expect.objectContaining({
+              'testingbot.geoCountryCode': 'DE',
+            }),
+          ],
         }),
         expect.any(Object),
       );
