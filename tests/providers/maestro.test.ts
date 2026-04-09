@@ -3026,15 +3026,12 @@ flows:
       [flowWithOrphanDep]: `appId: com.example\ntags:\n  - flaky\n---\n- runScript: orphan.js`,
     };
 
-    const buildMaestro = (
-      includeTags?: string[],
-      excludeTags?: string[],
-    ): Maestro => {
+    const buildMaestro = (): Maestro => {
       const opts = new MaestroOptions(
         'app.apk',
         path.join(projectDir, 'smoke.yaml'),
         'Pixel 6',
-        { includeTags, excludeTags, quiet: true },
+        { quiet: true },
       );
       return new Maestro(mockCredentials, opts);
     };
@@ -3057,38 +3054,44 @@ flows:
       expect(result).toBe(input);
     });
 
-    it('keeps only flows matching --include-tags', async () => {
-      const m = buildMaestro(['smoke']);
+    it('keeps only flows matching include tags', async () => {
+      const m = buildMaestro();
       const result = await m['filterFlowsByTags'](
         [smokeFlow, flakyFlow, untaggedFlow],
         projectDir,
+        ['smoke'],
       );
       expect(result).toEqual([smokeFlow]);
     });
 
-    it('drops flows matching --exclude-tags', async () => {
-      const m = buildMaestro(undefined, ['flaky']);
+    it('drops flows matching exclude tags', async () => {
+      const m = buildMaestro();
       const result = await m['filterFlowsByTags'](
         [smokeFlow, flakyFlow, untaggedFlow],
         projectDir,
+        undefined,
+        ['flaky'],
       );
       expect(result).toEqual([smokeFlow, untaggedFlow]);
     });
 
-    it('combines --include-tags and --exclude-tags', async () => {
-      const m = buildMaestro(['smoke'], ['flaky']);
+    it('combines include and exclude tags', async () => {
+      const m = buildMaestro();
       const result = await m['filterFlowsByTags'](
         [smokeFlow, flakyFlow, untaggedFlow],
         projectDir,
+        ['smoke'],
+        ['flaky'],
       );
       expect(result).toEqual([smokeFlow]);
     });
 
     it('always preserves config files', async () => {
-      const m = buildMaestro(['smoke']);
+      const m = buildMaestro();
       const result = await m['filterFlowsByTags'](
         [smokeFlow, flakyFlow, configFile],
         projectDir,
+        ['smoke'],
       );
       expect(result).toContain(configFile);
       expect(result).toContain(smokeFlow);
@@ -3096,10 +3099,11 @@ flows:
     });
 
     it('drops dependencies orphaned by filtered-out flows', async () => {
-      const m = buildMaestro(['smoke']);
+      const m = buildMaestro();
       const result = await m['filterFlowsByTags'](
         [flowWithDep, flowWithOrphanDep, helperScript, orphanScript],
         projectDir,
+        ['smoke'],
       );
       expect(result).toContain(flowWithDep);
       expect(result).toContain(helperScript);
@@ -3108,10 +3112,119 @@ flows:
     });
 
     it('throws TestingBotError when no flows match the filters', async () => {
-      const m = buildMaestro(['nonexistent']);
+      const m = buildMaestro();
       await expect(
-        m['filterFlowsByTags']([smokeFlow, flakyFlow], projectDir),
+        m['filterFlowsByTags'](
+          [smokeFlow, flakyFlow],
+          projectDir,
+          ['nonexistent'],
+        ),
       ).rejects.toThrow(TestingBotError);
+    });
+  });
+
+  describe('loadConfigTags', () => {
+    const projectDir = path.resolve(path.sep, 'project');
+    const buildMaestro = () =>
+      new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', projectDir, 'Pixel 6', { quiet: true }),
+      );
+
+    it('returns includeTags / excludeTags from config.yaml', async () => {
+      fs.promises.readFile = jest
+        .fn()
+        .mockResolvedValueOnce(
+          `flows:\n  - "*.yaml"\nincludeTags:\n  - smoke\nexcludeTags:\n  - flaky`,
+        );
+      const m = buildMaestro();
+      const tags = await m['loadConfigTags'](projectDir);
+      expect(tags.includeTags).toEqual(['smoke']);
+      expect(tags.excludeTags).toEqual(['flaky']);
+    });
+
+    it('falls back to config.yml when config.yaml is missing', async () => {
+      fs.promises.readFile = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('ENOENT'))
+        .mockResolvedValueOnce(`includeTags:\n  - smoke`);
+      const m = buildMaestro();
+      const tags = await m['loadConfigTags'](projectDir);
+      expect(tags.includeTags).toEqual(['smoke']);
+      expect(tags.excludeTags).toBeUndefined();
+    });
+
+    it('returns empty object when no config exists', async () => {
+      fs.promises.readFile = jest
+        .fn()
+        .mockRejectedValue(new Error('ENOENT'));
+      const m = buildMaestro();
+      const tags = await m['loadConfigTags'](projectDir);
+      expect(tags).toEqual({});
+    });
+  });
+
+  describe('collectFlows tag precedence', () => {
+    const projectDir = path.resolve(path.sep, 'project');
+    const smokeFlow = path.join(projectDir, 'smoke.yaml');
+    const flakyFlow = path.join(projectDir, 'flaky.yaml');
+    const configFile = path.join(projectDir, 'config.yaml');
+
+    const yamlByPath: Record<string, string> = {
+      [smokeFlow]: `appId: com.example\ntags:\n  - smoke\n---\n- launchApp`,
+      [flakyFlow]: `appId: com.example\ntags:\n  - flaky\n---\n- launchApp`,
+      [configFile]: `includeTags:\n  - smoke`,
+    };
+
+    const setupFs = () => {
+      fs.promises.stat = jest.fn().mockImplementation((p: string) => {
+        if (p === projectDir) {
+          return Promise.resolve({
+            isFile: () => false,
+            isDirectory: () => true,
+          });
+        }
+        return Promise.reject(new Error(`ENOENT: ${p}`));
+      });
+      fs.promises.readdir = jest.fn().mockResolvedValue([
+        { name: 'smoke.yaml', isFile: () => true },
+        { name: 'flaky.yaml', isFile: () => true },
+        { name: 'config.yaml', isFile: () => true },
+      ]);
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          yamlByPath[p] !== undefined
+            ? Promise.resolve(yamlByPath[p])
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+    };
+
+    it('uses includeTags from config.yaml when CLI flag is absent', async () => {
+      setupFs();
+      const opts = new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+      const result = await m.collectFlows();
+      expect(result).not.toBeNull();
+      expect(result!.allFlowFiles).toContain(smokeFlow);
+      expect(result!.allFlowFiles).not.toContain(flakyFlow);
+      expect(result!.allFlowFiles).toContain(configFile);
+    });
+
+    it('CLI --include-tags overrides config.yaml includeTags', async () => {
+      setupFs();
+      const opts = new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+        includeTags: ['flaky'],
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+      const result = await m.collectFlows();
+      expect(result).not.toBeNull();
+      expect(result!.allFlowFiles).toContain(flakyFlow);
+      expect(result!.allFlowFiles).not.toContain(smokeFlow);
     });
   });
 

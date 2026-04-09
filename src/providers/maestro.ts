@@ -551,7 +551,19 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     // Apply --include-tags / --exclude-tags filtering: drop flow files whose
     // frontmatter tags don't match, and drop dependencies orphaned as a result.
-    const filtered = await this.filterFlowsByTags(allFlowFiles, baseDir);
+    const configTags = baseDir
+      ? await this.loadConfigTags(baseDir)
+      : { includeTags: undefined, excludeTags: undefined };
+    const effectiveIncludeTags =
+      this.options.includeTags ?? configTags.includeTags;
+    const effectiveExcludeTags =
+      this.options.excludeTags ?? configTags.excludeTags;
+    const filtered = await this.filterFlowsByTags(
+      allFlowFiles,
+      baseDir,
+      effectiveIncludeTags,
+      effectiveExcludeTags,
+    );
     if (filtered !== allFlowFiles) {
       allFlowFiles.length = 0;
       allFlowFiles.push(...filtered);
@@ -779,12 +791,48 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return [];
   }
 
+  /**
+   * Load includeTags / excludeTags declared in the Maestro project's
+   * config.yaml (or config.yml). Returns undefined fields when no config
+   * exists or the values are not arrays.
+   */
+  private async loadConfigTags(
+    baseDir: string,
+  ): Promise<{ includeTags?: string[]; excludeTags?: string[] }> {
+    for (const configName of ['config.yaml', 'config.yml']) {
+      const candidate = path.join(baseDir, configName);
+      try {
+        const content = await fs.promises.readFile(candidate, 'utf-8');
+        const parsed = yaml.load(content) as MaestroConfig | null;
+        if (parsed && typeof parsed === 'object') {
+          const include = Array.isArray(parsed.includeTags)
+            ? parsed.includeTags.filter(
+                (t): t is string => typeof t === 'string',
+              )
+            : undefined;
+          const exclude = Array.isArray(parsed.excludeTags)
+            ? parsed.excludeTags.filter(
+                (t): t is string => typeof t === 'string',
+              )
+            : undefined;
+          return { includeTags: include, excludeTags: exclude };
+        }
+        return {};
+      } catch {
+        // try next candidate
+      }
+    }
+    return {};
+  }
+
   private async filterFlowsByTags(
     allFlowFiles: string[],
     baseDir: string | undefined,
+    includeTagsArg?: string[],
+    excludeTagsArg?: string[],
   ): Promise<string[]> {
-    const includeTags = this.options.includeTags ?? [];
-    const excludeTags = this.options.excludeTags ?? [];
+    const includeTags = includeTagsArg ?? [];
+    const excludeTags = excludeTagsArg ?? [];
     const hasInclude = includeTags.length > 0;
     const hasExclude = excludeTags.length > 0;
     if (!hasInclude && !hasExclude) {
