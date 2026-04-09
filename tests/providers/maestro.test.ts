@@ -3006,6 +3006,115 @@ flows:
     });
   });
 
+  describe('filterFlowsByTags', () => {
+    const projectDir = path.resolve(path.sep, 'project');
+    const smokeFlow = path.join(projectDir, 'smoke.yaml');
+    const flakyFlow = path.join(projectDir, 'flaky.yaml');
+    const untaggedFlow = path.join(projectDir, 'untagged.yaml');
+    const configFile = path.join(projectDir, 'config.yaml');
+    const helperScript = path.join(projectDir, 'helper.js');
+    const orphanScript = path.join(projectDir, 'orphan.js');
+    const flowWithDep = path.join(projectDir, 'with-dep.yaml');
+    const flowWithOrphanDep = path.join(projectDir, 'with-orphan.yaml');
+
+    const fileContents: Record<string, string> = {
+      [smokeFlow]: `appId: com.example\ntags:\n  - smoke\n---\n- launchApp`,
+      [flakyFlow]: `appId: com.example\ntags:\n  - flaky\n---\n- launchApp`,
+      [untaggedFlow]: `appId: com.example\n---\n- launchApp`,
+      [configFile]: `flows:\n  - "*.yaml"`,
+      [flowWithDep]: `appId: com.example\ntags:\n  - smoke\n---\n- runScript: helper.js`,
+      [flowWithOrphanDep]: `appId: com.example\ntags:\n  - flaky\n---\n- runScript: orphan.js`,
+    };
+
+    const buildMaestro = (
+      includeTags?: string[],
+      excludeTags?: string[],
+    ): Maestro => {
+      const opts = new MaestroOptions(
+        'app.apk',
+        path.join(projectDir, 'smoke.yaml'),
+        'Pixel 6',
+        { includeTags, excludeTags, quiet: true },
+      );
+      return new Maestro(mockCredentials, opts);
+    };
+
+    beforeEach(() => {
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          fileContents[p] !== undefined
+            ? Promise.resolve(fileContents[p])
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+    });
+
+    it('returns input unchanged when no tag filters are set', async () => {
+      const m = buildMaestro();
+      const input = [smokeFlow, flakyFlow, untaggedFlow];
+      const result = await m['filterFlowsByTags'](input, projectDir);
+      expect(result).toBe(input);
+    });
+
+    it('keeps only flows matching --include-tags', async () => {
+      const m = buildMaestro(['smoke']);
+      const result = await m['filterFlowsByTags'](
+        [smokeFlow, flakyFlow, untaggedFlow],
+        projectDir,
+      );
+      expect(result).toEqual([smokeFlow]);
+    });
+
+    it('drops flows matching --exclude-tags', async () => {
+      const m = buildMaestro(undefined, ['flaky']);
+      const result = await m['filterFlowsByTags'](
+        [smokeFlow, flakyFlow, untaggedFlow],
+        projectDir,
+      );
+      expect(result).toEqual([smokeFlow, untaggedFlow]);
+    });
+
+    it('combines --include-tags and --exclude-tags', async () => {
+      const m = buildMaestro(['smoke'], ['flaky']);
+      const result = await m['filterFlowsByTags'](
+        [smokeFlow, flakyFlow, untaggedFlow],
+        projectDir,
+      );
+      expect(result).toEqual([smokeFlow]);
+    });
+
+    it('always preserves config files', async () => {
+      const m = buildMaestro(['smoke']);
+      const result = await m['filterFlowsByTags'](
+        [smokeFlow, flakyFlow, configFile],
+        projectDir,
+      );
+      expect(result).toContain(configFile);
+      expect(result).toContain(smokeFlow);
+      expect(result).not.toContain(flakyFlow);
+    });
+
+    it('drops dependencies orphaned by filtered-out flows', async () => {
+      const m = buildMaestro(['smoke']);
+      const result = await m['filterFlowsByTags'](
+        [flowWithDep, flowWithOrphanDep, helperScript, orphanScript],
+        projectDir,
+      );
+      expect(result).toContain(flowWithDep);
+      expect(result).toContain(helperScript);
+      expect(result).not.toContain(flowWithOrphanDep);
+      expect(result).not.toContain(orphanScript);
+    });
+
+    it('throws TestingBotError when no flows match the filters', async () => {
+      const m = buildMaestro(['nonexistent']);
+      await expect(
+        m['filterFlowsByTags']([smokeFlow, flakyFlow], projectDir),
+      ).rejects.toThrow(TestingBotError);
+    });
+  });
+
   describe('Flow Status Display', () => {
     describe('getFlowStatusDisplay', () => {
       it('should return white WAITING for WAITING status', () => {

@@ -549,6 +549,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
+    // Apply --include-tags / --exclude-tags filtering: drop flow files whose
+    // frontmatter tags don't match, and drop dependencies orphaned as a result.
+    const filtered = await this.filterFlowsByTags(allFlowFiles, baseDir);
+    if (filtered !== allFlowFiles) {
+      allFlowFiles.length = 0;
+      allFlowFiles.push(...filtered);
+    }
+
     if (!this.options.quiet) {
       this.logIncludedFiles(allFlowFiles, baseDir);
 
@@ -749,6 +757,85 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private isConfigFile(filePath: string): boolean {
     const basename = path.basename(filePath);
     return basename === 'config.yaml' || basename === 'config.yml';
+  }
+
+  private async readFlowTags(flowFile: string): Promise<string[]> {
+    try {
+      const content = await fs.promises.readFile(flowFile, 'utf-8');
+      const documents: unknown[] = [];
+      yaml.loadAll(content, (doc) => documents.push(doc));
+      for (const doc of documents) {
+        if (doc !== null && typeof doc === 'object' && !Array.isArray(doc)) {
+          const tags = (doc as Record<string, unknown>).tags;
+          if (Array.isArray(tags)) {
+            return tags.filter((t): t is string => typeof t === 'string');
+          }
+          return [];
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return [];
+  }
+
+  private async filterFlowsByTags(
+    allFlowFiles: string[],
+    baseDir: string | undefined,
+  ): Promise<string[]> {
+    const includeTags = this.options.includeTags ?? [];
+    const excludeTags = this.options.excludeTags ?? [];
+    const hasInclude = includeTags.length > 0;
+    const hasExclude = excludeTags.length > 0;
+    if (!hasInclude && !hasExclude) {
+      return allFlowFiles;
+    }
+
+    const yamlFlows: string[] = [];
+    const configFiles: string[] = [];
+    for (const f of allFlowFiles) {
+      const ext = path.extname(f).toLowerCase();
+      if (ext === '.yaml' || ext === '.yml') {
+        if (this.isConfigFile(f)) {
+          configFiles.push(f);
+        } else {
+          yamlFlows.push(f);
+        }
+      }
+    }
+
+    const keptYamlFlows: string[] = [];
+    for (const flowFile of yamlFlows) {
+      const tags = await this.readFlowTags(flowFile);
+      if (hasInclude && !tags.some((t) => includeTags.includes(t))) {
+        continue;
+      }
+      if (hasExclude && tags.some((t) => excludeTags.includes(t))) {
+        continue;
+      }
+      keptYamlFlows.push(flowFile);
+    }
+
+    if (keptYamlFlows.length === 0) {
+      throw new TestingBotError(
+        `No flow files match the provided tag filters (--include-tags / --exclude-tags)`,
+      );
+    }
+
+    const keptResolved = new Set<string>(
+      [...keptYamlFlows, ...configFiles].map((f) => path.resolve(f)),
+    );
+    for (const flowFile of keptYamlFlows) {
+      const deps = await this.discoverDependencies(
+        flowFile,
+        baseDir || path.dirname(flowFile),
+      );
+      for (const dep of deps) {
+        keptResolved.add(path.resolve(dep));
+      }
+    }
+
+    return allFlowFiles.filter((f) => keptResolved.has(path.resolve(f)));
   }
 
   /**
