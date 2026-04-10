@@ -163,6 +163,47 @@ describe('Maestro', () => {
 
       await expect(maestroWithoutDevice['validate']()).resolves.toBe(true);
     });
+
+    it('should pass validation when configFile exists', async () => {
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const optionsWithConfig = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { configFile: 'path/to/ci-config.yaml' },
+      );
+      const maestroWithConfig = new Maestro(
+        mockCredentials,
+        optionsWithConfig,
+      );
+
+      await expect(maestroWithConfig['validate']()).resolves.toBe(true);
+    });
+
+    it('should throw when configFile does not exist', async () => {
+      fs.promises.access = jest.fn().mockImplementation((p: string) => {
+        if (p === 'path/to/ci-config.yaml') {
+          return Promise.reject(new Error('ENOENT'));
+        }
+        return Promise.resolve(undefined);
+      });
+
+      const optionsWithConfig = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { configFile: 'path/to/ci-config.yaml' },
+      );
+      const maestroWithConfig = new Maestro(
+        mockCredentials,
+        optionsWithConfig,
+      );
+
+      await expect(maestroWithConfig['validate']()).rejects.toThrow(
+        'Specified config file does not exist: path/to/ci-config.yaml',
+      );
+    });
   });
 
   describe('Detect Platform', () => {
@@ -3004,6 +3045,107 @@ flows:
       expect(files).toContain(path.join(projectDir, 'flow1.yaml'));
       expect(files).not.toContain(path.join(projectDir, 'config.yml'));
     });
+
+    it('should use custom config file instead of default config.yaml', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const customConfig = path.resolve(
+        path.sep,
+        'project',
+        'ci-config.yaml',
+      );
+      const configContent = `
+flows:
+  - "ci-flows/**"
+`;
+      fs.promises.readFile = jest.fn().mockImplementation((p: string) => {
+        if (p === customConfig) {
+          return Promise.resolve(configContent);
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+      fs.promises.readdir = jest.fn().mockResolvedValue([]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      (glob as jest.Mock).mockResolvedValue([
+        path.join(projectDir, 'ci-flows', 'login.yaml'),
+      ]);
+
+      const customMaestro = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+          quiet: true,
+          configFile: customConfig,
+        }),
+      );
+      const files = await customMaestro['discoverFlows'](projectDir);
+
+      expect(files).toContain(
+        path.join(projectDir, 'ci-flows', 'login.yaml'),
+      );
+      expect(files).toContain(customConfig);
+    });
+
+    it('should not read default config.yaml when custom config is specified', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const customConfig = path.resolve(
+        path.sep,
+        'project',
+        'smoke-config.yaml',
+      );
+      fs.promises.readFile = jest
+        .fn()
+        .mockRejectedValue(new Error('ENOENT'));
+      fs.promises.readdir = jest.fn().mockResolvedValue([
+        { name: 'flow1.yaml', isFile: () => true },
+        { name: 'config.yaml', isFile: () => true },
+      ]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const customMaestro = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+          quiet: true,
+          configFile: customConfig,
+        }),
+      );
+      const files = await customMaestro['discoverFlows'](projectDir);
+
+      // Should not have read config.yaml — only tried the custom config
+      expect(fs.promises.readFile).not.toHaveBeenCalledWith(
+        path.join(projectDir, 'config.yaml'),
+        'utf-8',
+      );
+      // Falls back to directory listing since custom config doesn't exist
+      expect(files).toContain(path.join(projectDir, 'flow1.yaml'));
+    });
+
+    it('should exclude custom config file from flow file listing', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const customConfig = path.resolve(
+        path.sep,
+        'project',
+        'ci-config.yaml',
+      );
+      fs.promises.readFile = jest
+        .fn()
+        .mockRejectedValue(new Error('ENOENT'));
+      fs.promises.readdir = jest.fn().mockResolvedValue([
+        { name: 'flow1.yaml', isFile: () => true },
+        { name: 'ci-config.yaml', isFile: () => true },
+      ]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const customMaestro = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+          quiet: true,
+          configFile: customConfig,
+        }),
+      );
+      const files = await customMaestro['discoverFlows'](projectDir);
+
+      expect(files).toContain(path.join(projectDir, 'flow1.yaml'));
+      expect(files).not.toContain(path.join(projectDir, 'ci-config.yaml'));
+    });
   });
 
   describe('filterFlowsByTags', () => {
@@ -3162,6 +3304,51 @@ flows:
       const tags = await m['loadConfigTags'](projectDir);
       expect(tags).toEqual({});
     });
+
+    it('reads tags from custom config file instead of default', async () => {
+      const customConfig = path.resolve(path.sep, 'other', 'ci-config.yaml');
+      fs.promises.readFile = jest.fn().mockImplementation((p: string) => {
+        if (p === customConfig) {
+          return Promise.resolve(
+            `includeTags:\n  - ci\nexcludeTags:\n  - slow`,
+          );
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+          quiet: true,
+          configFile: customConfig,
+        }),
+      );
+      const tags = await m['loadConfigTags'](projectDir);
+      expect(tags.includeTags).toEqual(['ci']);
+      expect(tags.excludeTags).toEqual(['slow']);
+    });
+
+    it('does not fall back to config.yaml when custom config is specified', async () => {
+      const customConfig = path.resolve(
+        path.sep,
+        'other',
+        'nonexistent-config.yaml',
+      );
+      fs.promises.readFile = jest.fn().mockImplementation((p: string) => {
+        if (p === path.join(projectDir, 'config.yaml')) {
+          return Promise.resolve(`includeTags:\n  - smoke`);
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+          quiet: true,
+          configFile: customConfig,
+        }),
+      );
+      const tags = await m['loadConfigTags'](projectDir);
+      expect(tags).toEqual({});
+    });
   });
 
   describe('collectFlows tag precedence', () => {
@@ -3223,6 +3410,49 @@ flows:
       const m = new Maestro(mockCredentials, opts);
       const result = await m.collectFlows();
       expect(result).not.toBeNull();
+      expect(result!.allFlowFiles).toContain(flakyFlow);
+      expect(result!.allFlowFiles).not.toContain(smokeFlow);
+    });
+
+    it('uses includeTags from custom config file when --config is specified', async () => {
+      const customConfig = path.join(projectDir, 'ci-config.yaml');
+      const customYamlByPath: Record<string, string> = {
+        ...yamlByPath,
+        [customConfig]: `includeTags:\n  - flaky`,
+      };
+
+      fs.promises.stat = jest.fn().mockImplementation((p: string) => {
+        if (p === projectDir) {
+          return Promise.resolve({
+            isFile: () => false,
+            isDirectory: () => true,
+          });
+        }
+        return Promise.reject(new Error(`ENOENT: ${p}`));
+      });
+      fs.promises.readdir = jest.fn().mockResolvedValue([
+        { name: 'smoke.yaml', isFile: () => true },
+        { name: 'flaky.yaml', isFile: () => true },
+        { name: 'config.yaml', isFile: () => true },
+        { name: 'ci-config.yaml', isFile: () => true },
+      ]);
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          customYamlByPath[p] !== undefined
+            ? Promise.resolve(customYamlByPath[p])
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const opts = new MaestroOptions('app.apk', projectDir, 'Pixel 6', {
+        quiet: true,
+        configFile: customConfig,
+      });
+      const m = new Maestro(mockCredentials, opts);
+      const result = await m.collectFlows();
+      expect(result).not.toBeNull();
+      // Custom config says includeTags: [flaky], so only flakyFlow should remain
       expect(result!.allFlowFiles).toContain(flakyFlow);
       expect(result!.allFlowFiles).not.toContain(smokeFlow);
     });

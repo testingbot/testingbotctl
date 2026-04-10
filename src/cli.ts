@@ -305,6 +305,10 @@ const maestroCommand = program
   )
   // Maestro configuration
   .option(
+    '--config <path>',
+    'Path to a custom Maestro config file (default: config.yaml in project root).',
+  )
+  .option(
     '--maestro-version <version>',
     'Maestro version to use (e.g., "2.0.10").',
   )
@@ -432,6 +436,7 @@ const maestroCommand = program
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
         debug: args.debug,
+        configFile: args.config,
         metadata,
       });
       const credentials = await Auth.getCredentials({

@@ -113,6 +113,7 @@ testingbot maestro <app> <flows...> [options]
 | `--include-tags <tags>` | Only run flows with these tags (comma-separated) |
 | `--exclude-tags <tags>` | Exclude flows with these tags (comma-separated) |
 | `-e, --env <KEY=VALUE>` | Environment variable for flows (can be repeated) |
+| `--config <path>` | Path to a custom Maestro config file (default: config.yaml in project root) |
 | `--maestro-version <version>` | Maestro version to use (e.g., "2.0.10") |
 
 **Network & Location:**
@@ -175,6 +176,9 @@ testingbot maestro app.apk ./flows --download-artifacts --build "build-123"
 
 # Download artifacts only for failed tests
 testingbot maestro app.apk ./flows --download-artifacts failed --artifacts-output-dir ./artifacts
+
+# Use a custom config file
+testingbot maestro app.apk ./flows --config .maestro/ci-config.yaml
 
 # Run in background (async)
 testingbot maestro app.apk ./flows --async

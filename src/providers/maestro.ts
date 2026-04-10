@@ -138,6 +138,18 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }),
     ];
 
+    if (this.options.configFile) {
+      fileChecks.push(
+        fs.promises
+          .access(this.options.configFile, fs.constants.R_OK)
+          .catch(() => {
+            throw new TestingBotError(
+              `Specified config file does not exist: ${this.options.configFile}`,
+            );
+          }),
+      );
+    }
+
     // Check if all flows paths exist (can be files, directories or glob patterns)
     for (const flowsPath of this.options.flows) {
       const isGlobPattern =
@@ -669,9 +681,15 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     let configPath: string | null = null;
     let config: MaestroConfig | null = null;
 
-    // Check for config.yaml or config.yml
-    for (const configName of ['config.yaml', 'config.yml']) {
-      const candidatePath = path.join(directory, configName);
+    // If a custom config file is specified, use it; otherwise check for config.yaml or config.yml
+    const configCandidates = this.options.configFile
+      ? [path.resolve(this.options.configFile)]
+      : [
+          path.join(directory, 'config.yaml'),
+          path.join(directory, 'config.yml'),
+        ];
+
+    for (const candidatePath of configCandidates) {
       try {
         const configContent = await fs.promises.readFile(
           candidatePath,
@@ -768,7 +786,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    */
   private isConfigFile(filePath: string): boolean {
     const basename = path.basename(filePath);
-    return basename === 'config.yaml' || basename === 'config.yml';
+    if (basename === 'config.yaml' || basename === 'config.yml') {
+      return true;
+    }
+    if (this.options.configFile) {
+      return basename === path.basename(this.options.configFile);
+    }
+    return false;
   }
 
   private async readFlowTags(flowFile: string): Promise<string[]> {
@@ -799,8 +823,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private async loadConfigTags(
     baseDir: string,
   ): Promise<{ includeTags?: string[]; excludeTags?: string[] }> {
-    for (const configName of ['config.yaml', 'config.yml']) {
-      const candidate = path.join(baseDir, configName);
+    const candidates = this.options.configFile
+      ? [path.resolve(this.options.configFile)]
+      : [
+          path.join(baseDir, 'config.yaml'),
+          path.join(baseDir, 'config.yml'),
+        ];
+
+    for (const candidate of candidates) {
       try {
         const content = await fs.promises.readFile(candidate, 'utf-8');
         const parsed = yaml.load(content) as MaestroConfig | null;

@@ -68,6 +68,7 @@ export default class MaestroOptions {
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
   private _debug: boolean;
+  private _configFile?: string;
   // Metadata
   private _metadata?: RunMetadata;
 
@@ -99,6 +100,7 @@ export default class MaestroOptions {
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
       debug?: boolean;
+      configFile?: string;
       metadata?: RunMetadata;
     },
   ) {
@@ -130,6 +132,7 @@ export default class MaestroOptions {
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
     this._debug = options?.debug ?? false;
+    this._configFile = options?.configFile;
     this._metadata = options?.metadata;
   }
 
@@ -235,6 +238,10 @@ export default class MaestroOptions {
 
   public get debug(): boolean {
     return this._debug;
+  }
+
+  public get configFile(): string | undefined {
+    return this._configFile;
   }
 
   public get metadata(): RunMetadata | undefined {

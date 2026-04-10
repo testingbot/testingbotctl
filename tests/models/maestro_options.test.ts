@@ -533,6 +533,49 @@ describe('MaestroOptions', () => {
     });
   });
 
+  describe('configFile option', () => {
+    it('should have undefined configFile by default', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.configFile).toBeUndefined();
+    });
+
+    it('should store configFile when provided', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        configFile: '.maestro/ci-config.yaml',
+      });
+
+      expect(options.configFile).toBe('.maestro/ci-config.yaml');
+    });
+
+    it('should not include configFile in capabilities', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+        configFile: '.maestro/ci-config.yaml',
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).toEqual({
+        deviceName: 'Pixel 8',
+        platformName: 'Android',
+      });
+      expect(caps).not.toHaveProperty('configFile');
+    });
+
+    it('should not include configFile in maestro options', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        includeTags: ['smoke'],
+        configFile: '.maestro/ci-config.yaml',
+      });
+      const maestroOpts = options.getMaestroOptions();
+
+      expect(maestroOpts).toEqual({
+        includeTags: ['smoke'],
+      });
+      expect(maestroOpts).not.toHaveProperty('configFile');
+    });
+  });
+
   describe('metadata option', () => {
     it('should have undefined metadata by default', () => {
       const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
