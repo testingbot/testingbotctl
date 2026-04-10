@@ -431,7 +431,7 @@ describe('Maestro', () => {
               orientation: 'LANDSCAPE',
               locale: 'en_US',
               timeZone: 'America/New_York',
-              throttleNetwork: '4G',
+              throttle_network: '4G',
               'testingbot.geoCountryCode': 'US',
             },
           ],

@@ -25,7 +25,7 @@ export interface MaestroCapabilities {
   orientation?: Orientation;
   locale?: string;
   timeZone?: string;
-  throttleNetwork?: ThrottleNetwork;
+  throttle_network?: ThrottleNetwork;
   'testingbot.geoCountryCode'?: string;
   realDevice?: string;
 }
@@ -296,7 +296,7 @@ export default class MaestroOptions {
     if (this._orientation) caps.orientation = this._orientation;
     if (this._locale) caps.locale = this._locale;
     if (this._timeZone) caps.timeZone = this._timeZone;
-    if (this._throttleNetwork) caps.throttleNetwork = this._throttleNetwork;
+    if (this._throttleNetwork) caps.throttle_network = this._throttleNetwork;
     if (this._geoCountryCode)
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
     if (this._realDevice) caps.realDevice = 'true';

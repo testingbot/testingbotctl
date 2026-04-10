@@ -195,7 +195,7 @@ describe('MaestroOptions', () => {
         orientation: 'PORTRAIT',
         locale: 'en_GB',
         timeZone: 'Europe/London',
-        throttleNetwork: 'Edge',
+        throttle_network: 'Edge',
         'testingbot.geoCountryCode': 'GB',
         realDevice: 'true', // IPA files require real devices
       });
@@ -218,7 +218,7 @@ describe('MaestroOptions', () => {
       expect(caps).not.toHaveProperty('orientation');
       expect(caps).not.toHaveProperty('locale');
       expect(caps).not.toHaveProperty('timeZone');
-      expect(caps).not.toHaveProperty('throttleNetwork');
+      expect(caps).not.toHaveProperty('throttle_network');
       expect(caps).not.toHaveProperty('testingbot.geoCountryCode');
     });
 
