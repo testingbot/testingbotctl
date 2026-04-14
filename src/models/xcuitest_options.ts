@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import TestingBotError from './testingbot_error';
 
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
@@ -28,6 +29,7 @@ export interface XCUITestCapabilities {
   name?: string;
   build?: string;
   'testingbot.geoCountryCode'?: string;
+  tunnelIdentifier?: string;
 }
 
 export interface XCUITestRunOptions {
@@ -61,6 +63,9 @@ export default class XCUITestOptions {
   private _geoCountryCode?: string;
   // Network throttling
   private _throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
+  // Tunnel
+  private _tunnel: boolean;
+  private _tunnelIdentifier?: string;
   // Execution mode
   private _quiet: boolean;
   private _async: boolean;
@@ -87,6 +92,8 @@ export default class XCUITestOptions {
       timeZone?: string;
       geoCountryCode?: string;
       throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
+      tunnel?: boolean;
+      tunnelIdentifier?: string;
       quiet?: boolean;
       async?: boolean;
       dryRun?: boolean;
@@ -118,6 +125,10 @@ export default class XCUITestOptions {
     this._timeZone = options?.timeZone;
     this._geoCountryCode = options?.geoCountryCode;
     this._throttleNetwork = options?.throttleNetwork;
+    this._tunnel = options?.tunnel ?? false;
+    this._tunnelIdentifier =
+      options?.tunnelIdentifier ??
+      (this._tunnel ? `xcuitest-testing-${randomUUID().slice(0, 8)}` : undefined);
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
     this._dryRun = options?.dryRun ?? false;
@@ -189,6 +200,14 @@ export default class XCUITestOptions {
     return this._throttleNetwork;
   }
 
+  public get tunnel(): boolean {
+    return this._tunnel;
+  }
+
+  public get tunnelIdentifier(): string | undefined {
+    return this._tunnelIdentifier;
+  }
+
   public get quiet(): boolean {
     return this._quiet;
   }
@@ -227,6 +246,8 @@ export default class XCUITestOptions {
     if (this._build) caps.build = this._build;
     if (this._geoCountryCode)
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
+    if (this._tunnelIdentifier)
+      caps.tunnelIdentifier = this._tunnelIdentifier;
 
     return caps;
   }

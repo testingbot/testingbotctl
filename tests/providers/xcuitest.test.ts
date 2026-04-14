@@ -7,6 +7,10 @@ import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
 
 jest.mock('axios');
+jest.mock('testingbot-tunnel-launcher', () => ({
+  downloadAndRunAsync: jest.fn().mockResolvedValue({ close: jest.fn() }),
+  killAsync: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../../src/utils', () => ({
   __esModule: true,
   default: {
@@ -1064,6 +1068,128 @@ describe('XCUITest', () => {
       ]);
 
       expect(result).toBe('Error 1\nError 2\nError 3');
+    });
+  });
+
+  describe('Tunnel', () => {
+    const tunnelLauncher = require('testingbot-tunnel-launcher');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should start tunnel with correct credentials', async () => {
+      const optionsWithTunnel = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        { tunnel: true },
+      );
+      const xcuiTestWithTunnel = new XCUITest(
+        mockCredentials,
+        optionsWithTunnel,
+      );
+
+      await xcuiTestWithTunnel['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: expect.stringMatching(/^xcuitest-testing-/),
+      });
+    });
+
+    it('should pass tunnelIdentifier to tunnel launcher', async () => {
+      const optionsWithTunnelId = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        { tunnel: true, tunnelIdentifier: 'my-tunnel' },
+      );
+      const xcuiTestWithTunnelId = new XCUITest(
+        mockCredentials,
+        optionsWithTunnelId,
+      );
+
+      await xcuiTestWithTunnelId['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: 'my-tunnel',
+      });
+    });
+
+    it('should not start tunnel when --tunnel flag is absent', async () => {
+      await xcuiTest['startTunnel']();
+      expect(tunnelLauncher.downloadAndRunAsync).not.toHaveBeenCalled();
+    });
+
+    it('should stop tunnel by calling killAsync', async () => {
+      const optionsWithTunnel = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        { tunnel: true },
+      );
+      const xcuiTestWithTunnel = new XCUITest(
+        mockCredentials,
+        optionsWithTunnel,
+      );
+
+      await xcuiTestWithTunnel['startTunnel']();
+      jest.clearAllMocks();
+
+      await xcuiTestWithTunnel['stopTunnel']();
+      expect(tunnelLauncher.killAsync).toHaveBeenCalled();
+    });
+
+    it('should not call killAsync when no tunnel is running', async () => {
+      await xcuiTest['stopTunnel']();
+      expect(tunnelLauncher.killAsync).not.toHaveBeenCalled();
+    });
+
+    it('should include tunnelIdentifier in capabilities', () => {
+      const optionsWithTunnelId = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        { tunnelIdentifier: 'my-tunnel' },
+      );
+      const caps = optionsWithTunnelId.getCapabilities();
+      expect(caps.tunnelIdentifier).toBe('my-tunnel');
+    });
+
+    it('should not include tunnelIdentifier in capabilities when not set', () => {
+      const caps = mockOptions.getCapabilities();
+      expect(caps).not.toHaveProperty('tunnelIdentifier');
+    });
+
+    it('should throw error when --tunnel and --async are combined', async () => {
+      const optionsTunnelAsync = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        { tunnel: true, async: true },
+      );
+      const xcuiTestTunnelAsync = new XCUITest(
+        mockCredentials,
+        optionsTunnelAsync,
+      );
+
+      xcuiTestTunnelAsync['validate'] = jest.fn().mockResolvedValue(true);
+      xcuiTestTunnelAsync['ensureConnectivity'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      xcuiTestTunnelAsync['uploadApp'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      xcuiTestTunnelAsync['uploadTestApp'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
+      const result = await xcuiTestTunnelAsync.run();
+      expect(result.success).toBe(false);
     });
   });
 });

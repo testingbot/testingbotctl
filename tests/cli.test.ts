@@ -126,6 +126,44 @@ describe('TestingBotCTL CLI', () => {
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
   });
 
+  test('espresso command should accept tunnel options', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '--tunnel',
+      '--tunnel-identifier',
+      'my-tunnel',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
+  test('espresso command should accept -t shorthand for tunnel', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+    mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      '--app',
+      'app.apk',
+      '--test-app',
+      'test-app.apk',
+      '-t',
+    ]);
+
+    expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+  });
+
   test('espresso command should accept device configuration options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
     mockEspressoRun.mockResolvedValue({ success: true, runs: [] });

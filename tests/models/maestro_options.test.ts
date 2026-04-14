@@ -220,6 +220,16 @@ describe('MaestroOptions', () => {
       expect(caps).not.toHaveProperty('timeZone');
       expect(caps).not.toHaveProperty('throttle_network');
       expect(caps).not.toHaveProperty('testingbot.geoCountryCode');
+      expect(caps).not.toHaveProperty('tunnelIdentifier');
+    });
+
+    it('should include tunnelIdentifier in capabilities when set', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 6', {
+        platformName: 'Android',
+        tunnelIdentifier: 'my-tunnel',
+      });
+      const caps = options.getCapabilities();
+      expect(caps.tunnelIdentifier).toBe('my-tunnel');
     });
 
     it('should not include includeTags and excludeTags in capabilities', () => {

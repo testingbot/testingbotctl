@@ -130,6 +130,12 @@ const espressoCommand = program
     '--dry-run',
     'Validate and prepare everything but skip HTTP calls. Shows what would be sent.',
   )
+  // Tunnel
+  .option('-t, --tunnel', 'Start a TestingBot tunnel for this test run.')
+  .option(
+    '--tunnel-identifier <id>',
+    'Identifier for the tunnel (allows multiple tunnels).',
+  )
   // Report options
   .option(
     '--report <format>',
@@ -195,6 +201,8 @@ const espressoCommand = program
         timeZone: args.timezone,
         geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
+        tunnel: args.tunnel,
+        tunnelIdentifier: args.tunnelIdentifier,
         quiet: args.quiet,
         async: args.async,
         dryRun: args.dryRun,
@@ -322,6 +330,12 @@ const maestroCommand = program
     '--dry-run',
     'Validate and prepare everything but skip HTTP calls. Shows what would be sent.',
   )
+  // Tunnel
+  .option('-t, --tunnel', 'Start a TestingBot tunnel for this test run.')
+  .option(
+    '--tunnel-identifier <id>',
+    'Identifier for the tunnel (allows multiple tunnels).',
+  )
   // Report options
   .option(
     '--report <format>',
@@ -422,6 +436,8 @@ const maestroCommand = program
         geoCountryCode: args.geoCountryCode,
         env: Object.keys(env).length > 0 ? env : undefined,
         maestroVersion: args.maestroVersion,
+        tunnel: args.tunnel,
+        tunnelIdentifier: args.tunnelIdentifier,
         quiet: args.quiet,
         async: args.async,
         dryRun: args.dryRun,
@@ -525,6 +541,12 @@ const xcuitestCommand = program
     '--dry-run',
     'Validate and prepare everything but skip HTTP calls. Shows what would be sent.',
   )
+  // Tunnel
+  .option('-t, --tunnel', 'Start a TestingBot tunnel for this test run.')
+  .option(
+    '--tunnel-identifier <id>',
+    'Identifier for the tunnel (allows multiple tunnels).',
+  )
   // Report options
   .option(
     '--report <format>',
@@ -583,6 +605,8 @@ const xcuitestCommand = program
         timeZone: args.timezone,
         geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
+        tunnel: args.tunnel,
+        tunnelIdentifier: args.tunnelIdentifier,
         quiet: args.quiet,
         async: args.async,
         dryRun: args.dryRun,

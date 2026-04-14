@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 export interface MaestroConfig {
   flows?: string[];
   includeTags?: string[];
@@ -27,6 +29,7 @@ export interface MaestroCapabilities {
   timeZone?: string;
   throttle_network?: ThrottleNetwork;
   'testingbot.geoCountryCode'?: string;
+  tunnelIdentifier?: string;
   realDevice?: string;
 }
 
@@ -57,6 +60,9 @@ export default class MaestroOptions {
   private _geoCountryCode?: string;
   private _env?: Record<string, string>;
   private _maestroVersion?: string;
+  // Tunnel
+  private _tunnel: boolean;
+  private _tunnelIdentifier?: string;
   private _quiet: boolean;
   private _async: boolean;
   private _dryRun: boolean;
@@ -89,6 +95,8 @@ export default class MaestroOptions {
       geoCountryCode?: string;
       env?: Record<string, string>;
       maestroVersion?: string;
+      tunnel?: boolean;
+      tunnelIdentifier?: string;
       quiet?: boolean;
       async?: boolean;
       dryRun?: boolean;
@@ -119,6 +127,10 @@ export default class MaestroOptions {
     this._geoCountryCode = options?.geoCountryCode;
     this._env = options?.env;
     this._maestroVersion = options?.maestroVersion;
+    this._tunnel = options?.tunnel ?? false;
+    this._tunnelIdentifier =
+      options?.tunnelIdentifier ??
+      (this._tunnel ? `maestro-testing-${randomUUID().slice(0, 8)}` : undefined);
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
     this._dryRun = options?.dryRun ?? false;
@@ -194,6 +206,14 @@ export default class MaestroOptions {
 
   public get maestroVersion(): string | undefined {
     return this._maestroVersion;
+  }
+
+  public get tunnel(): boolean {
+    return this._tunnel;
+  }
+
+  public get tunnelIdentifier(): string | undefined {
+    return this._tunnelIdentifier;
   }
 
   public get quiet(): boolean {
@@ -299,6 +319,8 @@ export default class MaestroOptions {
     if (this._throttleNetwork) caps.throttle_network = this._throttleNetwork;
     if (this._geoCountryCode)
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
+    if (this._tunnelIdentifier)
+      caps.tunnelIdentifier = this._tunnelIdentifier;
     if (this._realDevice) caps.realDevice = 'true';
 
     return caps;

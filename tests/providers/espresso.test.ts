@@ -7,6 +7,10 @@ import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
 
 jest.mock('axios');
+jest.mock('testingbot-tunnel-launcher', () => ({
+  downloadAndRunAsync: jest.fn().mockResolvedValue({ close: jest.fn() }),
+  killAsync: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../../src/utils', () => ({
   __esModule: true,
   default: {
@@ -1099,6 +1103,134 @@ describe('Espresso', () => {
       ]);
 
       expect(result).toBe('Error 1\nError 2\nError 3');
+    });
+  });
+
+  describe('Tunnel', () => {
+    const tunnelLauncher = require('testingbot-tunnel-launcher');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should start tunnel after upload and before runTests when --tunnel is set', async () => {
+      const optionsWithTunnel = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { tunnel: true },
+      );
+      const espressoWithTunnel = new Espresso(
+        mockCredentials,
+        optionsWithTunnel,
+      );
+      espressoWithTunnel['appId'] = 1234;
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await espressoWithTunnel['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: expect.stringMatching(/^espresso-testing-/),
+      });
+    });
+
+    it('should pass tunnelIdentifier to tunnel launcher', async () => {
+      const optionsWithTunnelId = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { tunnel: true, tunnelIdentifier: 'my-tunnel' },
+      );
+      const espressoWithTunnelId = new Espresso(
+        mockCredentials,
+        optionsWithTunnelId,
+      );
+
+      await espressoWithTunnelId['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: 'my-tunnel',
+      });
+    });
+
+    it('should not start tunnel when --tunnel flag is absent', async () => {
+      await espresso['startTunnel']();
+      expect(tunnelLauncher.downloadAndRunAsync).not.toHaveBeenCalled();
+    });
+
+    it('should stop tunnel by calling killAsync', async () => {
+      const optionsWithTunnel = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { tunnel: true },
+      );
+      const espressoWithTunnel = new Espresso(
+        mockCredentials,
+        optionsWithTunnel,
+      );
+
+      // Start tunnel first so there's an instance to stop
+      await espressoWithTunnel['startTunnel']();
+      jest.clearAllMocks();
+
+      await espressoWithTunnel['stopTunnel']();
+      expect(tunnelLauncher.killAsync).toHaveBeenCalled();
+    });
+
+    it('should not call killAsync when no tunnel is running', async () => {
+      await espresso['stopTunnel']();
+      expect(tunnelLauncher.killAsync).not.toHaveBeenCalled();
+    });
+
+    it('should include tunnelIdentifier in capabilities', () => {
+      const optionsWithTunnelId = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { tunnelIdentifier: 'my-tunnel' },
+      );
+      const caps = optionsWithTunnelId.getCapabilities();
+      expect(caps.tunnelIdentifier).toBe('my-tunnel');
+    });
+
+    it('should not include tunnelIdentifier in capabilities when not set', () => {
+      const caps = mockOptions.getCapabilities();
+      expect(caps).not.toHaveProperty('tunnelIdentifier');
+    });
+
+    it('should throw error when --tunnel and --async are combined', async () => {
+      const optionsTunnelAsync = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { tunnel: true, async: true },
+      );
+      const espressoTunnelAsync = new Espresso(
+        mockCredentials,
+        optionsTunnelAsync,
+      );
+
+      // Mock validation and uploads to pass
+      espressoTunnelAsync['validate'] = jest.fn().mockResolvedValue(true);
+      espressoTunnelAsync['ensureConnectivity'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      espressoTunnelAsync['uploadApp'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      espressoTunnelAsync['uploadTestApp'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
+      const result = await espressoTunnelAsync.run();
+      expect(result.success).toBe(false);
     });
   });
 });

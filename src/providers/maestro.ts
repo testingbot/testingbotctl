@@ -268,6 +268,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
       await this.uploadFlows();
 
+      if (this.options.tunnel && this.options.async) {
+        throw new TestingBotError(
+          'Cannot use --tunnel with --async mode. The tunnel would close when the CLI exits. Use a standalone tunnel instead.',
+        );
+      }
+
+      await this.startTunnel();
+
       if (!this.options.quiet) {
         logger.info('Running Maestro Tests');
       }
@@ -296,12 +304,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       // Clean up
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
+      await this.stopTunnel();
 
       return result;
     } catch (error) {
       // Clean up on error
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
+      await this.stopTunnel();
 
       logger.error(error instanceof Error ? error.message : error);
       // Display the cause if available

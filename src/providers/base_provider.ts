@@ -7,6 +7,11 @@ import Upload from '../upload';
 import platform from '../utils/platform';
 import logger from '../logger';
 import {
+  downloadAndRunAsync,
+  killAsync,
+  type TunnelInstance,
+} from 'testingbot-tunnel-launcher';
+import {
   handleAxiosError,
   isNetworkError,
   isRetryableError,
@@ -38,6 +43,8 @@ export interface BaseProviderOptions {
   quiet?: boolean;
   reportOutputDir?: string;
   dryRun?: boolean;
+  tunnel?: boolean;
+  tunnelIdentifier?: string;
 }
 
 /**
@@ -58,6 +65,7 @@ export default abstract class BaseProvider<
   protected activeRunIds: number[] = [];
   protected isShuttingDown = false;
   protected signalHandler: (() => void) | null = null;
+  private tunnelInstance: TunnelInstance | null = null;
 
   /**
    * The base URL for the provider's API endpoint
@@ -141,6 +149,7 @@ export default abstract class BaseProvider<
     logger.info('Received interrupt signal, stopping test runs...');
 
     this.stopActiveRuns()
+      .then(() => this.stopTunnel())
       .then(() => {
         logger.info('All test runs have been stopped.');
         process.exit(1);
@@ -151,6 +160,60 @@ export default abstract class BaseProvider<
         );
         process.exit(1);
       });
+  }
+
+  /**
+   * Starts a TestingBot tunnel if the --tunnel option is enabled.
+   */
+  protected async startTunnel(): Promise<void> {
+    if (!this.options.tunnel) return;
+
+    if (!this.options.quiet) {
+      logger.info('Starting TestingBot tunnel...');
+    }
+
+    const tunnelOptions: {
+      apiKey: string;
+      apiSecret: string;
+      tunnelIdentifier?: string;
+    } = {
+      apiKey: this.credentials.userName,
+      apiSecret: this.credentials.accessKey,
+    };
+
+    if (this.options.tunnelIdentifier) {
+      tunnelOptions.tunnelIdentifier = this.options.tunnelIdentifier;
+    }
+
+    this.tunnelInstance = await downloadAndRunAsync(tunnelOptions);
+
+    if (!this.options.quiet) {
+      logger.info('TestingBot tunnel is running.');
+    }
+  }
+
+  /**
+   * Stops the TestingBot tunnel if one is running.
+   */
+  protected async stopTunnel(): Promise<void> {
+    if (!this.tunnelInstance) return;
+
+    if (!this.options.quiet) {
+      logger.info('Stopping TestingBot tunnel...');
+    }
+
+    try {
+      await killAsync();
+      this.tunnelInstance = null;
+      if (!this.options.quiet) {
+        logger.info('TestingBot tunnel stopped.');
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to stop tunnel: ${error instanceof Error ? error.message : error}`,
+      );
+      this.tunnelInstance = null;
+    }
   }
 
   /**

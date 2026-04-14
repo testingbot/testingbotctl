@@ -13,6 +13,10 @@ import Credentials from '../../src/models/credentials';
 import * as fileTypeDetector from '../../src/utils/file-type-detector';
 
 jest.mock('axios');
+jest.mock('testingbot-tunnel-launcher', () => ({
+  downloadAndRunAsync: jest.fn().mockResolvedValue({ close: jest.fn() }),
+  killAsync: jest.fn().mockResolvedValue(undefined),
+}));
 
 // Mock socket.io-client
 const mockSocket = {
@@ -4949,6 +4953,128 @@ onFlowStart:
       expect(result!.configPath).toBe(
         path.resolve(path.sep, 'project', 'e2e', 'config.yml'),
       );
+    });
+  });
+
+  describe('Tunnel', () => {
+    const tunnelLauncher = require('testingbot-tunnel-launcher');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should start tunnel with correct credentials', async () => {
+      const optionsWithTunnel = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { tunnel: true },
+      );
+      const maestroWithTunnel = new Maestro(
+        mockCredentials,
+        optionsWithTunnel,
+      );
+
+      await maestroWithTunnel['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: expect.stringMatching(/^maestro-testing-/),
+      });
+    });
+
+    it('should pass tunnelIdentifier to tunnel launcher', async () => {
+      const optionsWithTunnelId = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { tunnel: true, tunnelIdentifier: 'my-tunnel' },
+      );
+      const maestroWithTunnelId = new Maestro(
+        mockCredentials,
+        optionsWithTunnelId,
+      );
+
+      await maestroWithTunnelId['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: 'my-tunnel',
+      });
+    });
+
+    it('should not start tunnel when --tunnel flag is absent', async () => {
+      await maestro['startTunnel']();
+      expect(tunnelLauncher.downloadAndRunAsync).not.toHaveBeenCalled();
+    });
+
+    it('should stop tunnel by calling killAsync', async () => {
+      const optionsWithTunnel = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { tunnel: true },
+      );
+      const maestroWithTunnel = new Maestro(
+        mockCredentials,
+        optionsWithTunnel,
+      );
+
+      await maestroWithTunnel['startTunnel']();
+      jest.clearAllMocks();
+
+      await maestroWithTunnel['stopTunnel']();
+      expect(tunnelLauncher.killAsync).toHaveBeenCalled();
+    });
+
+    it('should not call killAsync when no tunnel is running', async () => {
+      await maestro['stopTunnel']();
+      expect(tunnelLauncher.killAsync).not.toHaveBeenCalled();
+    });
+
+    it('should include tunnelIdentifier in capabilities', () => {
+      const optionsWithTunnelId = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { tunnelIdentifier: 'my-tunnel', platformName: 'Android' },
+      );
+      const caps = optionsWithTunnelId.getCapabilities();
+      expect(caps.tunnelIdentifier).toBe('my-tunnel');
+    });
+
+    it('should not include tunnelIdentifier in capabilities when not set', () => {
+      const caps = mockOptions.getCapabilities();
+      expect(caps).not.toHaveProperty('tunnelIdentifier');
+    });
+
+    it('should throw error when --tunnel and --async are combined', async () => {
+      const optionsTunnelAsync = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { tunnel: true, async: true },
+      );
+      const maestroTunnelAsync = new Maestro(
+        mockCredentials,
+        optionsTunnelAsync,
+      );
+
+      maestroTunnelAsync['validate'] = jest.fn().mockResolvedValue(true);
+      maestroTunnelAsync['ensureConnectivity'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      maestroTunnelAsync['uploadApp'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+      maestroTunnelAsync['uploadFlows'] = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
+      const result = await maestroTunnelAsync.run();
+      expect(result.success).toBe(false);
     });
   });
 });
