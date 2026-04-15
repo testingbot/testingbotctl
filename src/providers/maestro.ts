@@ -930,9 +930,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    * Check if a string looks like a file path (relative path with extension)
    */
   private looksLikePath(value: string): boolean {
-    // Must be a relative path (starts with . or contains /)
-    const isRelative = value.startsWith('./') || value.startsWith('../');
-    const hasPathSeparator = value.includes('/');
+    // Must be a relative path (starts with . or contains a path separator)
+    const isRelative =
+      value.startsWith('./') ||
+      value.startsWith('../') ||
+      value.startsWith('.\\') ||
+      value.startsWith('..\\');
+    const hasPathSeparator = value.includes('/') || value.includes('\\');
 
     // Must have a file extension
     const hasExtension = /\.[a-zA-Z0-9]+$/.test(value);
