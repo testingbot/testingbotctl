@@ -123,6 +123,13 @@ testingbot maestro <app> <flows...> [options]
 | `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, airplane, or disable |
 | `--geo-country-code <code>` | Geographic IP location (ISO country code, e.g., "US", "DE") |
 
+**Tunnel:**
+
+| Option | Description |
+|--------|-------------|
+| `-t, --tunnel` | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
+| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel |
+
 **Output Options:**
 
 | Option | Description |
@@ -250,6 +257,13 @@ testingbot espresso [appFile] [testAppFile] [options]
 | `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, or airplane |
 | `--geo-location <code>` | Geographic IP location (ISO country code, e.g., "US", "DE") |
 
+**Tunnel:**
+
+| Option | Description |
+|--------|-------------|
+| `-t, --tunnel` | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
+| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel |
+
 **Output Options:**
 
 | Option | Description |
@@ -342,6 +356,13 @@ testingbot xcuitest [appFile] [testAppFile] [options]
 |--------|-------------|
 | `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, or airplane |
 | `--geo-location <code>` | Geographic IP location (ISO country code, e.g., "US", "DE") |
+
+**Tunnel:**
+
+| Option | Description |
+|--------|-------------|
+| `-t, --tunnel` | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
+| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel |
 
 **Output Options:**
 
