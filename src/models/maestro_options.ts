@@ -9,7 +9,7 @@ export interface MaestroConfig {
 
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane' | 'disable';
-export type ReportFormat = 'html' | 'junit';
+export type ReportFormat = 'html' | 'html-detailed' | 'junit';
 export type ArtifactDownloadMode = 'all' | 'failed';
 
 export interface RunMetadata {
@@ -130,7 +130,9 @@ export default class MaestroOptions {
     this._tunnel = options?.tunnel ?? false;
     this._tunnelIdentifier =
       options?.tunnelIdentifier ??
-      (this._tunnel ? `maestro-testing-${randomUUID().slice(0, 8)}` : undefined);
+      (this._tunnel
+        ? `maestro-testing-${randomUUID().slice(0, 8)}`
+        : undefined);
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
     this._dryRun = options?.dryRun ?? false;
@@ -319,8 +321,7 @@ export default class MaestroOptions {
     if (this._throttleNetwork) caps.throttle_network = this._throttleNetwork;
     if (this._geoCountryCode)
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
-    if (this._tunnelIdentifier)
-      caps.tunnelIdentifier = this._tunnelIdentifier;
+    if (this._tunnelIdentifier) caps.tunnelIdentifier = this._tunnelIdentifier;
     if (this._realDevice) caps.realDevice = 'true';
 
     return caps;

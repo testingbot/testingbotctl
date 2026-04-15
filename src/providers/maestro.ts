@@ -239,7 +239,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         const { allFlowFiles, baseDir } = flowResult;
         const effectiveBase =
           baseDir || this.computeCommonDirectory(allFlowFiles);
-        logger.info('Zip structure (files as they will appear in the archive):');
+        logger.info(
+          'Zip structure (files as they will appear in the archive):',
+        );
         for (const file of allFlowFiles) {
           const archiveName = path.relative(effectiveBase, path.resolve(file));
           logger.info(`  ${archiveName}`);
@@ -470,10 +472,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     if (flowsPaths.length === 1) {
       const singlePath = flowsPaths[0];
       const stat = await fs.promises.stat(singlePath).catch(() => null);
-      if (
-        stat?.isFile() &&
-        path.extname(singlePath).toLowerCase() === '.zip'
-      ) {
+      if (stat?.isFile() && path.extname(singlePath).toLowerCase() === '.zip') {
         return null;
       }
     }
@@ -543,9 +542,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         baseDir = projectRoot.dir;
         // Include config.yaml and discover its dependencies
         const configResolved = path.resolve(projectRoot.configPath);
-        if (
-          !allFlowFiles.some((f) => path.resolve(f) === configResolved)
-        ) {
+        if (!allFlowFiles.some((f) => path.resolve(f) === configResolved)) {
           allFlowFiles.push(projectRoot.configPath);
         }
       }
@@ -835,10 +832,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   ): Promise<{ includeTags?: string[]; excludeTags?: string[] }> {
     const candidates = this.options.configFile
       ? [path.resolve(this.options.configFile)]
-      : [
-          path.join(baseDir, 'config.yaml'),
-          path.join(baseDir, 'config.yml'),
-        ];
+      : [path.join(baseDir, 'config.yaml'), path.join(baseDir, 'config.yml')];
 
     for (const candidate of candidates) {
       try {
@@ -2128,8 +2122,24 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     for (const run of runs) {
       try {
-        const reportEndpoint =
-          reportFormat === 'junit' ? 'junit_report' : 'html_report';
+        let reportEndpoint: string;
+        let reportKey: string;
+        switch (reportFormat) {
+          case 'junit':
+            reportEndpoint = 'junit_report';
+            reportKey = 'junit_report';
+            break;
+          case 'html-detailed':
+            reportEndpoint = 'html_report_detailed';
+            reportKey = 'html_report_detailed';
+            break;
+          case 'html':
+          default:
+            reportEndpoint = 'html_report';
+            reportKey = 'html_report';
+            break;
+        }
+
         const response = await axios.get(
           `${this.URL}/${this.appId}/${run.id}/${reportEndpoint}`,
           {
@@ -2149,8 +2159,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         utils.checkForUpdate(latestVersion);
 
         // Extract the report content from the JSON response
-        const reportKey =
-          reportFormat === 'junit' ? 'junit_report' : 'html_report';
         const reportContent = response.data[reportKey];
 
         if (!reportContent) {

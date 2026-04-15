@@ -339,7 +339,7 @@ const maestroCommand = program
   // Report options
   .option(
     '--report <format>',
-    'Download test report after completion: html or junit.',
+    'Download test report after completion: html, html-detailed, or junit.',
     (val) => val.toLowerCase() as ReportFormat,
   )
   .option(
