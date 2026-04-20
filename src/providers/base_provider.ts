@@ -54,8 +54,28 @@ export interface BaseProviderOptions {
 export default abstract class BaseProvider<
   TOptions extends BaseProviderOptions,
 > {
-  protected readonly POLL_INTERVAL_MS = 5000;
-  protected readonly MAX_POLL_ATTEMPTS = 720; // 1 hour max with 5s interval
+  protected readonly MIN_POLL_INTERVAL_MS = 5000;
+  protected readonly MAX_POLL_INTERVAL_MS = 30000;
+  protected readonly POLL_BACKOFF_MULTIPLIER = 1.5;
+  protected readonly MAX_POLL_DURATION_MS = 60 * 60 * 1000; // 1 hour
+
+  /**
+   * Returns the next polling interval based on whether the status payload
+   * changed since the last poll. Resets to the minimum on change; otherwise
+   * multiplies the current interval by the backoff factor up to the maximum.
+   */
+  protected computeNextPollInterval(
+    currentIntervalMs: number,
+    changed: boolean,
+  ): number {
+    if (changed) {
+      return this.MIN_POLL_INTERVAL_MS;
+    }
+    return Math.min(
+      Math.round(currentIntervalMs * this.POLL_BACKOFF_MULTIPLIER),
+      this.MAX_POLL_INTERVAL_MS,
+    );
+  }
 
   protected credentials: Credentials;
   protected options: TOptions;

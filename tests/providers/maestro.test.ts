@@ -1023,7 +1023,8 @@ describe('Maestro', () => {
     beforeEach(() => {
       maestro['appId'] = 1234;
       // Speed up tests by reducing poll interval
-      maestro['POLL_INTERVAL_MS'] = 10;
+      maestro['MIN_POLL_INTERVAL_MS'] = 10;
+      maestro['MAX_POLL_INTERVAL_MS'] = 10;
     });
 
     it('should return success when tests complete successfully', async () => {
@@ -2233,7 +2234,8 @@ describe('Maestro', () => {
         .mockResolvedValueOnce(syncedResponse);
 
       // Speed up the test
-      maestro['POLL_INTERVAL_MS'] = 10;
+      maestro['MIN_POLL_INTERVAL_MS'] = 10;
+      maestro['MAX_POLL_INTERVAL_MS'] = 10;
 
       const result = await maestro['waitForArtifactsSync'](5678);
 
@@ -4071,7 +4073,8 @@ flows:
   describe('Wait For Completion with Flows', () => {
     beforeEach(() => {
       maestro['appId'] = 1234;
-      maestro['POLL_INTERVAL_MS'] = 10;
+      maestro['MIN_POLL_INTERVAL_MS'] = 10;
+      maestro['MAX_POLL_INTERVAL_MS'] = 10;
     });
 
     it('should display flows table when flows are available', async () => {

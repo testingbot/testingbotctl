@@ -1627,15 +1627,16 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private async waitForCompletion(): Promise<MaestroResult> {
-    let attempts = 0;
     const startTime = Date.now();
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
     const previousFlowStatus: Map<number, MaestroFlowStatus> = new Map();
     const urlDisplayed: Set<number> = new Set();
     let flowsTableDisplayed = false;
     let displayedLineCount = 0;
+    let pollInterval = this.MIN_POLL_INTERVAL_MS;
+    let previousSignature: string | null = null;
 
-    while (attempts < this.MAX_POLL_ATTEMPTS) {
+    while (Date.now() - startTime < this.MAX_POLL_DURATION_MS) {
       // Check if we're shutting down
       if (this.isShuttingDown) {
         throw new TestingBotError('Test run cancelled by user');
@@ -1778,12 +1779,22 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         };
       }
 
-      attempts++;
-      await this.sleep(this.POLL_INTERVAL_MS);
+      const signature = JSON.stringify(
+        status.runs.map((r) => [
+          r.id,
+          r.status,
+          r.success,
+          r.flows?.map((f) => [f.id, f.status]) ?? [],
+        ]),
+      );
+      const changed = signature !== previousSignature;
+      previousSignature = signature;
+      pollInterval = this.computeNextPollInterval(pollInterval, changed);
+      await this.sleep(pollInterval);
     }
 
     throw new TestingBotError(
-      `Test timed out after ${(this.MAX_POLL_ATTEMPTS * this.POLL_INTERVAL_MS) / 1000 / 60} minutes`,
+      `Test timed out after ${this.MAX_POLL_DURATION_MS / 1000 / 60} minutes`,
     );
   }
 
@@ -2228,7 +2239,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         return details;
       }
       attempts++;
-      await this.sleep(this.POLL_INTERVAL_MS);
+      await this.sleep(this.MIN_POLL_INTERVAL_MS);
     }
 
     throw new TestingBotError(

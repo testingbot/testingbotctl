@@ -312,11 +312,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
   }
 
   private async waitForCompletion(): Promise<XCUITestResult> {
-    let attempts = 0;
     const startTime = Date.now();
     const previousStatus: Map<number, XCUITestRunInfo['status']> = new Map();
+    let pollInterval = this.MIN_POLL_INTERVAL_MS;
+    let previousSignature: string | null = null;
 
-    while (attempts < this.MAX_POLL_ATTEMPTS) {
+    while (Date.now() - startTime < this.MAX_POLL_DURATION_MS) {
       if (this.isShuttingDown) {
         throw new TestingBotError('Test run cancelled by user');
       }
@@ -374,12 +375,17 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         };
       }
 
-      attempts++;
-      await this.sleep(this.POLL_INTERVAL_MS);
+      const signature = JSON.stringify(
+        status.runs.map((r) => [r.id, r.status, r.success]),
+      );
+      const changed = signature !== previousSignature;
+      previousSignature = signature;
+      pollInterval = this.computeNextPollInterval(pollInterval, changed);
+      await this.sleep(pollInterval);
     }
 
     throw new TestingBotError(
-      `Test timed out after ${(this.MAX_POLL_ATTEMPTS * this.POLL_INTERVAL_MS) / 1000 / 60} minutes`,
+      `Test timed out after ${this.MAX_POLL_DURATION_MS / 1000 / 60} minutes`,
     );
   }
 

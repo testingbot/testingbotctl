@@ -624,7 +624,8 @@ describe('Espresso', () => {
     beforeEach(() => {
       espresso['appId'] = 1234;
       // Speed up tests by reducing poll interval
-      espresso['POLL_INTERVAL_MS'] = 10;
+      espresso['MIN_POLL_INTERVAL_MS'] = 10;
+      espresso['MAX_POLL_INTERVAL_MS'] = 10;
     });
 
     it('should return success when tests complete successfully', async () => {

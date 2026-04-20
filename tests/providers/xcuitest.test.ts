@@ -589,7 +589,8 @@ describe('XCUITest', () => {
     beforeEach(() => {
       xcuiTest['appId'] = 1234;
       // Speed up tests by reducing poll interval
-      xcuiTest['POLL_INTERVAL_MS'] = 10;
+      xcuiTest['MIN_POLL_INTERVAL_MS'] = 10;
+      xcuiTest['MAX_POLL_INTERVAL_MS'] = 10;
     });
 
     it('should return success when tests complete successfully', async () => {
