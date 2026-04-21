@@ -10,15 +10,8 @@ declare module 'testingbot-tunnel-launcher' {
     close(callback: () => void): void;
   }
 
-  function downloadAndRunAsync(
-    options: TunnelOptions,
-  ): Promise<TunnelInstance>;
+  function downloadAndRunAsync(options: TunnelOptions): Promise<TunnelInstance>;
   function killAsync(): Promise<void>;
 
-  export {
-    downloadAndRunAsync,
-    killAsync,
-    TunnelOptions,
-    TunnelInstance,
-  };
+  export { downloadAndRunAsync, killAsync, TunnelOptions, TunnelInstance };
 }

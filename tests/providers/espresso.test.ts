@@ -1223,9 +1223,7 @@ describe('Espresso', () => {
       espressoTunnelAsync['ensureConnectivity'] = jest
         .fn()
         .mockResolvedValue(undefined);
-      espressoTunnelAsync['uploadApp'] = jest
-        .fn()
-        .mockResolvedValue(undefined);
+      espressoTunnelAsync['uploadApp'] = jest.fn().mockResolvedValue(undefined);
       espressoTunnelAsync['uploadTestApp'] = jest
         .fn()
         .mockResolvedValue(undefined);

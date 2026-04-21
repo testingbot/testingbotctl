@@ -128,7 +128,9 @@ export default class XCUITestOptions {
     this._tunnel = options?.tunnel ?? false;
     this._tunnelIdentifier =
       options?.tunnelIdentifier ??
-      (this._tunnel ? `xcuitest-testing-${randomUUID().slice(0, 8)}` : undefined);
+      (this._tunnel
+        ? `xcuitest-testing-${randomUUID().slice(0, 8)}`
+        : undefined);
     this._quiet = options?.quiet ?? false;
     this._async = options?.async ?? false;
     this._dryRun = options?.dryRun ?? false;
@@ -246,8 +248,7 @@ export default class XCUITestOptions {
     if (this._build) caps.build = this._build;
     if (this._geoCountryCode)
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
-    if (this._tunnelIdentifier)
-      caps.tunnelIdentifier = this._tunnelIdentifier;
+    if (this._tunnelIdentifier) caps.tunnelIdentifier = this._tunnelIdentifier;
 
     return caps;
   }

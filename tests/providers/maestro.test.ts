@@ -177,10 +177,7 @@ describe('Maestro', () => {
         'Pixel 6',
         { configFile: 'path/to/ci-config.yaml' },
       );
-      const maestroWithConfig = new Maestro(
-        mockCredentials,
-        optionsWithConfig,
-      );
+      const maestroWithConfig = new Maestro(mockCredentials, optionsWithConfig);
 
       await expect(maestroWithConfig['validate']()).resolves.toBe(true);
     });
@@ -199,10 +196,7 @@ describe('Maestro', () => {
         'Pixel 6',
         { configFile: 'path/to/ci-config.yaml' },
       );
-      const maestroWithConfig = new Maestro(
-        mockCredentials,
-        optionsWithConfig,
-      );
+      const maestroWithConfig = new Maestro(mockCredentials, optionsWithConfig);
 
       await expect(maestroWithConfig['validate']()).rejects.toThrow(
         'Specified config file does not exist: path/to/ci-config.yaml',
@@ -3054,11 +3048,7 @@ flows:
 
     it('should use custom config file instead of default config.yaml', async () => {
       const projectDir = path.resolve(path.sep, 'project');
-      const customConfig = path.resolve(
-        path.sep,
-        'project',
-        'ci-config.yaml',
-      );
+      const customConfig = path.resolve(path.sep, 'project', 'ci-config.yaml');
       const configContent = `
 flows:
   - "ci-flows/**"
@@ -3084,9 +3074,7 @@ flows:
       );
       const files = await customMaestro['discoverFlows'](projectDir);
 
-      expect(files).toContain(
-        path.join(projectDir, 'ci-flows', 'login.yaml'),
-      );
+      expect(files).toContain(path.join(projectDir, 'ci-flows', 'login.yaml'));
       expect(files).toContain(customConfig);
     });
 
@@ -3097,9 +3085,7 @@ flows:
         'project',
         'smoke-config.yaml',
       );
-      fs.promises.readFile = jest
-        .fn()
-        .mockRejectedValue(new Error('ENOENT'));
+      fs.promises.readFile = jest.fn().mockRejectedValue(new Error('ENOENT'));
       fs.promises.readdir = jest.fn().mockResolvedValue([
         { name: 'flow1.yaml', isFile: () => true },
         { name: 'config.yaml', isFile: () => true },
@@ -3126,14 +3112,8 @@ flows:
 
     it('should exclude custom config file from flow file listing', async () => {
       const projectDir = path.resolve(path.sep, 'project');
-      const customConfig = path.resolve(
-        path.sep,
-        'project',
-        'ci-config.yaml',
-      );
-      fs.promises.readFile = jest
-        .fn()
-        .mockRejectedValue(new Error('ENOENT'));
+      const customConfig = path.resolve(path.sep, 'project', 'ci-config.yaml');
+      fs.promises.readFile = jest.fn().mockRejectedValue(new Error('ENOENT'));
       fs.promises.readdir = jest.fn().mockResolvedValue([
         { name: 'flow1.yaml', isFile: () => true },
         { name: 'ci-config.yaml', isFile: () => true },
@@ -3262,11 +3242,9 @@ flows:
     it('throws TestingBotError when no flows match the filters', async () => {
       const m = buildMaestro();
       await expect(
-        m['filterFlowsByTags'](
-          [smokeFlow, flakyFlow],
-          projectDir,
-          ['nonexistent'],
-        ),
+        m['filterFlowsByTags']([smokeFlow, flakyFlow], projectDir, [
+          'nonexistent',
+        ]),
       ).rejects.toThrow(TestingBotError);
     });
   });
@@ -3303,9 +3281,7 @@ flows:
     });
 
     it('returns empty object when no config exists', async () => {
-      fs.promises.readFile = jest
-        .fn()
-        .mockRejectedValue(new Error('ENOENT'));
+      fs.promises.readFile = jest.fn().mockRejectedValue(new Error('ENOENT'));
       const m = buildMaestro();
       const tags = await m['loadConfigTags'](projectDir);
       expect(tags).toEqual({});
@@ -4878,9 +4854,7 @@ onFlowStart:
       );
       // config.yaml exists at /project/e2e/config.yaml
       fs.promises.access = jest.fn().mockImplementation((p: string) => {
-        if (
-          p === path.resolve(path.sep, 'project', 'e2e', 'config.yaml')
-        ) {
+        if (p === path.resolve(path.sep, 'project', 'e2e', 'config.yaml')) {
           return Promise.resolve();
         }
         return Promise.reject(new Error('ENOENT'));
@@ -4888,24 +4862,15 @@ onFlowStart:
 
       const result = await maestro['findMaestroProjectRoot']([flowFile]);
       expect(result).not.toBeNull();
-      expect(result!.dir).toBe(
-        path.resolve(path.sep, 'project', 'e2e'),
-      );
+      expect(result!.dir).toBe(path.resolve(path.sep, 'project', 'e2e'));
       expect(result!.configPath).toBe(
         path.resolve(path.sep, 'project', 'e2e', 'config.yaml'),
       );
     });
 
     it('should return null when no config.yaml exists in ancestors', async () => {
-      const flowFile = path.resolve(
-        path.sep,
-        'project',
-        'flows',
-        'test.yaml',
-      );
-      fs.promises.access = jest
-        .fn()
-        .mockRejectedValue(new Error('ENOENT'));
+      const flowFile = path.resolve(path.sep, 'project', 'flows', 'test.yaml');
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
 
       const result = await maestro['findMaestroProjectRoot']([flowFile]);
       expect(result).toBeNull();
@@ -4920,9 +4885,7 @@ onFlowStart:
         'test.yaml',
       );
       fs.promises.access = jest.fn().mockImplementation((p: string) => {
-        if (
-          p === path.resolve(path.sep, 'project', 'e2e', 'config.yaml')
-        ) {
+        if (p === path.resolve(path.sep, 'project', 'e2e', 'config.yaml')) {
           return Promise.resolve();
         }
         return Promise.reject(new Error('ENOENT'));
@@ -4943,9 +4906,7 @@ onFlowStart:
         'test.yaml',
       );
       fs.promises.access = jest.fn().mockImplementation((p: string) => {
-        if (
-          p === path.resolve(path.sep, 'project', 'e2e', 'config.yml')
-        ) {
+        if (p === path.resolve(path.sep, 'project', 'e2e', 'config.yml')) {
           return Promise.resolve();
         }
         return Promise.reject(new Error('ENOENT'));
@@ -4973,10 +4934,7 @@ onFlowStart:
         'Pixel 6',
         { tunnel: true },
       );
-      const maestroWithTunnel = new Maestro(
-        mockCredentials,
-        optionsWithTunnel,
-      );
+      const maestroWithTunnel = new Maestro(mockCredentials, optionsWithTunnel);
 
       await maestroWithTunnel['startTunnel']();
 
@@ -5020,10 +4978,7 @@ onFlowStart:
         'Pixel 6',
         { tunnel: true },
       );
-      const maestroWithTunnel = new Maestro(
-        mockCredentials,
-        optionsWithTunnel,
-      );
+      const maestroWithTunnel = new Maestro(mockCredentials, optionsWithTunnel);
 
       await maestroWithTunnel['startTunnel']();
       jest.clearAllMocks();
@@ -5069,9 +5024,7 @@ onFlowStart:
       maestroTunnelAsync['ensureConnectivity'] = jest
         .fn()
         .mockResolvedValue(undefined);
-      maestroTunnelAsync['uploadApp'] = jest
-        .fn()
-        .mockResolvedValue(undefined);
+      maestroTunnelAsync['uploadApp'] = jest.fn().mockResolvedValue(undefined);
       maestroTunnelAsync['uploadFlows'] = jest
         .fn()
         .mockResolvedValue(undefined);

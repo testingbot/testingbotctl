@@ -1182,9 +1182,7 @@ describe('XCUITest', () => {
       xcuiTestTunnelAsync['ensureConnectivity'] = jest
         .fn()
         .mockResolvedValue(undefined);
-      xcuiTestTunnelAsync['uploadApp'] = jest
-        .fn()
-        .mockResolvedValue(undefined);
+      xcuiTestTunnelAsync['uploadApp'] = jest.fn().mockResolvedValue(undefined);
       xcuiTestTunnelAsync['uploadTestApp'] = jest
         .fn()
         .mockResolvedValue(undefined);
