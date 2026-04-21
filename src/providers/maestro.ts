@@ -1636,7 +1636,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     let pollInterval = this.MIN_POLL_INTERVAL_MS;
     let previousSignature: string | null = null;
 
-    while (Date.now() - startTime < this.MAX_POLL_DURATION_MS) {
+    while (true) {
       // Check if we're shutting down
       if (this.isShuttingDown) {
         throw new TestingBotError('Test run cancelled by user');
@@ -1779,6 +1779,15 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         };
       }
 
+      // Checked after getStatus() so a run that completes during the final
+      // sleep is returned as success on the next iteration instead of being
+      // misreported as a timeout.
+      if (Date.now() - startTime >= this.MAX_POLL_DURATION_MS) {
+        throw new TestingBotError(
+          `Test timed out after ${this.MAX_POLL_DURATION_MS / 1000 / 60} minutes`,
+        );
+      }
+
       const signature = JSON.stringify(
         status.runs.map((r) => [
           r.id,
@@ -1792,10 +1801,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       pollInterval = this.computeNextPollInterval(pollInterval, changed);
       await this.sleep(pollInterval);
     }
-
-    throw new TestingBotError(
-      `Test timed out after ${this.MAX_POLL_DURATION_MS / 1000 / 60} minutes`,
-    );
   }
 
   private displayRunStatus(
@@ -2519,6 +2524,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const archive = archiver('zip', { zlib: { level: 9 } });
 
       output.on('close', () => resolve());
+      output.on('error', (err) => reject(err));
       archive.on('error', (err) => reject(err));
 
       archive.pipe(output);
