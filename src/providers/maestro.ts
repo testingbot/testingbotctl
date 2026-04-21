@@ -395,7 +395,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       if (tempZipDir) {
         await fs.promises
           .rm(tempZipDir, { recursive: true, force: true })
-          .catch(() => {});
+          .catch((err) => {
+            logger.debug(
+              `Failed to clean up temporary app zip dir ${tempZipDir}: ${err instanceof Error ? err.message : err}`,
+            );
+          });
       }
     }
   }
@@ -655,7 +659,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     } finally {
       await fs.promises
         .rm(tmpDir, { recursive: true, force: true })
-        .catch(() => {});
+        .catch((err) => {
+          logger.debug(
+            `Failed to clean up temporary flows zip dir ${tmpDir}: ${err instanceof Error ? err.message : err}`,
+          );
+        });
     }
 
     return true;
