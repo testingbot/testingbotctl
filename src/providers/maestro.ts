@@ -330,7 +330,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private async uploadApp() {
     let appPath = this.options.app;
     const ext = path.extname(appPath).toLowerCase();
-    let tempZipPath: string | null = null;
+    let tempZipDir: string | null = null;
 
     // If .app bundle (directory), zip it first
     if (ext === '.app') {
@@ -339,8 +339,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         if (!this.options.quiet) {
           logger.info('Zipping .app bundle for upload');
         }
-        tempZipPath = await this.zipAppBundle(appPath);
-        appPath = tempZipPath;
+        const zipped = await this.zipAppBundle(appPath);
+        tempZipDir = zipped.tmpDir;
+        appPath = zipped.zipPath;
       }
     }
 
@@ -390,9 +391,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       return true;
     } finally {
-      // Clean up temporary zip file
-      if (tempZipPath) {
-        await fs.promises.unlink(tempZipPath).catch(() => {});
+      if (tempZipDir) {
+        await fs.promises
+          .rm(tempZipDir, { recursive: true, force: true })
+          .catch(() => {});
       }
     }
   }
@@ -400,7 +402,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   /**
    * Zip a .app bundle directory into a temporary zip file
    */
-  private async zipAppBundle(appPath: string): Promise<string> {
+  private async zipAppBundle(
+    appPath: string,
+  ): Promise<{ zipPath: string; tmpDir: string }> {
     const appName = path.basename(appPath);
     const tmpDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'testingbot-app-'),
@@ -411,7 +415,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const output = fs.createWriteStream(zipPath);
       const archive = archiver('zip', { zlib: { level: 9 } });
 
-      output.on('close', () => resolve(zipPath));
+      output.on('close', () => resolve({ zipPath, tmpDir }));
+      output.on('error', (err) => reject(err));
       archive.on('error', (err) => reject(err));
 
       archive.pipe(output);
@@ -633,7 +638,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     const { allFlowFiles, baseDir } = result;
-    const zipPath = await this.createFlowsZip(allFlowFiles, baseDir);
+    const { zipPath, tmpDir } = await this.createFlowsZip(
+      allFlowFiles,
+      baseDir,
+    );
 
     try {
       await this.upload.upload({
@@ -644,7 +652,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         showProgress: !this.options.quiet,
       });
     } finally {
-      await fs.promises.unlink(zipPath).catch(() => {});
+      await fs.promises
+        .rm(tmpDir, { recursive: true, force: true })
+        .catch(() => {});
     }
 
     return true;
@@ -1479,7 +1489,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private async createFlowsZip(
     files: string[],
     baseDir?: string,
-  ): Promise<string> {
+  ): Promise<{ zipPath: string; tmpDir: string }> {
     const tmpDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'maestro-'),
     );
@@ -1489,7 +1499,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const output = fs.createWriteStream(zipPath);
       const archive = archiver('zip', { zlib: { level: 9 } });
 
-      output.on('close', () => resolve(zipPath));
+      output.on('close', () => resolve({ zipPath, tmpDir }));
+      output.on('error', (err) => reject(err));
       archive.on('error', (err) => reject(err));
 
       archive.pipe(output);
