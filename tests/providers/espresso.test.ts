@@ -2,7 +2,7 @@ import Espresso, { EspressoSocketMessage } from '../../src/providers/espresso';
 import EspressoOptions from '../../src/models/espresso_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
 
@@ -1230,6 +1230,134 @@ describe('Espresso', () => {
 
       const result = await espressoTunnelAsync.run();
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Scenario: polling edge cases', () => {
+    beforeEach(() => {
+      espresso['appId'] = 1234;
+      espresso['MIN_POLL_INTERVAL_MS'] = 1;
+      espresso['MAX_POLL_INTERVAL_MS'] = 1;
+    });
+
+    it('throws a timeout error after MAX_POLL_DURATION_MS', async () => {
+      espresso['MAX_POLL_DURATION_MS'] = 10;
+      axios.get = jest.fn().mockResolvedValue({
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'WAITING',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+            },
+          ],
+          completed: false,
+          success: false,
+        },
+      });
+
+      const quietOptions = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { quiet: true },
+      );
+      const quietEspresso = new Espresso(mockCredentials, quietOptions);
+      quietEspresso['appId'] = 1234;
+      quietEspresso['MIN_POLL_INTERVAL_MS'] = 1;
+      quietEspresso['MAX_POLL_INTERVAL_MS'] = 1;
+      quietEspresso['MAX_POLL_DURATION_MS'] = 10;
+
+      await expect(quietEspresso['waitForCompletion']()).rejects.toThrow(
+        /Test timed out/,
+      );
+    });
+
+    it('propagates a 401 that occurs mid-polling', async () => {
+      const waitingResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'WAITING',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+            },
+          ],
+          completed: false,
+          success: false,
+        },
+      };
+      const unauthorized = new AxiosError(
+        'Unauthorized',
+        undefined,
+        {} as AxiosError['config'],
+      );
+      unauthorized.response = {
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: {},
+        config: {} as AxiosError['config'],
+        data: {},
+      } as AxiosError['response'];
+
+      axios.get = jest
+        .fn()
+        .mockResolvedValueOnce(waitingResponse)
+        .mockRejectedValue(unauthorized);
+      (
+        axios as unknown as { isAxiosError: (e: unknown) => boolean }
+      ).isAxiosError = jest.fn().mockReturnValue(true);
+
+      await expect(espresso['waitForCompletion']()).rejects.toThrow();
+    });
+
+    it('ignores responses missing "completed" and eventually times out', async () => {
+      espresso['MAX_POLL_DURATION_MS'] = 10;
+      axios.get = jest.fn().mockResolvedValue({
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'WAITING',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+            },
+          ],
+          // `completed` intentionally omitted
+          success: false,
+        },
+      });
+
+      await expect(espresso['waitForCompletion']()).rejects.toThrow(
+        /Test timed out/,
+      );
+    });
+  });
+
+  describe('Scenario: --dry-run', () => {
+    it('performs no HTTP calls and returns success', async () => {
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+
+      const dryOptions = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { dryRun: true, quiet: true },
+      );
+      const dryEspresso = new Espresso(mockCredentials, dryOptions);
+
+      const postSpy = jest.fn();
+      const getSpy = jest.fn();
+      axios.post = postSpy;
+      axios.get = getSpy;
+
+      const result = await dryEspresso.run();
+
+      expect(result.success).toBe(true);
+      expect(postSpy).not.toHaveBeenCalled();
+      expect(getSpy).not.toHaveBeenCalled();
     });
   });
 });
