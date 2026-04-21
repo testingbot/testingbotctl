@@ -13,6 +13,11 @@ jest.mock('./../src/providers/maestro');
 
 const mockGetCredentials = Auth.getCredentials as jest.Mock;
 
+function lastConstructorOptions<T>(ctor: unknown): T {
+  const calls = (ctor as unknown as jest.Mock).mock.calls;
+  return calls[calls.length - 1][1] as T;
+}
+
 describe('TestingBotCTL CLI', () => {
   let mockEspressoRun: jest.Mock;
   let mockMaestroRun: jest.Mock;
@@ -56,7 +61,14 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
-    expect(mockEspressoRun).toHaveBeenCalledWith();
+    const opts = lastConstructorOptions<{
+      app: string;
+      testApp: string;
+      device?: string;
+    }>(Espresso);
+    expect(opts.app).toBe('app.apk');
+    expect(opts.testApp).toBe('test-app.apk');
+    expect(opts.device).toBe('Pixel 6');
   });
 
   test('espresso command should accept positional arguments', async () => {
@@ -74,6 +86,14 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      app: string;
+      testApp: string;
+      device?: string;
+    }>(Espresso);
+    expect(opts.app).toBe('app.apk');
+    expect(opts.testApp).toBe('test-app.apk');
+    expect(opts.device).toBe('Pixel 6');
   });
 
   test('espresso command should accept filtering options', async () => {
@@ -99,6 +119,17 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      class?: string[];
+      annotation?: string[];
+      size?: string[];
+    }>(Espresso);
+    expect(opts.class).toEqual([
+      'com.example.LoginTest',
+      'com.example.HomeTest',
+    ]);
+    expect(opts.annotation).toEqual(['com.example.SmokeTest']);
+    expect(opts.size).toEqual(['small', 'medium']);
   });
 
   test('espresso command should accept geolocation and network options', async () => {
@@ -124,6 +155,14 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      geoCountryCode?: string;
+      throttleNetwork?: string;
+      language?: string;
+    }>(Espresso);
+    expect(opts.geoCountryCode).toBe('DE');
+    expect(opts.throttleNetwork).toBe('3G');
+    expect(opts.language).toBe('de');
   });
 
   test('espresso command should accept tunnel options', async () => {
@@ -144,6 +183,12 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      tunnel: boolean;
+      tunnelIdentifier?: string;
+    }>(Espresso);
+    expect(opts.tunnel).toBe(true);
+    expect(opts.tunnelIdentifier).toBe('my-tunnel');
   });
 
   test('espresso command should accept -t shorthand for tunnel', async () => {
@@ -162,6 +207,8 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ tunnel: boolean }>(Espresso);
+    expect(opts.tunnel).toBe(true);
   });
 
   test('espresso command should accept device configuration options', async () => {
@@ -188,6 +235,12 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      realDevice: boolean;
+      locale?: string;
+    }>(Espresso);
+    expect(opts.realDevice).toBe(true);
+    expect(opts.locale).toBe('en_US');
   });
 
   test('espresso command should accept async and quiet modes', async () => {
@@ -209,6 +262,11 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ async: boolean; quiet: boolean }>(
+      Espresso,
+    );
+    expect(opts.async).toBe(true);
+    expect(opts.quiet).toBe(true);
   });
 
   test('maestro command should call maestro.run() with positional arguments', async () => {
@@ -225,6 +283,14 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      app: string;
+      flows: string[];
+      device?: string;
+    }>(Maestro);
+    expect(opts.app).toBe('app.apk');
+    expect(opts.flows).toEqual(['./flows']);
+    expect(opts.device).toBe('device-1');
   });
 
   test('maestro command should call maestro.run() with named options', async () => {
@@ -242,6 +308,14 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      app: string;
+      flows: string[];
+      device?: string;
+    }>(Maestro);
+    expect(opts.app).toBe('app.apk');
+    expect(opts.flows).toEqual(['./flows']);
+    expect(opts.device).toBe('device-1');
   });
 
   test('maestro command should accept multiple flow paths', async () => {
@@ -260,6 +334,8 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ flows: string[] }>(Maestro);
+    expect(opts.flows).toEqual(['./flows1', './flows2', './flows3']);
   });
 
   test('maestro command should accept include-tags and exclude-tags', async () => {
@@ -280,6 +356,12 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      includeTags?: string[];
+      excludeTags?: string[];
+    }>(Maestro);
+    expect(opts.includeTags).toEqual(['smoke', 'regression']);
+    expect(opts.excludeTags).toEqual(['flaky']);
   });
 
   test('maestro command should work without --device (optional)', async () => {
@@ -288,6 +370,14 @@ describe('TestingBotCTL CLI', () => {
     await program.parseAsync(['node', 'cli', 'maestro', 'app.apk', './flows']);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      app: string;
+      flows: string[];
+      device?: string;
+    }>(Maestro);
+    expect(opts.app).toBe('app.apk');
+    expect(opts.flows).toEqual(['./flows']);
+    expect(opts.device).toBeUndefined();
   });
 
   test('maestro command should accept --real-device flag', async () => {
@@ -305,6 +395,12 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      device?: string;
+      realDevice: boolean;
+    }>(Maestro);
+    expect(opts.device).toBe('Pixel 9');
+    expect(opts.realDevice).toBe(true);
   });
 
   test('espresso command should accept metadata options', async () => {
@@ -332,6 +428,20 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockEspressoRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      metadata?: {
+        commitSha?: string;
+        pullRequestId?: string;
+        repoName?: string;
+        repoOwner?: string;
+      };
+    }>(Espresso);
+    expect(opts.metadata).toEqual({
+      commitSha: 'abc123def456',
+      pullRequestId: '42',
+      repoName: 'my-app',
+      repoOwner: 'my-org',
+    });
   });
 
   test('maestro command should accept metadata options', async () => {
@@ -356,6 +466,20 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      metadata?: {
+        commitSha?: string;
+        pullRequestId?: string;
+        repoName?: string;
+        repoOwner?: string;
+      };
+    }>(Maestro);
+    expect(opts.metadata).toEqual({
+      commitSha: 'abc123def456',
+      pullRequestId: '42',
+      repoName: 'my-app',
+      repoOwner: 'my-org',
+    });
   });
 
   test('xcuitest command should accept metadata options', async () => {
@@ -382,6 +506,20 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockXCUITestRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      metadata?: {
+        commitSha?: string;
+        pullRequestId?: string;
+        repoName?: string;
+        repoOwner?: string;
+      };
+    }>(XCUITest);
+    expect(opts.metadata).toEqual({
+      commitSha: 'abc123def456',
+      pullRequestId: '42',
+      repoName: 'my-ios-app',
+      repoOwner: 'my-org',
+    });
   });
 
   test('xcuitest command should call xcuitest.run() with valid options', async () => {
@@ -400,6 +538,14 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockXCUITestRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      app: string;
+      testApp: string;
+      device?: string;
+    }>(XCUITest);
+    expect(opts.app).toBe('app.ipa');
+    expect(opts.testApp).toBe('test-app.ipa');
+    expect(opts.device).toBe('device-1');
   });
 
   test('espresso command should handle missing credentials', async () => {
