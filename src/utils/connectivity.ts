@@ -24,17 +24,15 @@ async function testEndpoint(
   description: string,
 ): Promise<EndpointResult> {
   const startTime = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
     const response = await fetch(url, {
       method: 'HEAD',
       signal: controller.signal,
       redirect: 'manual',
     });
 
-    clearTimeout(timeoutId);
     const latencyMs = Date.now() - startTime;
 
     return {
@@ -71,6 +69,8 @@ async function testEndpoint(
       error: errorMessage,
       latencyMs,
     };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
