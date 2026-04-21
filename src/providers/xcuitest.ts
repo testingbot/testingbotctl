@@ -8,6 +8,7 @@ import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import BaseProvider from './base_provider';
+import { HTTP, SOCKET } from '../config/constants';
 
 export interface XCUITestRunEnvironment {
   device?: string;
@@ -247,7 +248,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
-          timeout: 30000, // 30 second timeout
+          timeout: HTTP.TIMEOUT_MS,
         },
       );
 
@@ -294,7 +295,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
-          timeout: 30000, // 30 second timeout
+          timeout: HTTP.TIMEOUT_MS,
         });
 
         // Check for version update notification
@@ -483,7 +484,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             password: this.credentials.accessKey,
           },
           responseType: reportFormat === 'html' ? 'arraybuffer' : 'text',
-          timeout: 30000, // 30 second timeout
+          timeout: HTTP.TIMEOUT_MS,
         });
 
         // Check for version update notification
@@ -523,9 +524,9 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       this.socket = io(this.updateServer, {
         transports: ['websocket'],
         reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 1000,
-        timeout: 10000,
+        reconnectionAttempts: SOCKET.RECONNECTION_ATTEMPTS,
+        reconnectionDelay: SOCKET.RECONNECTION_DELAY_MS,
+        timeout: SOCKET.TIMEOUT_MS,
       });
 
       this.socket.on('connect', () => {

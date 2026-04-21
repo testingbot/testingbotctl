@@ -20,6 +20,7 @@ import {
   checkInternetConnectivity,
   formatConnectivityResults,
 } from '../utils/connectivity';
+import { POLLING } from '../config/constants';
 
 /**
  * Common interface for run information shared by all providers
@@ -54,10 +55,11 @@ export interface BaseProviderOptions {
 export default abstract class BaseProvider<
   TOptions extends BaseProviderOptions,
 > {
-  protected readonly MIN_POLL_INTERVAL_MS = 5000;
-  protected readonly MAX_POLL_INTERVAL_MS = 30000;
-  protected readonly POLL_BACKOFF_MULTIPLIER = 1.5;
-  protected readonly MAX_POLL_DURATION_MS = 60 * 60 * 1000; // 1 hour
+  protected readonly MIN_POLL_INTERVAL_MS: number = POLLING.MIN_INTERVAL_MS;
+  protected readonly MAX_POLL_INTERVAL_MS: number = POLLING.MAX_INTERVAL_MS;
+  protected readonly POLL_BACKOFF_MULTIPLIER: number =
+    POLLING.BACKOFF_MULTIPLIER;
+  protected readonly MAX_POLL_DURATION_MS: number = POLLING.MAX_DURATION_MS;
 
   /**
    * Returns the next polling interval based on whether the status payload

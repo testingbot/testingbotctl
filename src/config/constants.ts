@@ -1,0 +1,16 @@
+export const POLLING = {
+  MIN_INTERVAL_MS: 5000,
+  MAX_INTERVAL_MS: 30000,
+  BACKOFF_MULTIPLIER: 1.5,
+  MAX_DURATION_MS: 60 * 60 * 1000,
+} as const;
+
+export const HTTP = {
+  TIMEOUT_MS: 30000,
+} as const;
+
+export const SOCKET = {
+  RECONNECTION_ATTEMPTS: 3,
+  RECONNECTION_DELAY_MS: 1000,
+  TIMEOUT_MS: 10000,
+} as const;

@@ -14,6 +14,7 @@ import utils from '../utils';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
 import pc from 'picocolors';
 import BaseProvider from './base_provider';
+import { HTTP, SOCKET } from '../config/constants';
 
 export interface MaestroRunAssets {
   logs?: Record<string, string>;
@@ -1566,7 +1567,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
-          timeout: 30000, // 30 second timeout
+          timeout: HTTP.TIMEOUT_MS,
         },
       );
 
@@ -1614,7 +1615,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
-          timeout: 30000, // 30 second timeout
+          timeout: HTTP.TIMEOUT_MS,
         });
 
         // Check for version update notification
@@ -2177,7 +2178,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
               username: this.credentials.userName,
               password: this.credentials.accessKey,
             },
-            timeout: 30000, // 30 second timeout
+            timeout: HTTP.TIMEOUT_MS,
           },
         );
 
@@ -2225,7 +2226,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
                 username: this.credentials.userName,
                 password: this.credentials.accessKey,
               },
-              timeout: 30000, // 30 second timeout
+              timeout: HTTP.TIMEOUT_MS,
             },
           );
 
@@ -2553,9 +2554,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       this.socket = io(this.updateServer, {
         transports: ['websocket'],
         reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 1000,
-        timeout: 10000,
+        reconnectionAttempts: SOCKET.RECONNECTION_ATTEMPTS,
+        reconnectionDelay: SOCKET.RECONNECTION_DELAY_MS,
+        timeout: SOCKET.TIMEOUT_MS,
       });
 
       this.socket.on('connect', () => {
