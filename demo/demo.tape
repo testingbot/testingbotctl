@@ -46,8 +46,8 @@ Sleep 500ms
 Type "testingbot maestro ./app-debug.apk ./flows/ --device Pixel9 --real-device"
 Enter
 
-# Wait for script to complete
-Sleep 6s
+# Wait for script to complete (banner + upload + spinner-animated table)
+Sleep 8s
 
 # ============================================
 # OUTRO

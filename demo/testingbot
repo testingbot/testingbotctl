@@ -1,0 +1,124 @@
+#!/bin/bash
+# Fake testingbot command for demo recording.
+# Mirrors the real CLI's output format so vhs can capture a deterministic demo.
+
+print_banner() {
+    echo ''
+    printf '  \033[34m▀█▀ █▀▀ ▄▀▀▀ ▀█▀ ▀█▀ █▄ █ ▄▀▀▀ █▀▀▄ █▀▀█ ▀█▀\033[0m\n'
+    printf '  \033[34m █  █▀   ▀▀▄  █   █  █ ▀█ █ ▀█ █▀▀▄ █  █  █ \033[0m\n'
+    printf '  \033[34m ▀  ▀▀▀ ▀▀▀   ▀  ▀▀▀ ▀  ▀  ▀▀▀ ▀▀▀  ▀▀▀▀  ▀ \033[0m\n'
+    echo ''
+    printf '  \033[2mEspresso · XCUITest · Maestro  ·  v1.0.8\033[0m\n'
+    printf '  \033[2m~/projects/testingbotctl\033[0m\n'
+    echo ''
+}
+
+# Animate a spinner label on one line for a short burst, then leave a final
+# line in place.
+spin_line() {
+    local duration_frames=$1
+    local running_label=$2
+    local final_label=$3
+    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    for ((i = 0; i < duration_frames; i++)); do
+        local f="${frames[$((i % ${#frames[@]}))]}"
+        # %b expands the \033 escapes that live inside the label arguments.
+        printf '\r\033[K\033[36m%s %b\033[0m' "$f" "$running_label"
+        sleep 0.08
+    done
+    printf '\r\033[K%b\n' "$final_label"
+}
+
+if [ "$1" = "login" ]; then
+    print_banner
+    echo -e '\033[1;36m11:55:58.10\033[0m Opening browser for authentication...'
+    sleep 1.2
+    echo -e '\033[1;36m11:55:59.20\033[0m Waiting for login...'
+    sleep 4
+    echo ''
+    echo -e '  \033[1;32m✔\033[0m Successfully authenticated!'
+    sleep 0.3
+    echo '  Credentials saved to ~/.testingbot'
+    echo ''
+    exit 0
+fi
+
+if [ "$1" = "maestro" ]; then
+    if [[ "$2" == *.ipa ]]; then
+        APP_NAME="sample.ipa"
+        APP_SIZE="18.7 MB/18.7 MB"
+        RUN_ID="21290"
+        DEVICE="iPhone 16 - 18.0"
+    else
+        APP_NAME="app-debug.apk"
+        APP_SIZE="12.4 MB/12.4 MB"
+        RUN_ID="21289"
+        DEVICE="Pixel 9 - 15.0"
+    fi
+
+    print_banner
+
+    echo -e '\033[1;36m11:55:59.10\033[0m Uploading Maestro App'
+    sleep 0.2
+    printf '  %s: [' "$APP_NAME"
+    for i in {1..30}; do
+        printf '█'
+        sleep 0.02
+    done
+    printf '] 100%% (%s) • 4.2 MB/s\033[K\n' "$APP_SIZE"
+    sleep 0.2
+
+    echo -e '\033[1;36m11:55:59.82\033[0m Uploading Maestro Flows'
+    sleep 0.1
+    echo -e '\033[1;36m11:55:59.83\033[0m Bundling 4 files into flows.zip:'
+    sleep 0.05
+    echo '11:55:59.83   Flow files (3):'
+    echo '11:55:59.83     - login-flow.yaml'
+    echo '11:55:59.83     - home-flow.yaml'
+    echo '11:55:59.83     - checkout-flow.yaml'
+    echo '11:55:59.83   Scripts (1):'
+    echo '11:55:59.83     - scripts/helpers.js'
+    sleep 0.2
+    printf '  flows.zip: ['
+    for i in {1..30}; do
+        printf '█'
+        sleep 0.01
+    done
+    printf '] 100%% (2.1 KB/2.1 KB)\033[K\n'
+    sleep 0.2
+
+    echo -e '\033[1;36m11:56:00.38\033[0m Running Maestro Tests'
+    sleep 0.1
+    echo -e '\033[1;36m11:56:00.47\033[0m Waiting for test results...'
+    sleep 0.2
+    echo "  🔗 Run $RUN_ID ($DEVICE): Watch in realtime:"
+    echo "     https://testingbot.com/members/maestro/19687/runs/$RUN_ID"
+    sleep 0.6
+
+    echo ''
+    # New widened Status column (10 chars) with colored ✔/✘ PASSED/FAILED
+    printf ' \033[2m%s %s %s %s\033[0m\n' \
+        "$(printf '%-10s' 'Duration')" \
+        "$(printf '%-10s' 'Status')" \
+        "$(printf '%-30s' 'Flow')" \
+        'Fail reason'
+    printf ' \033[2m────────── ────────── ────────────────────────────── ──────────────────────────────────────\033[0m\n'
+    sleep 0.3
+
+    # Animated RUNNING → PASSED for each flow. The spinner frame is emitted
+    # by spin_line; the running label just carries the trailing text.
+    spin_line 8 "RUNNING    Login Flow" \
+        " 32s        \033[1;32m✔ PASSED\033[0m   Login Flow"
+    spin_line 8 "RUNNING    Home Flow" \
+        " 28s        \033[1;32m✔ PASSED\033[0m   Home Flow"
+    spin_line 10 "RUNNING    Checkout Flow" \
+        " 45s        \033[1;32m✔ PASSED\033[0m   Checkout Flow"
+
+    sleep 0.3
+    echo ''
+    printf '  \033[1;32m✔\033[0m Run %s \033[2m(%s)\033[0m: \033[32mTest completed successfully\033[0m\n' \
+        "$RUN_ID" "$DEVICE"
+    echo ''
+    sleep 0.2
+    echo -e '\033[1;36m11:58:45.21\033[0m All tests completed successfully!'
+fi
