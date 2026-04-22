@@ -16,6 +16,9 @@ import pc from 'picocolors';
 import BaseProvider from './base_provider';
 import { HTTP, SOCKET } from '../config/constants';
 
+const FLOW_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const FLOW_ANIMATION_MS = 120;
+
 export interface MaestroRunAssets {
   logs?: Record<string, string>;
   video?: string | false;
@@ -94,6 +97,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private updateServer: string | null = null;
   private updateKey: string | null = null;
   private socketFallbackWarned = false;
+
+  private flowAnimationFrame = 0;
+  private flowAnimationTimer: NodeJS.Timeout | null = null;
+  private latestFlows: MaestroFlowInfo[] = [];
+  private latestDisplayedLineCount = 0;
 
   public constructor(credentials: Credentials, options: MaestroOptions) {
     super(credentials, options);
@@ -313,6 +321,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       return result;
     } catch (error) {
       // Clean up on error
+      this.spinner.stop();
+      this.stopFlowAnimation();
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
       await this.stopTunnel();
@@ -1698,6 +1708,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           const hasFailures = this.hasAnyFlowFailed(allFlows);
 
           if (!flowsTableDisplayed) {
+            // Flows have arrived — stop the run-level spinner so it doesn't
+            // fight the flow table's cursor-based in-place updates.
+            this.spinner.stop();
             // First time showing flows - display header and initial state
             console.log(); // Empty line before flows table
             this.displayFlowsTableHeader(hasFailures);
@@ -1707,6 +1720,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
               hasFailures,
             );
             flowsTableDisplayed = true;
+            this.latestFlows = allFlows;
+            this.latestDisplayedLineCount = displayedLineCount;
+            this.startFlowAnimation(previousFlowStatus);
           } else {
             // Update flows in place
             displayedLineCount = this.updateFlowsInPlace(
@@ -1714,6 +1730,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
               previousFlowStatus,
               displayedLineCount,
             );
+            this.latestFlows = allFlows;
+            this.latestDisplayedLineCount = displayedLineCount;
           }
         } else {
           // No flows yet, show run status
@@ -1722,6 +1740,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
 
       if (status.completed) {
+        this.stopFlowAnimation();
         // Display final flows table with error messages if there are failures
         if (!this.options.quiet && flowsTableDisplayed) {
           const allFlows: MaestroFlowInfo[] = [];
@@ -1742,13 +1761,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             process.stdout.write('\x1b[2K');
             console.log(
               pc.dim(
-                ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Flow                              Fail reason`,
+                ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(10)} Flow                              Fail reason`,
               ),
             );
             process.stdout.write('\x1b[2K');
             console.log(
               pc.dim(
-                ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(30)} ${'─'.repeat(80)}`,
+                ` ${'─'.repeat(10)} ${'─'.repeat(10)} ${'─'.repeat(30)} ${'─'.repeat(80)}`,
               ),
             );
 
@@ -1763,14 +1782,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
         // Print final summary
         if (!this.options.quiet) {
+          this.spinner.stop();
           console.log(); // Empty line before summary
 
           for (const run of status.runs) {
-            const statusEmoji = run.success === 1 ? '✅' : '❌';
-            const statusText =
-              run.success === 1 ? 'Test completed successfully' : 'Test failed';
+            const passed = run.success === 1;
+            const symbol = passed ? pc.green('✔') : pc.red('✘');
+            const statusText = passed
+              ? pc.green('Test completed successfully')
+              : pc.red('Test failed');
             console.log(
-              `  ${statusEmoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusText}`,
+              `  ${symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusText}`,
             );
           }
         }
@@ -1832,33 +1854,35 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
     const elapsedStr = this.formatElapsedTime(elapsedSeconds);
 
+    const activeMessages: string[] = [];
+
     for (const run of runs) {
       const prevStatus = previousStatus.get(run.id);
       const statusChanged = prevStatus !== run.status;
-
-      // If status changed from WAITING/READY to something else, clear the updating line
-      if (
-        statusChanged &&
-        prevStatus &&
-        (prevStatus === 'WAITING' || prevStatus === 'READY')
-      ) {
-        this.clearLine();
-      }
-
       previousStatus.set(run.id, run.status);
 
       const statusInfo = this.getStatusInfo(run.status);
 
       if (run.status === 'WAITING' || run.status === 'READY') {
-        // Update the same line for WAITING and READY states
-        const message = `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text} (${elapsedStr})`;
-        process.stdout.write(`\r${message}`);
+        const label =
+          run.status === 'WAITING'
+            ? pc.yellow(statusInfo.text)
+            : pc.cyan(statusInfo.text);
+        activeMessages.push(
+          `${label} ${pc.dim(`• Run ${run.id} (${this.getRunDisplayName(run)}) • ${elapsedStr}`)}`,
+        );
       } else if (statusChanged) {
-        // For other states (DONE, FAILED), print on a new line only when status changes
+        this.spinner.clearLine();
         console.log(
-          `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text}`,
+          `  ${statusInfo.symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusInfo.text}`,
         );
       }
+    }
+
+    if (activeMessages.length > 0) {
+      this.spinner.setMessage(activeMessages.join(pc.dim(' ┊ ')));
+    } else {
+      this.spinner.stop();
     }
   }
 
@@ -1871,20 +1895,20 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private getStatusInfo(status: MaestroRunInfo['status']): {
-    emoji: string;
+    symbol: string;
     text: string;
   } {
     switch (status) {
       case 'WAITING':
-        return { emoji: '⏳', text: 'Waiting for test to start' };
+        return { symbol: pc.yellow('◐'), text: 'Waiting for test to start' };
       case 'READY':
-        return { emoji: '🔄', text: 'Running test' };
+        return { symbol: pc.cyan('◑'), text: 'Running test' };
       case 'DONE':
-        return { emoji: '✅', text: 'Test has finished running' };
+        return { symbol: pc.green('✔'), text: 'Test has finished running' };
       case 'FAILED':
-        return { emoji: '❌', text: 'Test failed' };
+        return { symbol: pc.red('✘'), text: 'Test failed' };
       default:
-        return { emoji: '❓', text: status };
+        return { symbol: pc.dim('?'), text: status };
     }
   }
 
@@ -1892,19 +1916,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     text: string;
     colored: string;
   } {
+    const frame = FLOW_SPINNER_FRAMES[this.flowAnimationFrame];
     switch (flow.status) {
       case 'WAITING':
-        return { text: 'WAITING', colored: pc.white('WAITING') };
+        return {
+          text: `${frame} WAITING`,
+          colored: pc.yellow(`${frame} WAITING`),
+        };
       case 'READY':
-        return { text: 'RUNNING', colored: pc.blue('RUNNING') };
+        return {
+          text: `${frame} RUNNING`,
+          colored: pc.cyan(`${frame} RUNNING`),
+        };
       case 'DONE':
         if (flow.success === 1) {
-          return { text: 'PASSED', colored: pc.green('PASSED') };
+          return { text: '✔ PASSED', colored: pc.green('✔ PASSED') };
         } else {
-          return { text: 'FAILED', colored: pc.red('FAILED') };
+          return { text: '✘ FAILED', colored: pc.red('✘ FAILED') };
         }
       case 'FAILED':
-        return { text: 'FAILED', colored: pc.red('FAILED') };
+        return { text: '✘ FAILED', colored: pc.red('✘ FAILED') };
       default:
         return { text: flow.status, colored: flow.status };
     }
@@ -2019,8 +2050,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private displayFlowsTableHeader(hasFailures: boolean = false): void {
-    let header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(8)} Flow`;
-    let separator = ` ${'─'.repeat(10)} ${'─'.repeat(8)} ${'─'.repeat(30)}`;
+    let header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(10)} Flow`;
+    let separator = ` ${'─'.repeat(10)} ${'─'.repeat(10)} ${'─'.repeat(30)}`;
 
     if (hasFailures) {
       header += '                              Fail reason';
@@ -2041,7 +2072,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     // Pad based on display text length, add extra for color codes
     const statusPadded =
       statusDisplay.colored +
-      ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
+      ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
     const name = flow.name.padEnd(30);
 
     let linesWritten = 0;
@@ -2065,8 +2096,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     // Display remaining error messages on continuation lines
     if (!isUpdate && hasFailures && isFailed && errorMessages.length > 1) {
-      // Indent to align with the Fail reason column: Duration(11) + Status(9) + Test(31) = 51 chars
-      const indent = ' '.repeat(51);
+      // Indent to align with the Fail reason column: Duration(11) + Status(11) + Test(31) = 53 chars
+      const indent = ' '.repeat(53);
       for (let i = 1; i < errorMessages.length; i++) {
         console.log(`${indent} ${pc.red(errorMessages[i])}`);
         linesWritten++;
@@ -2102,6 +2133,42 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return linesWritten;
   }
 
+  /**
+   * Starts the flow-table animation loop. Re-renders the cached flow rows at
+   * `FLOW_ANIMATION_MS` so WAITING/RUNNING spinner frames advance between
+   * (much slower) polls. Calling while already running is a no-op.
+   */
+  private startFlowAnimation(
+    previousFlowStatus: Map<number, MaestroFlowStatus>,
+  ): void {
+    if (this.flowAnimationTimer || !utils.isInteractive()) return;
+    this.flowAnimationTimer = setInterval(() => {
+      const hasActive = this.latestFlows.some(
+        (f) => f.status === 'WAITING' || f.status === 'READY',
+      );
+      if (!hasActive) return;
+      this.flowAnimationFrame =
+        (this.flowAnimationFrame + 1) % FLOW_SPINNER_FRAMES.length;
+      this.latestDisplayedLineCount = this.updateFlowsInPlace(
+        this.latestFlows,
+        previousFlowStatus,
+        this.latestDisplayedLineCount,
+      );
+    }, FLOW_ANIMATION_MS);
+    this.flowAnimationTimer.unref?.();
+  }
+
+  private stopFlowAnimation(): void {
+    if (this.flowAnimationTimer) {
+      clearInterval(this.flowAnimationTimer);
+      this.flowAnimationTimer = null;
+    }
+  }
+
+  protected stopAnimations(): void {
+    this.stopFlowAnimation();
+  }
+
   private updateFlowsInPlace(
     flows: MaestroFlowInfo[],
     previousFlowStatus: Map<number, MaestroFlowStatus>,
@@ -2124,7 +2191,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const statusDisplay = this.getFlowStatusDisplay(flow);
       const statusPadded =
         statusDisplay.colored +
-        ' '.repeat(Math.max(0, 8 - statusDisplay.text.length));
+        ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
       const name = flow.name;
 
       const row = ` ${duration} ${statusPadded} ${name}`;
@@ -2610,8 +2677,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     try {
       const message: MaestroSocketMessage = JSON.parse(data);
       if (message.payload) {
-        // Clear the status line before printing output
-        this.clearLine();
+        // Clear the spinner line before printing output
+        this.spinner.clearLine();
         // Print the Maestro output, trimming trailing newlines
         process.stdout.write(message.payload);
       }
@@ -2624,8 +2691,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     try {
       const message: MaestroSocketMessage = JSON.parse(data);
       if (message.payload) {
-        // Clear the status line before printing error
-        this.clearLine();
+        // Clear the spinner line before printing error
+        this.spinner.clearLine();
         // Print the error output
         process.stderr.write(message.payload);
       }

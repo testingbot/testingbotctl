@@ -4,6 +4,7 @@ import Credentials from '../models/credentials';
 import axios from 'axios';
 import fs from 'node:fs';
 import path from 'node:path';
+import pc from 'picocolors';
 import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
@@ -185,6 +186,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       return result;
     } catch (error) {
       // Clean up on error
+      this.spinner.stop();
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
       await this.stopTunnel();
@@ -337,15 +339,17 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       }
 
       if (status.completed) {
-        // Clear the updating line and print final status
+        // Stop the spinner and print final status
         if (!this.options.quiet) {
-          this.clearLine();
+          this.spinner.stop();
           for (const run of status.runs) {
-            const statusEmoji = run.success === 1 ? '✅' : '❌';
-            const statusText =
-              run.success === 1 ? 'Test completed successfully' : 'Test failed';
+            const passed = run.success === 1;
+            const symbol = passed ? pc.green('✔') : pc.red('✘');
+            const statusText = passed
+              ? pc.green('Test completed successfully')
+              : pc.red('Test failed');
             console.log(
-              `  ${statusEmoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusText}`,
+              `  ${symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusText}`,
             );
           }
         }
@@ -404,30 +408,37 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
     const elapsedStr = this.formatElapsedTime(elapsedSeconds);
 
+    const activeMessages: string[] = [];
+
     for (const run of runs) {
       const prevStatus = previousStatus.get(run.id);
       const statusChanged = prevStatus !== run.status;
-
-      if (
-        statusChanged &&
-        prevStatus &&
-        (prevStatus === 'WAITING' || prevStatus === 'READY')
-      ) {
-        this.clearLine();
-      }
-
       previousStatus.set(run.id, run.status);
 
       const statusInfo = this.getStatusInfo(run.status);
 
       if (run.status === 'WAITING' || run.status === 'READY') {
-        const message = `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text} (${elapsedStr})`;
-        process.stdout.write(`\r${message}`);
+        const label =
+          run.status === 'WAITING'
+            ? pc.yellow(statusInfo.text)
+            : pc.cyan(statusInfo.text);
+        activeMessages.push(
+          `${label} ${pc.dim(`• Run ${run.id} (${this.getRunDisplayName(run)}) • ${elapsedStr}`)}`,
+        );
       } else if (statusChanged) {
+        // Transitioned to a terminal state — print a permanent line above the
+        // spinner without disturbing its animation below.
+        this.spinner.clearLine();
         console.log(
-          `  ${statusInfo.emoji} Run ${run.id} (${this.getRunDisplayName(run)}): ${statusInfo.text}`,
+          `  ${statusInfo.symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusInfo.text}`,
         );
       }
+    }
+
+    if (activeMessages.length > 0) {
+      this.spinner.setMessage(activeMessages.join(pc.dim(' ┊ ')));
+    } else {
+      this.spinner.stop();
     }
   }
 
@@ -440,20 +451,20 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
   }
 
   private getStatusInfo(status: EspressoRunInfo['status']): {
-    emoji: string;
+    symbol: string;
     text: string;
   } {
     switch (status) {
       case 'WAITING':
-        return { emoji: '⏳', text: 'Waiting for test to start' };
+        return { symbol: pc.yellow('◐'), text: 'Waiting for test to start' };
       case 'READY':
-        return { emoji: '🔄', text: 'Running test' };
+        return { symbol: pc.cyan('◑'), text: 'Running test' };
       case 'DONE':
-        return { emoji: '✅', text: 'Test has finished running' };
+        return { symbol: pc.green('✔'), text: 'Test has finished running' };
       case 'FAILED':
-        return { emoji: '❌', text: 'Test failed' };
+        return { symbol: pc.red('✘'), text: 'Test failed' };
       default:
-        return { emoji: '❓', text: status };
+        return { symbol: pc.dim('?'), text: status };
     }
   }
 
@@ -569,8 +580,8 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     try {
       const message: EspressoSocketMessage = JSON.parse(data);
       if (message.payload) {
-        // Clear the status line before printing output
-        this.clearLine();
+        // Clear the spinner line before printing output
+        this.spinner.clearLine();
         // Print the Espresso output
         process.stdout.write(message.payload);
       }
@@ -583,8 +594,8 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     try {
       const message: EspressoSocketMessage = JSON.parse(data);
       if (message.payload) {
-        // Clear the status line before printing error
-        this.clearLine();
+        // Clear the spinner line before printing error
+        this.spinner.clearLine();
         // Print the error output
         process.stderr.write(message.payload);
       }

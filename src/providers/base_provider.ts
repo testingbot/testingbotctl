@@ -6,6 +6,7 @@ import utils from '../utils';
 import Upload from '../upload';
 import platform from '../utils/platform';
 import logger from '../logger';
+import Spinner from '../ui/spinner';
 import {
   downloadAndRunAsync,
   killAsync,
@@ -82,6 +83,7 @@ export default abstract class BaseProvider<
   protected credentials: Credentials;
   protected options: TOptions;
   protected upload: Upload;
+  protected spinner: Spinner = new Spinner();
 
   protected appId: number | undefined = undefined;
   protected activeRunIds: number[] = [];
@@ -158,6 +160,12 @@ export default abstract class BaseProvider<
   }
 
   /**
+   * Override hook for subclasses to stop any extra animation loops (e.g.
+   * Maestro's flow-table timer) during shutdown. Default is a no-op.
+   */
+  protected stopAnimations(): void {}
+
+  /**
    * Handles graceful shutdown when interrupt signal is received
    */
   protected handleShutdown(): void {
@@ -167,6 +175,8 @@ export default abstract class BaseProvider<
     }
 
     this.isShuttingDown = true;
+    this.spinner.stop();
+    this.stopAnimations();
     this.clearLine();
     logger.info('Received interrupt signal, stopping test runs...');
 
