@@ -52,6 +52,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
   private socket: Socket | null = null;
   private updateServer: string | null = null;
   private updateKey: string | null = null;
+  private socketFallbackWarned = false;
 
   public constructor(credentials: Credentials, options: XCUITestOptions) {
     super(credentials, options);
@@ -542,8 +543,16 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         this.handleXCUITestError(data);
       });
 
-      this.socket.on('connect_error', () => {
-        // Silently fail - real-time updates are optional
+      this.socket.on('connect_error', (err: Error) => {
+        if (!this.socketFallbackWarned) {
+          this.socketFallbackWarned = true;
+          logger.warn(
+            'Real-time log stream unavailable, falling back to polling.',
+          );
+          logger.debug(
+            `Socket connect_error: ${err?.message ?? 'unknown error'}`,
+          );
+        }
         this.disconnectFromUpdateServer();
       });
     } catch {
