@@ -33,7 +33,7 @@ program
     'CLI tool to run Espresso, XCUITest and Maestro tests on TestingBot cloud',
   );
 
-const espressoCommand = program
+program
   .command('espresso')
   .description('Run Espresso tests on TestingBot.')
   .argument('[appFile]', 'Path to application APK file')
@@ -166,9 +166,27 @@ const espressoCommand = program
       const app = appFileArg || args.app;
       const testApp = testAppFileArg || args.testApp;
 
-      if (!app || !testApp) {
-        espressoCommand.help();
-        return;
+      const missing: string[] = [];
+      if (!app) missing.push('<appFile> or --app');
+      if (!testApp) missing.push('<testAppFile> or --test-app');
+      if (missing.length > 0) {
+        throw new TestingBotError(
+          `Missing required argument: ${missing.join(', ')}. Run "testingbot espresso --help" for usage.`,
+        );
+      }
+
+      const credentials = await Auth.getCredentials({
+        apiKey: args.apiKey,
+        apiSecret: args.apiSecret,
+      });
+      if (credentials === null) {
+        throw new TestingBotError(
+          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+            '  2. Use --api-key and --api-secret options\n' +
+            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+            '  4. Create ~/.testingbot file with content: key:secret',
+        );
       }
 
       const metadata =
@@ -210,19 +228,6 @@ const espressoCommand = program
         reportOutputDir: args.reportOutputDir,
         metadata,
       });
-      const credentials = await Auth.getCredentials({
-        apiKey: args.apiKey,
-        apiSecret: args.apiSecret,
-      });
-      if (credentials === null) {
-        throw new TestingBotError(
-          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
-            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
-            '  2. Use --api-key and --api-secret options\n' +
-            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
-            '  4. Create ~/.testingbot file with content: key:secret',
-        );
-      }
       const espresso = new Espresso(credentials, options);
       const result = await espresso.run();
       if (!result.success) {
@@ -237,7 +242,7 @@ const espressoCommand = program
   })
   .showHelpAfterError(true);
 
-const maestroCommand = program
+program
   .command('maestro')
   .description('Run Maestro flows on TestingBot.')
   .argument(
@@ -397,9 +402,28 @@ const maestroCommand = program
         flows = flowsArgs || [];
       }
 
-      if (!app || flows.length === 0) {
-        maestroCommand.help();
-        return;
+      const missing: string[] = [];
+      if (!app) missing.push('<appFile> or --app');
+      if (flows.length === 0)
+        missing.push('<flows...> (one or more flow files, directories, or globs)');
+      if (missing.length > 0) {
+        throw new TestingBotError(
+          `Missing required argument: ${missing.join(', ')}. Run "testingbot maestro --help" for usage.`,
+        );
+      }
+
+      const credentials = await Auth.getCredentials({
+        apiKey: args.apiKey,
+        apiSecret: args.apiSecret,
+      });
+      if (credentials === null) {
+        throw new TestingBotError(
+          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+            '  2. Use --api-key and --api-secret options\n' +
+            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+            '  4. Create ~/.testingbot file with content: key:secret',
+        );
       }
 
       // Parse environment variables from -e KEY=VALUE format
@@ -455,19 +479,6 @@ const maestroCommand = program
         configFile: args.config,
         metadata,
       });
-      const credentials = await Auth.getCredentials({
-        apiKey: args.apiKey,
-        apiSecret: args.apiSecret,
-      });
-      if (credentials === null) {
-        throw new TestingBotError(
-          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
-            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
-            '  2. Use --api-key and --api-secret options\n' +
-            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
-            '  4. Create ~/.testingbot file with content: key:secret',
-        );
-      }
       if (args.debug) {
         enableDebugLogging();
       }
@@ -485,7 +496,7 @@ const maestroCommand = program
   })
   .showHelpAfterError(true);
 
-const xcuitestCommand = program
+program
   .command('xcuitest')
   .description('Run XCUITest tests on TestingBot.')
   .argument('[appFile]', 'Path to application IPA file')
@@ -577,9 +588,27 @@ const xcuitestCommand = program
       const app = appFileArg || args.app;
       const testApp = testAppFileArg || args.testApp;
 
-      if (!app || !testApp) {
-        xcuitestCommand.help();
-        return;
+      const missing: string[] = [];
+      if (!app) missing.push('<appFile> or --app');
+      if (!testApp) missing.push('<testAppFile> or --test-app');
+      if (missing.length > 0) {
+        throw new TestingBotError(
+          `Missing required argument: ${missing.join(', ')}. Run "testingbot xcuitest --help" for usage.`,
+        );
+      }
+
+      const credentials = await Auth.getCredentials({
+        apiKey: args.apiKey,
+        apiSecret: args.apiSecret,
+      });
+      if (credentials === null) {
+        throw new TestingBotError(
+          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+            '  2. Use --api-key and --api-secret options\n' +
+            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+            '  4. Create ~/.testingbot file with content: key:secret',
+        );
       }
 
       const metadata =
@@ -614,19 +643,6 @@ const xcuitestCommand = program
         reportOutputDir: args.reportOutputDir,
         metadata,
       });
-      const credentials = await Auth.getCredentials({
-        apiKey: args.apiKey,
-        apiSecret: args.apiSecret,
-      });
-      if (credentials === null) {
-        throw new TestingBotError(
-          'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
-            '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
-            '  2. Use --api-key and --api-secret options\n' +
-            '  3. Set TB_KEY and TB_SECRET environment variables\n' +
-            '  4. Create ~/.testingbot file with content: key:secret',
-        );
-      }
       const xcuitest = new XCUITest(credentials, options);
       const result = await xcuitest.run();
       if (!result.success) {
