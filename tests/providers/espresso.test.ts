@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import axios, { AxiosError } from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
+import logger from '../../src/logger';
 
 jest.mock('axios');
 jest.mock('testingbot-tunnel-launcher', () => ({
@@ -18,6 +19,7 @@ jest.mock('../../src/utils', () => ({
     getCurrentVersion: jest.fn().mockReturnValue('1.0.0'),
     compareVersions: jest.fn().mockReturnValue(0),
     checkForUpdate: jest.fn(),
+    isInteractive: jest.fn().mockReturnValue(true),
   },
 }));
 
@@ -977,6 +979,60 @@ describe('Espresso', () => {
 
       expect(mockSocket.disconnect).toHaveBeenCalled();
       expect(espresso['socket']).toBeNull();
+    });
+
+    it('should warn once on connect_error and fall back to polling', () => {
+      espresso['updateServer'] = 'https://hub.testingbot.com:3031';
+      espresso['updateKey'] = 'espresso_1234';
+
+      let connectErrorHandler: (err: Error) => void = () => {};
+      mockSocket.on.mockImplementation(
+        (event: string, handler: (err: Error) => void) => {
+          if (event === 'connect_error') {
+            connectErrorHandler = handler;
+          }
+        },
+      );
+
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+      const debugSpy = jest.spyOn(logger, 'debug').mockImplementation(() => {});
+
+      espresso['connectToUpdateServer']();
+      connectErrorHandler(new Error('boom'));
+      connectErrorHandler(new Error('boom again'));
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('falling back to polling'),
+      );
+      expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('boom'));
+
+      warnSpy.mockRestore();
+      debugSpy.mockRestore();
+    });
+
+    it('should not attempt socket connection when quiet is set', () => {
+      const quietOptions = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { quiet: true },
+      );
+      const quietEspresso = new Espresso(mockCredentials, quietOptions);
+      quietEspresso['updateServer'] = 'https://hub.testingbot.com:3031';
+      quietEspresso['updateKey'] = 'espresso_1234';
+
+      const { io } = jest.requireMock('socket.io-client');
+      (io as jest.Mock).mockClear();
+
+      const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      quietEspresso['connectToUpdateServer']();
+
+      expect(io).not.toHaveBeenCalled();
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
     });
 
     it('should handle espresso_data message and write to stdout', () => {

@@ -627,6 +627,64 @@ describe('TestingBotCTL CLI', () => {
     );
   });
 
+  test('espresso command should throw explicit error when app arg is missing', async () => {
+    const mockError = jest.fn();
+    logger.error = mockError;
+
+    await program.parseAsync(['node', 'cli', 'espresso']);
+
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('Missing required argument:'),
+    );
+    expect(mockError).toHaveBeenCalledWith(expect.stringContaining('--app'));
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('--test-app'),
+    );
+    expect(Espresso.prototype.run).not.toHaveBeenCalled();
+  });
+
+  test('maestro command should throw explicit error when app arg is missing', async () => {
+    const mockError = jest.fn();
+    logger.error = mockError;
+
+    await program.parseAsync(['node', 'cli', 'maestro']);
+
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('Missing required argument:'),
+    );
+    expect(Maestro.prototype.run).not.toHaveBeenCalled();
+  });
+
+  test('xcuitest command should throw explicit error when app arg is missing', async () => {
+    const mockError = jest.fn();
+    logger.error = mockError;
+
+    await program.parseAsync(['node', 'cli', 'xcuitest']);
+
+    expect(mockError).toHaveBeenCalledWith(
+      expect.stringContaining('Missing required argument:'),
+    );
+    expect(XCUITest.prototype.run).not.toHaveBeenCalled();
+  });
+
+  test('espresso command should not construct provider when credentials are missing', async () => {
+    mockGetCredentials.mockResolvedValue(null);
+    const mockError = jest.fn();
+    logger.error = mockError;
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'espresso',
+      'app.apk',
+      'test-app.apk',
+    ]);
+
+    // Preflight: run() must not fire if credentials are unresolved,
+    // even though all required args are present.
+    expect(Espresso.prototype.run).not.toHaveBeenCalled();
+  });
+
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')

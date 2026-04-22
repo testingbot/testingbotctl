@@ -10,6 +10,16 @@ export default {
     return `TestingBot-CTL-${packageJson.version}`;
   },
 
+  /**
+   * True when stdout is attached to an interactive terminal. CI environments
+   * (CI=truthy) are always treated as non-interactive so progress animations
+   * don't spam log aggregators.
+   */
+  isInteractive(): boolean {
+    if (process.env.CI) return false;
+    return Boolean(process.stdout.isTTY);
+  },
+
   getCurrentVersion(): string {
     return packageJson.version;
   },

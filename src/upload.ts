@@ -48,16 +48,43 @@ export default class Upload {
       time: 100, // Emit progress every 100ms
     });
 
-    let lastPercent = 0;
+    const interactive = utils.isInteractive();
+    let lastPercent = -1;
+    let lastBucket = -1;
+    const BUCKET_SIZE = 10;
 
     if (showProgress) {
-      this.drawProgressBar(fileName, totalSize, 0);
+      if (interactive) {
+        this.drawProgressBar(fileName, totalSize, 0);
+      }
 
       progressTracker.on('progress', (prog) => {
         const percent = Math.round(prog.percentage);
-        if (percent !== lastPercent) {
-          lastPercent = percent;
-          this.drawProgressBar(fileName, totalSize, percent);
+        if (interactive) {
+          // Redraw whenever percent changes; speed/ETA still update because
+          // progress-stream emits every 100ms.
+          if (percent !== lastPercent) {
+            lastPercent = percent;
+            this.drawProgressBar(
+              fileName,
+              totalSize,
+              percent,
+              prog.speed,
+              prog.eta,
+            );
+          }
+        } else {
+          // Non-TTY: one line per 10% bucket, no ANSI, no \r. 100% is
+          // reported by the success path.
+          const bucket = Math.floor(percent / BUCKET_SIZE);
+          if (bucket !== lastBucket && percent < 100) {
+            lastBucket = bucket;
+            const transferred = this.formatFileSize(
+              (percent / 100) * totalSize,
+            );
+            const total = this.formatFileSize(totalSize);
+            console.log(`  ${fileName}: ${percent}% (${transferred}/${total})`);
+          }
         }
       });
     }
@@ -98,13 +125,23 @@ export default class Upload {
       const result = response.data;
       if (result.id) {
         if (showProgress) {
-          this.drawProgressBar(fileName, totalSize, 100);
-          console.log('');
+          if (interactive) {
+            this.drawProgressBar(fileName, totalSize, 100);
+            console.log('');
+          } else {
+            console.log(
+              `  ${fileName}: done (${this.formatFileSize(totalSize)})`,
+            );
+          }
         }
         return { id: result.id };
       } else {
         if (showProgress) {
-          console.log(' Failed');
+          if (interactive) {
+            console.log(' Failed');
+          } else {
+            console.log(`  ${fileName}: failed`);
+          }
         }
         throw new TestingBotError(
           `Upload failed: ${result.error || 'Unknown error'}`,
@@ -112,7 +149,11 @@ export default class Upload {
       }
     } catch (error) {
       if (showProgress) {
-        console.log(' Failed');
+        if (interactive) {
+          console.log(' Failed');
+        } else {
+          console.log(`  ${fileName}: failed`);
+        }
       }
       if (error instanceof TestingBotError) {
         throw error;
@@ -139,6 +180,8 @@ export default class Upload {
     fileName: string,
     totalBytes: number,
     percent: number,
+    bytesPerSec?: number,
+    etaSeconds?: number,
   ): void {
     const barWidth = 30;
     const filled = Math.round((barWidth * percent) / 100);
@@ -149,8 +192,24 @@ export default class Upload {
     const transferred = this.formatFileSize(transferredBytes);
     const total = this.formatFileSize(totalBytes);
 
+    let suffix = '';
+    if (
+      typeof bytesPerSec === 'number' &&
+      Number.isFinite(bytesPerSec) &&
+      bytesPerSec > 0
+    ) {
+      suffix += ` • ${this.formatFileSize(bytesPerSec)}/s`;
+    }
+    if (
+      typeof etaSeconds === 'number' &&
+      Number.isFinite(etaSeconds) &&
+      etaSeconds > 0
+    ) {
+      suffix += ` • ETA ${this.formatDuration(etaSeconds)}`;
+    }
+
     process.stdout.write(
-      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${total})`,
+      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${total})${suffix}`,
     );
   }
 
@@ -159,12 +218,22 @@ export default class Upload {
    */
   private formatFileSize(bytes: number): string {
     if (bytes < 1024) {
-      return `${bytes} B`;
+      return `${Math.round(bytes)} B`;
     } else if (bytes < 1024 * 1024) {
       return `${(bytes / 1024).toFixed(1)} KB`;
     } else {
       return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
     }
+  }
+
+  /**
+   * Format seconds as compact duration: "12s" or "3m04s".
+   */
+  private formatDuration(seconds: number): string {
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}m${s.toString().padStart(2, '0')}s`;
   }
 
   private async validateFile(filePath: string): Promise<void> {

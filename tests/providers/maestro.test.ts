@@ -35,6 +35,7 @@ jest.mock('../../src/utils', () => ({
     getCurrentVersion: jest.fn().mockReturnValue('1.0.0'),
     compareVersions: jest.fn().mockReturnValue(0),
     checkForUpdate: jest.fn(),
+    isInteractive: jest.fn().mockReturnValue(true),
   },
 }));
 jest.mock('glob', () => ({

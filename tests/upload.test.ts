@@ -11,6 +11,7 @@ jest.mock('../src/utils', () => ({
   default: {
     getUserAgent: jest.fn().mockReturnValue('TestingBot-CTL-test'),
     checkForUpdate: jest.fn(),
+    isInteractive: jest.fn().mockReturnValue(true),
   },
 }));
 
@@ -475,6 +476,63 @@ describe('Upload', () => {
 
       // Should not show any upload message
       expect(writeSpy).not.toHaveBeenCalled();
+
+      writeSpy.mockRestore();
+    });
+
+    it('should use plain log lines and skip carriage returns when non-interactive', async () => {
+      const utilsMock = jest.requireMock('../src/utils').default as {
+        isInteractive: jest.Mock;
+      };
+      utilsMock.isInteractive.mockReturnValueOnce(false);
+
+      const mockResponse = { data: { id: 12345 }, headers: {} };
+      (axios.post as jest.Mock).mockResolvedValueOnce(mockResponse);
+
+      const writeSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+      const options = createUploadOptions({ showProgress: true });
+      await upload.upload(options);
+
+      // No \r-prefixed progress-bar writes in non-TTY mode.
+      const writeCalls = writeSpy.mock.calls.map((c) => String(c[0]));
+      expect(writeCalls.some((s) => s.startsWith('\r'))).toBe(false);
+
+      // Final "done" line in plain format, not the empty-string TTY terminator.
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/app\.apk: done \(/),
+      );
+
+      writeSpy.mockRestore();
+      logSpy.mockRestore();
+    });
+
+    it('should render speed and ETA in the progress bar when available', () => {
+      const writeSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
+
+      // Hit the drawProgressBar private method directly — simpler than faking
+      // the progress-stream timing from an axios upload.
+      (
+        upload as unknown as {
+          drawProgressBar: (
+            f: string,
+            t: number,
+            p: number,
+            s?: number,
+            e?: number,
+          ) => void;
+        }
+      ).drawProgressBar('app.apk', 1024 * 1024, 42, 512 * 1024, 75);
+
+      const line = String(writeSpy.mock.calls[0][0]);
+      expect(line).toContain('42%');
+      expect(line).toContain('KB/s');
+      expect(line).toContain('ETA 1m15s');
 
       writeSpy.mockRestore();
     });

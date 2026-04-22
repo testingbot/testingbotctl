@@ -405,7 +405,9 @@ program
       const missing: string[] = [];
       if (!app) missing.push('<appFile> or --app');
       if (flows.length === 0)
-        missing.push('<flows...> (one or more flow files, directories, or globs)');
+        missing.push(
+          '<flows...> (one or more flow files, directories, or globs)',
+        );
       if (missing.length > 0) {
         throw new TestingBotError(
           `Missing required argument: ${missing.join(', ')}. Run "testingbot maestro --help" for usage.`,

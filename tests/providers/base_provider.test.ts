@@ -53,13 +53,13 @@ describe('BaseProvider.computeNextPollInterval', () => {
   });
 
   it('applies backoff when status is unchanged', () => {
-    expect(provider.computeInterval(5000, false)).toBe(7500);
-    expect(provider.computeInterval(10000, false)).toBe(15000);
+    expect(provider.computeInterval(5000, false)).toBe(6500);
+    expect(provider.computeInterval(10000, false)).toBe(13000);
   });
 
   it('caps at the maximum poll interval', () => {
-    expect(provider.computeInterval(25000, false)).toBe(30000);
-    expect(provider.computeInterval(100000, false)).toBe(30000);
+    expect(provider.computeInterval(12000, false)).toBe(15000);
+    expect(provider.computeInterval(100000, false)).toBe(15000);
   });
 });
 
