@@ -14,6 +14,7 @@ import utils from '../utils';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
 import pc from 'picocolors';
 import BaseProvider from './base_provider';
+import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
 const FLOW_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -265,6 +266,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     try {
+      setTitle('maestro');
       // Quick connectivity check before starting uploads
       await this.ensureConnectivity();
 
@@ -273,11 +275,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         this.detectedPlatform = await this.detectPlatform();
       }
 
+      setTitle('maestro · uploading app');
       await this.uploadApp();
 
       if (!this.options.quiet) {
         logger.info('Uploading Maestro Flows');
       }
+      setTitle('maestro · uploading flows');
       await this.uploadFlows();
 
       if (this.options.tunnel && this.options.async) {
@@ -291,6 +295,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       if (!this.options.quiet) {
         logger.info('Running Maestro Tests');
       }
+      setTitle('maestro · queued');
       await this.runTests();
 
       if (this.options.async) {
@@ -326,6 +331,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
       await this.stopTunnel();
+      setTitle('maestro · ✘ error');
 
       logger.error(error instanceof Error ? error.message : error);
       // Display the cause if available
@@ -1680,6 +1686,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
         .map((run) => run.id);
 
+      const running = status.runs.find((r) => r.status === 'READY');
+      if (running) {
+        const device =
+          running.environment?.name || running.capabilities.deviceName;
+        setTitle(`maestro · running · ${device}`);
+      }
+
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
         // Check if any run has flows and display them
@@ -1800,11 +1813,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         const allSucceeded = status.runs.every((run) => run.success === 1);
 
         if (allSucceeded) {
+          setTitle('maestro · ✔ passed');
           if (!this.options.quiet) {
             logger.info('All tests completed successfully!');
           }
         } else {
           const failedRuns = status.runs.filter((run) => run.success !== 1);
+          setTitle(`maestro · ✘ ${failedRuns.length} failed`);
           logger.error(`${failedRuns.length} test run(s) failed`);
         }
 

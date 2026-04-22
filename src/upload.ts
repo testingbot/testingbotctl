@@ -208,8 +208,10 @@ export default class Upload {
       suffix += ` • ETA ${this.formatDuration(etaSeconds)}`;
     }
 
+    // `\x1b[K` clears from cursor to end of line so residue from a longer
+    // previous frame (e.g. "ETA 16s" → "ETA 1s") can't leak through.
     process.stdout.write(
-      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${total})${suffix}`,
+      `\r  ${fileName}: [${bar}] ${percent}% (${transferred}/${total})${suffix}\x1b[K`,
     );
   }
 

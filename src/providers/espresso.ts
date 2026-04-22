@@ -9,6 +9,7 @@ import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import BaseProvider from './base_provider';
+import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
 export interface EspressoRunEnvironment {
@@ -134,17 +135,20 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     }
 
     try {
+      setTitle('espresso');
       // Quick connectivity check before starting uploads
       await this.ensureConnectivity();
 
       if (!this.options.quiet) {
         logger.info('Uploading Espresso App');
       }
+      setTitle('espresso · uploading app');
       await this.uploadApp();
 
       if (!this.options.quiet) {
         logger.info('Uploading Espresso Test App');
       }
+      setTitle('espresso · uploading test app');
       await this.uploadTestApp();
 
       if (this.options.tunnel && this.options.async) {
@@ -158,6 +162,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       if (!this.options.quiet) {
         logger.info('Running Espresso Tests');
       }
+      setTitle('espresso · queued');
       await this.runTests();
 
       if (this.options.async) {
@@ -190,6 +195,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
       await this.stopTunnel();
+      setTitle('espresso · ✘ error');
 
       logger.error(error instanceof Error ? error.message : error);
       if (error instanceof Error && error.cause) {
@@ -338,6 +344,14 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         this.displayRunStatus(status.runs, startTime, previousStatus);
       }
 
+      // Terminal-tab title reflects the coarse phase, regardless of quiet.
+      const running = status.runs.find((r) => r.status === 'READY');
+      if (running) {
+        const device =
+          running.environment?.name || running.capabilities.deviceName;
+        setTitle(`espresso · running · ${device}`);
+      }
+
       if (status.completed) {
         // Stop the spinner and print final status
         if (!this.options.quiet) {
@@ -357,11 +371,13 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         const allSucceeded = status.runs.every((run) => run.success === 1);
 
         if (allSucceeded) {
+          setTitle('espresso · ✔ passed');
           if (!this.options.quiet) {
             logger.info('All tests completed successfully!');
           }
         } else {
           const failedRuns = status.runs.filter((run) => run.success !== 1);
+          setTitle(`espresso · ✘ ${failedRuns.length} failed`);
           logger.error(`${failedRuns.length} test run(s) failed:`);
           for (const run of failedRuns) {
             logger.error(

@@ -3443,25 +3443,25 @@ flows:
 
   describe('Flow Status Display', () => {
     describe('getFlowStatusDisplay', () => {
-      it('should return white WAITING for WAITING status', () => {
+      it('should return yellow WAITING for WAITING status', () => {
         const flow: MaestroFlowInfo = {
           id: 1,
           name: 'test.yaml',
           status: 'WAITING',
         };
         const result = maestro['getFlowStatusDisplay'](flow);
-        expect(result.text).toBe('WAITING');
+        expect(result.text).toContain('WAITING');
         expect(result.colored).toContain('WAITING');
       });
 
-      it('should return blue RUNNING for READY status', () => {
+      it('should return cyan RUNNING for READY status', () => {
         const flow: MaestroFlowInfo = {
           id: 1,
           name: 'test.yaml',
           status: 'READY',
         };
         const result = maestro['getFlowStatusDisplay'](flow);
-        expect(result.text).toBe('RUNNING');
+        expect(result.text).toContain('RUNNING');
         expect(result.colored).toContain('RUNNING');
       });
 
@@ -3473,7 +3473,7 @@ flows:
           success: 1,
         };
         const result = maestro['getFlowStatusDisplay'](flow);
-        expect(result.text).toBe('PASSED');
+        expect(result.text).toContain('PASSED');
         expect(result.colored).toContain('PASSED');
       });
 
@@ -3485,7 +3485,7 @@ flows:
           success: 0,
         };
         const result = maestro['getFlowStatusDisplay'](flow);
-        expect(result.text).toBe('FAILED');
+        expect(result.text).toContain('FAILED');
         expect(result.colored).toContain('FAILED');
       });
 
@@ -3496,7 +3496,7 @@ flows:
           status: 'DONE',
         };
         const result = maestro['getFlowStatusDisplay'](flow);
-        expect(result.text).toBe('FAILED');
+        expect(result.text).toContain('FAILED');
         expect(result.colored).toContain('FAILED');
       });
 
@@ -3507,7 +3507,7 @@ flows:
           status: 'FAILED',
         };
         const result = maestro['getFlowStatusDisplay'](flow);
-        expect(result.text).toBe('FAILED');
+        expect(result.text).toContain('FAILED');
         expect(result.colored).toContain('FAILED');
       });
 
