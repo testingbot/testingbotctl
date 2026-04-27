@@ -110,6 +110,7 @@ testingbot maestro <app> <flows...> [options]
 |--------|-------------|
 | `--name <name>` | Test name for dashboard identification |
 | `--build <build>` | Build identifier for grouping test runs |
+| `--groups <names>` | Tag the test session with one or more groups (comma-separated). Groups appear on the test in the TestingBot dashboard |
 | `--include-tags <tags>` | Only run flows with these tags (comma-separated) |
 | `--exclude-tags <tags>` | Exclude flows with these tags (comma-separated) |
 | `-e, --env <KEY=VALUE>` | Environment variable for flows (can be repeated) |
@@ -171,6 +172,9 @@ testingbot maestro app.apk ./flows --device "Pixel 8" --deviceVersion "14"
 
 # Android app on real device with tags
 testingbot maestro app.apk ./flows --device "Samsung Galaxy S24" --real-device --include-tags "smoke,regression"
+
+# Tag the test session with groups (visible in the dashboard)
+testingbot maestro app.apk ./flows --groups "smoke,critical"
 
 # With environment variables
 testingbot maestro app.apk ./flows -e API_URL=https://staging.example.com -e API_KEY=secret

@@ -31,6 +31,7 @@ export interface MaestroCapabilities {
   'testingbot.geoCountryCode'?: string;
   tunnelIdentifier?: string;
   realDevice?: string;
+  groups?: string[];
 }
 
 export interface MaestroRunOptions {
@@ -75,6 +76,7 @@ export default class MaestroOptions {
   private _shardSplit?: number;
   private _debug: boolean;
   private _configFile?: string;
+  private _groups?: string[];
   // Metadata
   private _metadata?: RunMetadata;
 
@@ -109,6 +111,7 @@ export default class MaestroOptions {
       shardSplit?: number;
       debug?: boolean;
       configFile?: string;
+      groups?: string[];
       metadata?: RunMetadata;
     },
   ) {
@@ -147,6 +150,7 @@ export default class MaestroOptions {
     this._shardSplit = options?.shardSplit;
     this._debug = options?.debug ?? false;
     this._configFile = options?.configFile;
+    this._groups = options?.groups;
     this._metadata = options?.metadata;
   }
 
@@ -270,6 +274,10 @@ export default class MaestroOptions {
     return this._metadata;
   }
 
+  public get groups(): string[] | undefined {
+    return this._groups;
+  }
+
   public getMaestroOptions(): MaestroRunOptions | undefined {
     const opts: MaestroRunOptions = {};
 
@@ -323,6 +331,7 @@ export default class MaestroOptions {
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
     if (this._tunnelIdentifier) caps.tunnelIdentifier = this._tunnelIdentifier;
     if (this._realDevice) caps.realDevice = 'true';
+    if (this._groups && this._groups.length > 0) caps.groups = this._groups;
 
     return caps;
   }

@@ -36,6 +36,7 @@ describe('MaestroOptions', () => {
         geoCountryCode: 'DE',
         env: { API_URL: 'https://api.example.com', API_KEY: 'secret' },
         maestroVersion: '2.0.10',
+        groups: ['smoke', 'critical'],
         quiet: true,
         async: true,
       });
@@ -58,6 +59,7 @@ describe('MaestroOptions', () => {
         API_KEY: 'secret',
       });
       expect(options.maestroVersion).toBe('2.0.10');
+      expect(options.groups).toEqual(['smoke', 'critical']);
       expect(options.quiet).toBe(true);
       expect(options.async).toBe(true);
     });
@@ -230,6 +232,32 @@ describe('MaestroOptions', () => {
       });
       const caps = options.getCapabilities();
       expect(caps.tunnelIdentifier).toBe('my-tunnel');
+    });
+
+    it('should include groups in capabilities when set', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 6', {
+        platformName: 'Android',
+        groups: ['smoke', 'critical'],
+      });
+      const caps = options.getCapabilities();
+      expect(caps.groups).toEqual(['smoke', 'critical']);
+    });
+
+    it('should omit groups from capabilities when not set', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 6', {
+        platformName: 'Android',
+      });
+      const caps = options.getCapabilities();
+      expect(caps).not.toHaveProperty('groups');
+    });
+
+    it('should omit groups from capabilities when empty array', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 6', {
+        platformName: 'Android',
+        groups: [],
+      });
+      const caps = options.getCapabilities();
+      expect(caps).not.toHaveProperty('groups');
     });
 
     it('should not include includeTags and excludeTags in capabilities', () => {

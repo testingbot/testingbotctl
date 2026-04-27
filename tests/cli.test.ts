@@ -364,6 +364,27 @@ describe('TestingBotCTL CLI', () => {
     expect(opts.excludeTags).toEqual(['flaky']);
   });
 
+  test('maestro command should accept --groups (parsed into array, surfaces in capabilities)', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'device-1',
+      '--groups',
+      'smoke, critical , ,regression',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ groups?: string[] }>(Maestro);
+    // Empty entries from "a, ,b" and surrounding whitespace are stripped.
+    expect(opts.groups).toEqual(['smoke', 'critical', 'regression']);
+  });
+
   test('maestro command should work without --device (optional)', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 

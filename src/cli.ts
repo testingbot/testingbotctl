@@ -285,6 +285,11 @@ program
   )
   // Test metadata
   .option('--name <name>', 'Name for this Maestro run.')
+  .option(
+    '--groups <names>',
+    'Tag the test session with one or more groups (comma-separated).',
+    (val) => val.split(',').map((g) => g.trim()).filter((g) => g.length > 0),
+  )
   // Network and geo
   .option(
     '--throttle-network <speed>',
@@ -479,6 +484,7 @@ program
         shardSplit: args.shardSplit,
         debug: args.debug,
         configFile: args.config,
+        groups: args.groups,
         metadata,
       });
       if (args.debug) {
