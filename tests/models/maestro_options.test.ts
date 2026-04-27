@@ -571,6 +571,45 @@ describe('MaestroOptions', () => {
     });
   });
 
+  describe('googlePlayStore option', () => {
+    it('should default to false when not specified', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.googlePlayStore).toBe(false);
+    });
+
+    it('should store googlePlayStore when set to true', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        googlePlayStore: true,
+      });
+
+      expect(options.googlePlayStore).toBe(true);
+    });
+
+    it('should not include googlePlayStore in capabilities when false', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).not.toHaveProperty('googlePlayStore');
+    });
+
+    it('should include googlePlayStore in capabilities when enabled', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        platformName: 'Android',
+        googlePlayStore: true,
+      });
+      const caps = options.getCapabilities();
+
+      expect(caps).toEqual({
+        deviceName: 'Pixel 8',
+        platformName: 'Android',
+        googlePlayStore: true,
+      });
+    });
+  });
+
   describe('configFile option', () => {
     it('should have undefined configFile by default', () => {
       const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');

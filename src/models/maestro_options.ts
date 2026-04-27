@@ -32,6 +32,7 @@ export interface MaestroCapabilities {
   tunnelIdentifier?: string;
   realDevice?: string;
   groups?: string[];
+  googlePlayStore?: boolean;
 }
 
 export interface MaestroRunOptions {
@@ -77,6 +78,7 @@ export default class MaestroOptions {
   private _debug: boolean;
   private _configFile?: string;
   private _groups?: string[];
+  private _googlePlayStore: boolean;
   // Metadata
   private _metadata?: RunMetadata;
 
@@ -112,6 +114,7 @@ export default class MaestroOptions {
       debug?: boolean;
       configFile?: string;
       groups?: string[];
+      googlePlayStore?: boolean;
       metadata?: RunMetadata;
     },
   ) {
@@ -151,6 +154,7 @@ export default class MaestroOptions {
     this._debug = options?.debug ?? false;
     this._configFile = options?.configFile;
     this._groups = options?.groups;
+    this._googlePlayStore = options?.googlePlayStore ?? false;
     this._metadata = options?.metadata;
   }
 
@@ -278,6 +282,10 @@ export default class MaestroOptions {
     return this._groups;
   }
 
+  public get googlePlayStore(): boolean {
+    return this._googlePlayStore;
+  }
+
   public getMaestroOptions(): MaestroRunOptions | undefined {
     const opts: MaestroRunOptions = {};
 
@@ -332,6 +340,7 @@ export default class MaestroOptions {
     if (this._tunnelIdentifier) caps.tunnelIdentifier = this._tunnelIdentifier;
     if (this._realDevice) caps.realDevice = 'true';
     if (this._groups && this._groups.length > 0) caps.groups = this._groups;
+    if (this._googlePlayStore) caps.googlePlayStore = true;
 
     return caps;
   }

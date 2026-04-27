@@ -274,6 +274,10 @@ program
     'Use a real device instead of an emulator/simulator.',
   )
   .option(
+    '--google-play',
+    'Use the Google Play Store-enabled version (Android emulator only).',
+  )
+  .option(
     '--orientation <orientation>',
     'Screen orientation: PORTRAIT or LANDSCAPE.',
     (val) => val.toUpperCase() as Orientation,
@@ -483,6 +487,7 @@ program
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
         debug: args.debug,
+        googlePlayStore: args.googlePlay,
         configFile: args.config,
         groups: args.groups,
         metadata,

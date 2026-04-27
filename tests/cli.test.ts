@@ -424,6 +424,49 @@ describe('TestingBotCTL CLI', () => {
     expect(opts.realDevice).toBe(true);
   });
 
+  test('maestro command should accept --google-play flag', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'Pixel 9',
+      '--google-play',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      device?: string;
+      googlePlayStore?: boolean;
+    }>(Maestro);
+    expect(opts.device).toBe('Pixel 9');
+    expect(opts.googlePlayStore).toBe(true);
+  });
+
+  test('maestro command should default googlePlayStore to false when --google-play omitted', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'Pixel 9',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      googlePlayStore: boolean;
+    }>(Maestro);
+    expect(opts.googlePlayStore).toBe(false);
+  });
+
   test('espresso command should accept metadata options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
     mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
