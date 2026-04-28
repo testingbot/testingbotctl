@@ -2479,21 +2479,30 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return s;
   }
 
-  private buildFlowDirNames(flows: MaestroFlowInfo[]): Map<number, string> {
-    const baseNames = new Map<number, string>();
+  private buildFlowDirNames(
+    entries: Array<{ runId: number; flow: MaestroFlowInfo }>,
+    reserved: Set<string> = new Set(),
+  ): Map<string, string> {
+    const baseNames = new Map<string, string>();
     const counts = new Map<string, number>();
 
-    for (const flow of flows) {
+    for (const r of reserved) {
+      counts.set(r, 1);
+    }
+
+    for (const { runId, flow } of entries) {
       const sanitized = this.sanitizeFlowDirName(flow.name);
-      const base = sanitized ? `flow_${sanitized}` : `flow_${flow.id}`;
-      baseNames.set(flow.id, base);
+      const base = sanitized || `flow_${flow.id}`;
+      baseNames.set(`${runId}:${flow.id}`, base);
       counts.set(base, (counts.get(base) || 0) + 1);
     }
 
-    const result = new Map<number, string>();
-    for (const flow of flows) {
-      const base = baseNames.get(flow.id)!;
-      result.set(flow.id, (counts.get(base) || 0) > 1 ? `${base}_${flow.id}` : base);
+    const result = new Map<string, string>();
+    for (const { runId, flow } of entries) {
+      const key = `${runId}:${flow.id}`;
+      const base = baseNames.get(key)!;
+      const collides = (counts.get(base) || 0) > 1;
+      result.set(key, collides ? `${base}_${runId}_${flow.id}` : base);
     }
     return result;
   }
@@ -2601,84 +2610,110 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     );
 
     try {
+      const runDetailsList: Array<{
+        run: MaestroRunInfo;
+        details: MaestroRunDetails;
+      }> = [];
+
       for (const run of runsToDownload) {
+        if (!this.options.quiet) {
+          logger.info(`  Waiting for artifacts sync for run ${run.id}...`);
+        }
         try {
-          if (!this.options.quiet) {
-            logger.info(`  Waiting for artifacts sync for run ${run.id}...`);
-          }
-
-          const runDetails = await this.waitForArtifactsSync(run.id);
-
-          const flowsWithAssets = (runDetails.flows || []).filter(
-            (flow) => flow.assets,
-          );
-
-          if (!runDetails.assets && flowsWithAssets.length === 0) {
-            if (!this.options.quiet) {
-              logger.info(`  No artifacts available for run ${run.id}`);
-            }
-            continue;
-          }
-
-          const runDir = path.join(tempDir, `run_${run.id}`);
-          await fs.promises.mkdir(runDir, { recursive: true });
-
-          if (runDetails.assets) {
-            await this.downloadAssetBundle(runDetails.assets, runDir);
-          }
-
-          const flowDirNames = this.buildFlowDirNames(flowsWithAssets);
-
-          for (const flow of flowsWithAssets) {
-            const flowDirName = flowDirNames.get(flow.id)!;
-            const flowDir = path.join(runDir, flowDirName);
-            await fs.promises.mkdir(flowDir, { recursive: true });
-            await this.downloadAssetBundle(flow.assets!, flowDir);
-
-            if (flow.report) {
-              const flowReportPath = path.join(flowDir, 'report.xml');
-              try {
-                await fs.promises.writeFile(
-                  flowReportPath,
-                  flow.report,
-                  'utf-8',
-                );
-                if (!this.options.quiet) {
-                  logger.info(`    Saved ${flowDirName} report.xml`);
-                }
-              } catch (error) {
-                logger.error(
-                  `    Failed to save report.xml for ${flowDirName}: ${error instanceof Error ? error.message : error}`,
-                );
-              }
-            }
-          }
-
-          if (runDetails.report) {
-            const reportPath = path.join(runDir, 'report.xml');
-            try {
-              await fs.promises.writeFile(
-                reportPath,
-                runDetails.report,
-                'utf-8',
-              );
-              if (!this.options.quiet) {
-                logger.info(`    Saved report.xml`);
-              }
-            } catch (error) {
-              logger.error(
-                `    Failed to save report.xml: ${error instanceof Error ? error.message : error}`,
-              );
-            }
-          }
-
-          if (!this.options.quiet) {
-            logger.info(`  Artifacts for run ${run.id} downloaded`);
-          }
+          const details = await this.waitForArtifactsSync(run.id);
+          runDetailsList.push({ run, details });
         } catch (error) {
           logger.error(
             `Failed to download artifacts for run ${run.id}: ${error instanceof Error ? error.message : error}`,
           );
+        }
+      }
+
+      const multiRun = runDetailsList.length > 1;
+      const runReportName = (runId: number): string =>
+        multiRun ? `report_${runId}.xml` : 'report.xml';
+      const runAssetsDirName = (runId: number): string =>
+        multiRun ? `run_${runId}` : '';
+
+      const reservedNames = new Set<string>();
+      for (const { run, details } of runDetailsList) {
+        if (details.report) reservedNames.add(runReportName(run.id));
+        if (details.assets) {
+          const dir = runAssetsDirName(run.id);
+          if (dir) reservedNames.add(dir);
+        }
+      }
+
+      const flowEntries = runDetailsList.flatMap(({ run, details }) =>
+        (details.flows || [])
+          .filter((flow) => flow.assets)
+          .map((flow) => ({ runId: run.id, flow })),
+      );
+      const flowDirNames = this.buildFlowDirNames(flowEntries, reservedNames);
+
+      for (const { run, details } of runDetailsList) {
+        const flowsWithAssets = (details.flows || []).filter(
+          (flow) => flow.assets,
+        );
+
+        if (!details.assets && flowsWithAssets.length === 0) {
+          if (!this.options.quiet) {
+            logger.info(`  No artifacts available for run ${run.id}`);
+          }
+          continue;
+        }
+
+        if (details.assets) {
+          const dirName = runAssetsDirName(run.id);
+          const targetDir = dirName ? path.join(tempDir, dirName) : tempDir;
+          if (dirName) {
+            await fs.promises.mkdir(targetDir, { recursive: true });
+          }
+          await this.downloadAssetBundle(details.assets, targetDir);
+        }
+
+        for (const flow of flowsWithAssets) {
+          const flowDirName = flowDirNames.get(`${run.id}:${flow.id}`)!;
+          const flowDir = path.join(tempDir, flowDirName);
+          await fs.promises.mkdir(flowDir, { recursive: true });
+          await this.downloadAssetBundle(flow.assets!, flowDir);
+
+          if (flow.report) {
+            const flowReportPath = path.join(flowDir, 'report.xml');
+            try {
+              await fs.promises.writeFile(
+                flowReportPath,
+                flow.report,
+                'utf-8',
+              );
+              if (!this.options.quiet) {
+                logger.info(`    Saved ${flowDirName}/report.xml`);
+              }
+            } catch (error) {
+              logger.error(
+                `    Failed to save report.xml for ${flowDirName}: ${error instanceof Error ? error.message : error}`,
+              );
+            }
+          }
+        }
+
+        if (details.report) {
+          const reportName = runReportName(run.id);
+          const reportPath = path.join(tempDir, reportName);
+          try {
+            await fs.promises.writeFile(reportPath, details.report, 'utf-8');
+            if (!this.options.quiet) {
+              logger.info(`    Saved ${reportName}`);
+            }
+          } catch (error) {
+            logger.error(
+              `    Failed to save ${reportName}: ${error instanceof Error ? error.message : error}`,
+            );
+          }
+        }
+
+        if (!this.options.quiet) {
+          logger.info(`  Artifacts for run ${run.id} downloaded`);
         }
       }
 

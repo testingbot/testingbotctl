@@ -2397,13 +2397,9 @@ describe('Maestro', () => {
         },
       ]);
 
-      const runDir = path.join(tempDir, 'run_5678');
-      const flow11Dir = path.join(runDir, 'flow_login_flow.yaml');
-      const flow12Dir = path.join(runDir, 'flow_checkout.yaml');
+      const flow11Dir = path.join(tempDir, 'login_flow.yaml');
+      const flow12Dir = path.join(tempDir, 'checkout.yaml');
 
-      expect(fs.promises.mkdir).toHaveBeenCalledWith(runDir, {
-        recursive: true,
-      });
       expect(fs.promises.mkdir).toHaveBeenCalledWith(flow11Dir, {
         recursive: true,
       });
@@ -2434,10 +2430,16 @@ describe('Maestro', () => {
         'utf-8',
       );
       expect(fs.promises.writeFile).toHaveBeenCalledWith(
-        path.join(runDir, 'report.xml'),
+        path.join(tempDir, 'report.xml'),
         '<run-report/>',
         'utf-8',
       );
+
+      // Single run: no run-level wrapper directory should be created.
+      const mkdirPaths = (fs.promises.mkdir as jest.Mock).mock.calls.map(
+        (call) => call[0],
+      );
+      expect(mkdirPaths).not.toContain(path.join(tempDir, 'run_5678'));
 
       const noArtifactsLog = consoleSpy.mock.calls.find(
         (call) =>
@@ -2451,36 +2453,50 @@ describe('Maestro', () => {
 
     it('should sanitize, cap, disambiguate, and fall back when building flow dir names', () => {
       const longName = 'a'.repeat(100);
-      const flows: MaestroFlowInfo[] = [
-        { id: 1, name: 'Login Flow', status: 'DONE' },
-        { id: 2, name: 'login flow', status: 'DONE' },
-        { id: 3, name: 'Login Flow', status: 'DONE' },
-        { id: 4, name: '', status: 'DONE' },
-        { id: 5, name: '!!! @@@ ###', status: 'DONE' },
-        { id: 6, name: longName, status: 'DONE' },
+      const entries = [
+        { runId: 100, flow: { id: 1, name: 'Login Flow', status: 'DONE' as MaestroFlowStatus } },
+        { runId: 100, flow: { id: 2, name: 'login flow', status: 'DONE' as MaestroFlowStatus } },
+        { runId: 100, flow: { id: 3, name: 'Login Flow', status: 'DONE' as MaestroFlowStatus } },
+        { runId: 100, flow: { id: 4, name: '', status: 'DONE' as MaestroFlowStatus } },
+        { runId: 100, flow: { id: 5, name: '!!! @@@ ###', status: 'DONE' as MaestroFlowStatus } },
+        { runId: 100, flow: { id: 6, name: longName, status: 'DONE' as MaestroFlowStatus } },
       ];
 
-      const names = maestro['buildFlowDirNames'](flows);
+      const names = maestro['buildFlowDirNames'](entries);
 
       // No collisions
       const values = Array.from(names.values());
       expect(new Set(values).size).toBe(values.length);
 
-      // Distinct sanitized name kept as-is
-      expect(names.get(2)).toBe('flow_login_flow');
+      // Distinct sanitized name kept as-is (no flow_ prefix)
+      expect(names.get('100:2')).toBe('login_flow');
 
-      // Collisions get _<id> suffix
-      expect(names.get(1)).toBe('flow_Login_Flow_1');
-      expect(names.get(3)).toBe('flow_Login_Flow_3');
+      // Collisions get _<runId>_<flowId> suffix
+      expect(names.get('100:1')).toBe('Login_Flow_100_1');
+      expect(names.get('100:3')).toBe('Login_Flow_100_3');
 
       // Empty / unsanitizable names fall back to flow_<id>
-      expect(names.get(4)).toBe('flow_4');
-      expect(names.get(5)).toBe('flow_5');
+      expect(names.get('100:4')).toBe('flow_4');
+      expect(names.get('100:5')).toBe('flow_5');
 
-      // Long names are capped (sanitized portion <= 64 chars)
-      const dirName = names.get(6)!;
-      const sanitized = dirName.replace(/^flow_/, '').replace(/_\d+$/, '');
+      // Long names are capped at 64 chars (or 64 + suffix when colliding)
+      const dirName = names.get('100:6')!;
+      const sanitized = dirName.replace(/_\d+_\d+$/, '');
       expect(sanitized.length).toBeLessThanOrEqual(64);
+    });
+
+    it('should disambiguate flows that would collide with reserved names', () => {
+      const entries = [
+        { runId: 100, flow: { id: 1, name: 'report.xml', status: 'DONE' as MaestroFlowStatus } },
+      ];
+      const reserved = new Set(['report.xml']);
+
+      const names = maestro['buildFlowDirNames'](entries, reserved);
+
+      // The flow's base would be "report.xml" but that name is taken
+      // by the run-level report file → must be disambiguated.
+      expect(names.get('100:1')).not.toBe('report.xml');
+      expect(names.get('100:1')).toBe('report.xml_100_1');
     });
 
     it('should log "No artifacts available" when neither run nor flows have assets', async () => {
