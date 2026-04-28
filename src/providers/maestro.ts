@@ -38,6 +38,7 @@ export interface MaestroFlowInfo {
   success?: number;
   test_case_id?: number;
   error_messages?: string[];
+  assets?: MaestroRunAssets;
 }
 
 export interface MaestroRunEnvironment {
@@ -2469,6 +2470,99 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
   }
 
+  private sanitizeFlowDirName(name: string | undefined): string {
+    if (!name) return '';
+    let s = name.replace(/[^A-Za-z0-9._-]+/g, '_');
+    s = s.replace(/_+/g, '_');
+    s = s.replace(/^[_.-]+|[_.-]+$/g, '');
+    if (s.length > 64) s = s.slice(0, 64).replace(/[_.-]+$/, '');
+    return s;
+  }
+
+  private buildFlowDirNames(flows: MaestroFlowInfo[]): Map<number, string> {
+    const baseNames = new Map<number, string>();
+    const counts = new Map<string, number>();
+
+    for (const flow of flows) {
+      const sanitized = this.sanitizeFlowDirName(flow.name);
+      const base = sanitized ? `flow_${sanitized}` : `flow_${flow.id}`;
+      baseNames.set(flow.id, base);
+      counts.set(base, (counts.get(base) || 0) + 1);
+    }
+
+    const result = new Map<number, string>();
+    for (const flow of flows) {
+      const base = baseNames.get(flow.id)!;
+      result.set(flow.id, (counts.get(base) || 0) > 1 ? `${base}_${flow.id}` : base);
+    }
+    return result;
+  }
+
+  private async downloadAssetBundle(
+    assets: MaestroRunAssets,
+    targetDir: string,
+  ): Promise<void> {
+    if (assets.logs && Object.keys(assets.logs).length > 0) {
+      const logsDir = path.join(targetDir, 'logs');
+      await fs.promises.mkdir(logsDir, { recursive: true });
+
+      for (const [logName, logUrl] of Object.entries(assets.logs)) {
+        const logFileName = `${logName}.txt`;
+        const logPath = path.join(logsDir, logFileName);
+
+        try {
+          await this.downloadFile(logUrl, logPath);
+          if (!this.options.quiet) {
+            logger.info(`    Downloaded log: ${logFileName}`);
+          }
+        } catch (error) {
+          logger.error(
+            `    Failed to download log ${logFileName}: ${error instanceof Error ? error.message : error}`,
+          );
+        }
+      }
+    }
+
+    if (assets.video && typeof assets.video === 'string') {
+      const videoDir = path.join(targetDir, 'video');
+      await fs.promises.mkdir(videoDir, { recursive: true });
+
+      const videoPath = path.join(videoDir, 'video.mp4');
+      try {
+        await this.downloadFile(assets.video, videoPath);
+        if (!this.options.quiet) {
+          logger.info(`    Downloaded video: video.mp4`);
+        }
+      } catch (error) {
+        logger.error(
+          `    Failed to download video: ${error instanceof Error ? error.message : error}`,
+        );
+      }
+    }
+
+    if (assets.screenshots && assets.screenshots.length > 0) {
+      const screenshotsDir = path.join(targetDir, 'screenshots');
+      await fs.promises.mkdir(screenshotsDir, { recursive: true });
+
+      for (let i = 0; i < assets.screenshots.length; i++) {
+        const screenshotUrl = assets.screenshots[i];
+        const screenshotFileName = `screenshot_${i}.png`;
+        const screenshotPath = path.join(screenshotsDir, screenshotFileName);
+
+        try {
+          await this.downloadFile(screenshotUrl, screenshotPath);
+          if (!this.options.quiet) {
+            logger.info(`    Downloaded screenshot: ${screenshotFileName}`);
+          }
+        } catch (error) {
+          logger.error(
+            `    Failed to download screenshot ${screenshotFileName}: ${error instanceof Error ? error.message : error}`,
+          );
+        }
+      }
+    }
+  }
+
   private async downloadArtifacts(runs: MaestroRunInfo[]): Promise<void> {
     if (!this.options.downloadArtifacts) return;
 
@@ -2515,7 +2609,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
           const runDetails = await this.waitForArtifactsSync(run.id);
 
-          if (!runDetails.assets) {
+          const flowsWithAssets = (runDetails.flows || []).filter(
+            (flow) => flow.assets,
+          );
+
+          if (!runDetails.assets && flowsWithAssets.length === 0) {
             if (!this.options.quiet) {
               logger.info(`  No artifacts available for run ${run.id}`);
             }
@@ -2525,80 +2623,32 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           const runDir = path.join(tempDir, `run_${run.id}`);
           await fs.promises.mkdir(runDir, { recursive: true });
 
-          if (
-            runDetails.assets.logs &&
-            Object.keys(runDetails.assets.logs).length > 0
-          ) {
-            const logsDir = path.join(runDir, 'logs');
-            await fs.promises.mkdir(logsDir, { recursive: true });
+          if (runDetails.assets) {
+            await this.downloadAssetBundle(runDetails.assets, runDir);
+          }
 
-            for (const [logName, logUrl] of Object.entries(
-              runDetails.assets.logs,
-            )) {
-              const logFileName = `${logName}.txt`;
-              const logPath = path.join(logsDir, logFileName);
+          const flowDirNames = this.buildFlowDirNames(flowsWithAssets);
 
+          for (const flow of flowsWithAssets) {
+            const flowDirName = flowDirNames.get(flow.id)!;
+            const flowDir = path.join(runDir, flowDirName);
+            await fs.promises.mkdir(flowDir, { recursive: true });
+            await this.downloadAssetBundle(flow.assets!, flowDir);
+
+            if (flow.report) {
+              const flowReportPath = path.join(flowDir, 'report.xml');
               try {
-                await this.downloadFile(logUrl, logPath);
-                if (!this.options.quiet) {
-                  logger.info(`    Downloaded log: ${logFileName}`);
-                }
-              } catch (error) {
-                logger.error(
-                  `    Failed to download log ${logFileName}: ${error instanceof Error ? error.message : error}`,
+                await fs.promises.writeFile(
+                  flowReportPath,
+                  flow.report,
+                  'utf-8',
                 );
-              }
-            }
-          }
-
-          if (
-            runDetails.assets.video &&
-            typeof runDetails.assets.video === 'string'
-          ) {
-            const videoDir = path.join(runDir, 'video');
-            await fs.promises.mkdir(videoDir, { recursive: true });
-
-            const videoUrl = runDetails.assets.video;
-            const videoFileName = 'video.mp4';
-            const videoPath = path.join(videoDir, videoFileName);
-
-            try {
-              await this.downloadFile(videoUrl, videoPath);
-              if (!this.options.quiet) {
-                logger.info(`    Downloaded video: ${videoFileName}`);
-              }
-            } catch (error) {
-              logger.error(
-                `    Failed to download video: ${error instanceof Error ? error.message : error}`,
-              );
-            }
-          }
-
-          if (
-            runDetails.assets.screenshots &&
-            runDetails.assets.screenshots.length > 0
-          ) {
-            const screenshotsDir = path.join(runDir, 'screenshots');
-            await fs.promises.mkdir(screenshotsDir, { recursive: true });
-
-            for (let i = 0; i < runDetails.assets.screenshots.length; i++) {
-              const screenshotUrl = runDetails.assets.screenshots[i];
-              const screenshotFileName = `screenshot_${i}.png`;
-              const screenshotPath = path.join(
-                screenshotsDir,
-                screenshotFileName,
-              );
-
-              try {
-                await this.downloadFile(screenshotUrl, screenshotPath);
                 if (!this.options.quiet) {
-                  logger.info(
-                    `    Downloaded screenshot: ${screenshotFileName}`,
-                  );
+                  logger.info(`    Saved ${flowDirName} report.xml`);
                 }
               } catch (error) {
                 logger.error(
-                  `    Failed to download screenshot ${screenshotFileName}: ${error instanceof Error ? error.message : error}`,
+                  `    Failed to save report.xml for ${flowDirName}: ${error instanceof Error ? error.message : error}`,
                 );
               }
             }

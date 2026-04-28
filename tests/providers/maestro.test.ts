@@ -2259,6 +2259,290 @@ describe('Maestro', () => {
         mockFileContent,
       );
     });
+
+    it('should download logs, video, and screenshots into the right subdirs', async () => {
+      const assets = {
+        logs: {
+          vm: 'https://example.com/vm.txt',
+          logcat: 'https://example.com/logcat.txt',
+        },
+        video: 'https://example.com/video.mp4',
+        screenshots: [
+          'https://example.com/s0.png',
+          'https://example.com/s1.png',
+        ],
+      };
+      const targetDir = path.join(path.sep, 'tmp', 'run_42');
+
+      fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+      axios.get = jest
+        .fn()
+        .mockResolvedValue({ data: Buffer.from('content') });
+
+      await maestro['downloadAssetBundle'](assets, targetDir);
+
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(targetDir, 'logs'),
+        { recursive: true },
+      );
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(targetDir, 'video'),
+        { recursive: true },
+      );
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(targetDir, 'screenshots'),
+        { recursive: true },
+      );
+
+      const fetchedUrls = (axios.get as jest.Mock).mock.calls.map(
+        (call) => call[0],
+      );
+      expect(fetchedUrls).toEqual(
+        expect.arrayContaining([
+          'https://example.com/vm.txt',
+          'https://example.com/logcat.txt',
+          'https://example.com/video.mp4',
+          'https://example.com/s0.png',
+          'https://example.com/s1.png',
+        ]),
+      );
+
+      const writtenPaths = (fs.promises.writeFile as jest.Mock).mock.calls.map(
+        (call) => call[0],
+      );
+      expect(writtenPaths).toEqual(
+        expect.arrayContaining([
+          path.join(targetDir, 'logs', 'vm.txt'),
+          path.join(targetDir, 'logs', 'logcat.txt'),
+          path.join(targetDir, 'video', 'video.mp4'),
+          path.join(targetDir, 'screenshots', 'screenshot_0.png'),
+          path.join(targetDir, 'screenshots', 'screenshot_1.png'),
+        ]),
+      );
+    });
+
+    it('should download per-flow assets for flow-based runs', async () => {
+      const optionsWithArtifacts = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { downloadArtifacts: 'all' },
+      );
+      const m = new Maestro(mockCredentials, optionsWithArtifacts);
+      m['appId'] = 1234;
+
+      const flowRunDetails = {
+        id: 5678,
+        status: 'DONE',
+        capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+        success: 1,
+        completed: true,
+        assets_synced: true,
+        report: '<run-report/>',
+        // No top-level assets (matches MaestroRun#json_payload for flow runs)
+        flows: [
+          {
+            id: 11,
+            name: 'login flow.yaml',
+            status: 'DONE',
+            success: 1,
+            report: '<flow11-report/>',
+            assets: {
+              logs: { vm: 'https://example.com/run/11/vm.txt' },
+              video: 'https://example.com/run/11/video.mp4',
+              screenshots: ['https://example.com/run/11/s0.png'],
+            },
+          },
+          {
+            id: 12,
+            name: 'checkout.yaml',
+            status: 'DONE',
+            success: 1,
+            assets: {
+              logs: { vm: 'https://example.com/run/12/vm.txt' },
+            },
+          },
+        ],
+      };
+
+      const tempDir = path.join(path.sep, 'tmp', 'tb-art-XYZ');
+      fs.promises.mkdtemp = jest.fn().mockResolvedValue(tempDir);
+      fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      axios.get = jest.fn().mockImplementation((url: string) => {
+        if (url.includes('/v1/app-automate/maestro/')) {
+          return Promise.resolve({ data: flowRunDetails });
+        }
+        return Promise.resolve({ data: Buffer.from('asset') });
+      });
+
+      jest
+        .spyOn(
+          m as unknown as { createZipFromDirectory: () => Promise<void> },
+          'createZipFromDirectory',
+        )
+        .mockResolvedValue(undefined);
+
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await m['downloadArtifacts']([
+        {
+          id: 5678,
+          status: 'DONE',
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: 1,
+        },
+      ]);
+
+      const runDir = path.join(tempDir, 'run_5678');
+      const flow11Dir = path.join(runDir, 'flow_login_flow.yaml');
+      const flow12Dir = path.join(runDir, 'flow_checkout.yaml');
+
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(runDir, {
+        recursive: true,
+      });
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(flow11Dir, {
+        recursive: true,
+      });
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(flow12Dir, {
+        recursive: true,
+      });
+
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(flow11Dir, 'logs'),
+        { recursive: true },
+      );
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(flow11Dir, 'video'),
+        { recursive: true },
+      );
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(flow11Dir, 'screenshots'),
+        { recursive: true },
+      );
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join(flow12Dir, 'logs'),
+        { recursive: true },
+      );
+
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        path.join(flow11Dir, 'report.xml'),
+        '<flow11-report/>',
+        'utf-8',
+      );
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        path.join(runDir, 'report.xml'),
+        '<run-report/>',
+        'utf-8',
+      );
+
+      const noArtifactsLog = consoleSpy.mock.calls.find(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('No artifacts available'),
+      );
+      expect(noArtifactsLog).toBeUndefined();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should sanitize, cap, disambiguate, and fall back when building flow dir names', () => {
+      const longName = 'a'.repeat(100);
+      const flows: MaestroFlowInfo[] = [
+        { id: 1, name: 'Login Flow', status: 'DONE' },
+        { id: 2, name: 'login flow', status: 'DONE' },
+        { id: 3, name: 'Login Flow', status: 'DONE' },
+        { id: 4, name: '', status: 'DONE' },
+        { id: 5, name: '!!! @@@ ###', status: 'DONE' },
+        { id: 6, name: longName, status: 'DONE' },
+      ];
+
+      const names = maestro['buildFlowDirNames'](flows);
+
+      // No collisions
+      const values = Array.from(names.values());
+      expect(new Set(values).size).toBe(values.length);
+
+      // Distinct sanitized name kept as-is
+      expect(names.get(2)).toBe('flow_login_flow');
+
+      // Collisions get _<id> suffix
+      expect(names.get(1)).toBe('flow_Login_Flow_1');
+      expect(names.get(3)).toBe('flow_Login_Flow_3');
+
+      // Empty / unsanitizable names fall back to flow_<id>
+      expect(names.get(4)).toBe('flow_4');
+      expect(names.get(5)).toBe('flow_5');
+
+      // Long names are capped (sanitized portion <= 64 chars)
+      const dirName = names.get(6)!;
+      const sanitized = dirName.replace(/^flow_/, '').replace(/_\d+$/, '');
+      expect(sanitized.length).toBeLessThanOrEqual(64);
+    });
+
+    it('should log "No artifacts available" when neither run nor flows have assets', async () => {
+      const optionsWithArtifacts = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { downloadArtifacts: 'all' },
+      );
+      const m = new Maestro(mockCredentials, optionsWithArtifacts);
+      m['appId'] = 1234;
+
+      const emptyRunDetails = {
+        id: 5678,
+        status: 'DONE',
+        capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+        success: 1,
+        completed: true,
+        assets_synced: true,
+        flows: [
+          { id: 11, name: 'login.yaml', status: 'DONE', success: 1 },
+        ],
+      };
+
+      const tempDir = path.join(path.sep, 'tmp', 'tb-art-XYZ');
+      fs.promises.mkdtemp = jest.fn().mockResolvedValue(tempDir);
+      fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+      fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+
+      axios.get = jest.fn().mockResolvedValue({ data: emptyRunDetails });
+
+      jest
+        .spyOn(
+          m as unknown as { createZipFromDirectory: () => Promise<void> },
+          'createZipFromDirectory',
+        )
+        .mockResolvedValue(undefined);
+
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+      await m['downloadArtifacts']([
+        {
+          id: 5678,
+          status: 'DONE',
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: 1,
+        },
+      ]);
+
+      const noArtifactsLog = consoleSpy.mock.calls.find(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('No artifacts available for run 5678'),
+      );
+      expect(noArtifactsLog).toBeDefined();
+
+      // axios.get only called for getRunDetails — no asset downloads attempted.
+      expect(axios.get).toHaveBeenCalledTimes(1);
+
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('Discover Dependencies', () => {
