@@ -1995,6 +1995,32 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return Math.max(5, terminalHeight - reservedLines);
   }
 
+  private getTerminalWidth(): number {
+    return process.stdout.columns || 200;
+  }
+
+  /**
+   * Returns the maximum length of `flow.name` that keeps the rendered row
+   * within the current terminal width, so the row does not visually wrap.
+   * Wrapped rows break the `\x1b[NA` cursor-up math used by in-place updates,
+   * which is what causes the table to repeat instead of refresh in place
+   * (e.g. with --shard-split where the API returns long comma-joined names).
+   *
+   * Row layout is: " {duration:10} {status:10} {name}[ {error}]" — overhead
+   * is 23 plain-width chars before `name`. `extra` reserves room for trailing
+   * content like a fail-reason suffix.
+   */
+  private getMaxNameLength(extra: number = 0): number {
+    const overhead = 23 + extra + 1;
+    return Math.max(10, this.getTerminalWidth() - overhead);
+  }
+
+  private truncateForRow(name: string, max: number): string {
+    if (name.length <= max) return name;
+    if (max <= 1) return name.slice(0, max);
+    return name.slice(0, max - 1) + '…';
+  }
+
   private getRemainingSummary(
     flows: MaestroFlowInfo[],
     displayedCount: number,
@@ -2088,18 +2114,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     const statusPadded =
       statusDisplay.colored +
       ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
-    const name = flow.name.padEnd(30);
 
     let linesWritten = 0;
     const isFailed = flow.status === 'DONE' && flow.success !== 1;
     const errorMessages = flow.error_messages || [];
+    const firstError =
+      hasFailures && isFailed && errorMessages.length > 0
+        ? errorMessages[0]
+        : '';
+    const errorReserve = firstError ? firstError.length + 1 : 0;
+    const maxName = this.getMaxNameLength(errorReserve);
+    const name = this.truncateForRow(flow.name, maxName).padEnd(
+      Math.min(30, maxName),
+    );
 
     // Build the main row
     let row = ` ${duration} ${statusPadded} ${name}`;
 
     // Add first error message on the same line if failed and has errors
-    if (hasFailures && isFailed && errorMessages.length > 0) {
-      row += ` ${pc.red(errorMessages[0])}`;
+    if (firstError) {
+      row += ` ${pc.red(firstError)}`;
     }
 
     if (isUpdate) {
@@ -2201,16 +2235,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     let linesWritten = 0;
 
     // Redraw displayed flows
+    const maxName = this.getMaxNameLength();
     for (const flow of displayFlows) {
       const duration = this.calculateFlowDuration(flow).padEnd(10);
       const statusDisplay = this.getFlowStatusDisplay(flow);
       const statusPadded =
         statusDisplay.colored +
         ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
-      const name = flow.name;
+      const name = this.truncateForRow(flow.name, maxName);
 
       const row = ` ${duration} ${statusPadded} ${name}`;
-      process.stdout.write(`\r\x1b[K${row}\n`);
+      process.stdout.write(`\r\x1b[2K${row}\n`);
 
       previousFlowStatus.set(flow.id, flow.status);
       linesWritten++;
