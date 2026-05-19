@@ -42,6 +42,8 @@ export interface MaestroRunOptions {
   version?: string;
 }
 
+export const MAX_OTHER_APPS = 4;
+
 export default class MaestroOptions {
   private static isIpaFile(app?: string): boolean {
     return app?.toLowerCase().endsWith('.ipa') ?? false;
@@ -49,6 +51,7 @@ export default class MaestroOptions {
 
   private _app: string;
   private _flows: string[];
+  private _otherApps: string[];
   private _device?: string;
   private _includeTags?: string[];
   private _excludeTags?: string[];
@@ -116,10 +119,17 @@ export default class MaestroOptions {
       groups?: string[];
       googlePlayStore?: boolean;
       metadata?: RunMetadata;
+      otherApps?: string[];
     },
   ) {
     this._app = app;
     this._flows = flows ? (Array.isArray(flows) ? flows : [flows]) : [];
+    this._otherApps = options?.otherApps ?? [];
+    if (this._otherApps.length > MAX_OTHER_APPS) {
+      throw new Error(
+        `Too many other apps (${this._otherApps.length}). Maximum is ${MAX_OTHER_APPS}.`,
+      );
+    }
     this._device = device;
     this._includeTags = options?.includeTags;
     this._excludeTags = options?.excludeTags;
@@ -164,6 +174,10 @@ export default class MaestroOptions {
 
   public get flows(): string[] {
     return this._flows;
+  }
+
+  public get otherApps(): string[] {
+    return this._otherApps;
   }
 
   public get device(): string | undefined {

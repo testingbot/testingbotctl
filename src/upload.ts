@@ -27,6 +27,7 @@ export interface UploadOptions {
 
 export interface UploadResult {
   id: number;
+  app_url?: string;
 }
 
 export default class Upload {
@@ -134,7 +135,12 @@ export default class Upload {
             );
           }
         }
-        return { id: result.id };
+        return {
+          id: result.id,
+          ...(typeof result.app_url === 'string'
+            ? { app_url: result.app_url }
+            : {}),
+        };
       } else {
         if (showProgress) {
           if (interactive) {

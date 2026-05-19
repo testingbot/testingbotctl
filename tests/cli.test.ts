@@ -401,6 +401,68 @@ describe('TestingBotCTL CLI', () => {
     expect(opts.device).toBeUndefined();
   });
 
+  test('maestro command should accept repeated --other-app flags', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      '--app',
+      'app.apk',
+      '--other-app',
+      'helper.apk',
+      '--other-app',
+      'mock.apk',
+      './flows',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ otherApps: string[] }>(Maestro);
+    expect(opts.otherApps).toEqual(['helper.apk', 'mock.apk']);
+  });
+
+  test('maestro command should default otherApps to an empty array', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync(['node', 'cli', 'maestro', 'app.apk', './flows']);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ otherApps: string[] }>(Maestro);
+    expect(opts.otherApps).toEqual([]);
+  });
+
+  test('maestro command should reject more than 4 --other-app entries', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--other-app',
+      'a.apk',
+      '--other-app',
+      'b.apk',
+      '--other-app',
+      'c.apk',
+      '--other-app',
+      'd.apk',
+      '--other-app',
+      'e.apk',
+    ]);
+
+    expect(mockMaestroRun).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Too many --other-app entries (5). Maximum is 4.',
+      ),
+    );
+    process.exitCode = 0;
+  });
+
   test('maestro command should accept --real-device flag', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 

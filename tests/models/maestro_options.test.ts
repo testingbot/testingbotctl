@@ -88,6 +88,30 @@ describe('MaestroOptions', () => {
       expect(options.flows).toEqual(['./flows']);
       expect(Array.isArray(options.flows)).toBe(true);
     });
+
+    it('should default otherApps to an empty array when not provided', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+
+      expect(options.otherApps).toEqual([]);
+    });
+
+    it('should accept up to 4 otherApps', () => {
+      const others = ['a.apk', 'b.apk', 'c.apk', 'd.apk'];
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        otherApps: others,
+      });
+
+      expect(options.otherApps).toEqual(others);
+    });
+
+    it('should throw when given more than 4 otherApps', () => {
+      expect(
+        () =>
+          new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+            otherApps: ['a', 'b', 'c', 'd', 'e'],
+          }),
+      ).toThrow(/Too many other apps \(5\)\. Maximum is 4\./);
+    });
   });
 
   describe('getCapabilities', () => {

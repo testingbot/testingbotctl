@@ -354,12 +354,111 @@ describe('Maestro', () => {
     });
   });
 
+  describe('Upload Other Apps', () => {
+    const makeMaestroWithOthers = (otherApps: string[]) => {
+      const options = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { otherApps },
+      );
+      return new Maestro(mockCredentials, options);
+    };
+
+    beforeEach(() => {
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({ size: 1024 });
+      const mockStream = new Readable({
+        read() {
+          this.push(Buffer.alloc(1024));
+          this.push(null);
+        },
+      });
+      fs.createReadStream = jest.fn().mockReturnValue(mockStream);
+    });
+
+    it('should no-op when no other apps are configured', async () => {
+      axios.post = jest.fn();
+      await expect(maestro['uploadOtherApps']()).resolves.toBeUndefined();
+      expect(axios.post).not.toHaveBeenCalled();
+      expect(maestro['otherAppUrls']).toEqual([]);
+    });
+
+    it('should upload each other-app and collect tb:// urls', async () => {
+      const m = makeMaestroWithOthers(['helper.apk', 'mock.ipa']);
+
+      axios.post = jest
+        .fn()
+        .mockResolvedValueOnce({
+          data: { id: 11, app_url: 'tb://appkey-1' },
+          headers: {},
+        })
+        .mockResolvedValueOnce({
+          data: { id: 22, app_url: 'tb://appkey-2' },
+          headers: {},
+        });
+
+      await expect(m['uploadOtherApps']()).resolves.toBeUndefined();
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      expect(axios.post).toHaveBeenNthCalledWith(
+        1,
+        'https://api.testingbot.com/v1/app-automate/maestro/other-apps',
+        expect.anything(),
+        expect.objectContaining({
+          auth: { username: 'testUser', password: 'testKey' },
+        }),
+      );
+      expect(m['otherAppUrls']).toEqual(['tb://appkey-1', 'tb://appkey-2']);
+    });
+
+    it('should throw if server response has no app_url', async () => {
+      const m = makeMaestroWithOthers(['helper.apk']);
+
+      axios.post = jest
+        .fn()
+        .mockResolvedValueOnce({ data: { id: 99 }, headers: {} });
+
+      await expect(m['uploadOtherApps']()).rejects.toThrow(
+        /Other-app upload returned no app_url/,
+      );
+    });
+  });
+
   describe('Run Tests', () => {
     it('should successfully run the tests', async () => {
       const mockResponse = { data: { success: true } };
       axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
 
       await expect(maestro['runTests']()).resolves.toBe(true);
+    });
+
+    it('should include otherApps URLs in the run payload when set', async () => {
+      const optionsWithOthers = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { otherApps: ['helper.apk'] },
+      );
+      const maestroWithOthers = new Maestro(mockCredentials, optionsWithOthers);
+      maestroWithOthers['appId'] = 1234;
+      maestroWithOthers['otherAppUrls'] = ['tb://appkey-1', 'tb://appkey-2'];
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await expect(maestroWithOthers['runTests']()).resolves.toBe(true);
+      const body = (axios.post as jest.Mock).mock.calls[0][1];
+      expect(body.otherApps).toEqual(['tb://appkey-1', 'tb://appkey-2']);
+    });
+
+    it('should omit otherApps from the run payload when empty', async () => {
+      maestro['appId'] = 1234;
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await expect(maestro['runTests']()).resolves.toBe(true);
+      const body = (axios.post as jest.Mock).mock.calls[0][1];
+      expect(body).not.toHaveProperty('otherApps');
     });
 
     it('should send includeTags and excludeTags when provided', async () => {
@@ -2277,9 +2376,7 @@ describe('Maestro', () => {
 
       fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
       fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
-      axios.get = jest
-        .fn()
-        .mockResolvedValue({ data: Buffer.from('content') });
+      axios.get = jest.fn().mockResolvedValue({ data: Buffer.from('content') });
 
       await maestro['downloadAssetBundle'](assets, targetDir);
 
@@ -2455,12 +2552,46 @@ describe('Maestro', () => {
     it('should sanitize, cap, disambiguate, and fall back when building flow dir names', () => {
       const longName = 'a'.repeat(100);
       const entries = [
-        { runId: 100, flow: { id: 1, name: 'Login Flow', status: 'DONE' as MaestroFlowStatus } },
-        { runId: 100, flow: { id: 2, name: 'login flow', status: 'DONE' as MaestroFlowStatus } },
-        { runId: 100, flow: { id: 3, name: 'Login Flow', status: 'DONE' as MaestroFlowStatus } },
-        { runId: 100, flow: { id: 4, name: '', status: 'DONE' as MaestroFlowStatus } },
-        { runId: 100, flow: { id: 5, name: '!!! @@@ ###', status: 'DONE' as MaestroFlowStatus } },
-        { runId: 100, flow: { id: 6, name: longName, status: 'DONE' as MaestroFlowStatus } },
+        {
+          runId: 100,
+          flow: {
+            id: 1,
+            name: 'Login Flow',
+            status: 'DONE' as MaestroFlowStatus,
+          },
+        },
+        {
+          runId: 100,
+          flow: {
+            id: 2,
+            name: 'login flow',
+            status: 'DONE' as MaestroFlowStatus,
+          },
+        },
+        {
+          runId: 100,
+          flow: {
+            id: 3,
+            name: 'Login Flow',
+            status: 'DONE' as MaestroFlowStatus,
+          },
+        },
+        {
+          runId: 100,
+          flow: { id: 4, name: '', status: 'DONE' as MaestroFlowStatus },
+        },
+        {
+          runId: 100,
+          flow: {
+            id: 5,
+            name: '!!! @@@ ###',
+            status: 'DONE' as MaestroFlowStatus,
+          },
+        },
+        {
+          runId: 100,
+          flow: { id: 6, name: longName, status: 'DONE' as MaestroFlowStatus },
+        },
       ];
 
       const names = maestro['buildFlowDirNames'](entries);
@@ -2488,7 +2619,14 @@ describe('Maestro', () => {
 
     it('should disambiguate flows that would collide with reserved names', () => {
       const entries = [
-        { runId: 100, flow: { id: 1, name: 'report.xml', status: 'DONE' as MaestroFlowStatus } },
+        {
+          runId: 100,
+          flow: {
+            id: 1,
+            name: 'report.xml',
+            status: 'DONE' as MaestroFlowStatus,
+          },
+        },
       ];
       const reserved = new Set(['report.xml']);
 
@@ -2517,9 +2655,7 @@ describe('Maestro', () => {
         success: 1,
         completed: true,
         assets_synced: true,
-        flows: [
-          { id: 11, name: 'login.yaml', status: 'DONE', success: 1 },
-        ],
+        flows: [{ id: 11, name: 'login.yaml', status: 'DONE', success: 1 }],
       };
 
       const tempDir = path.join(path.sep, 'tmp', 'tb-art-XYZ');
@@ -4657,9 +4793,7 @@ flows:
 
       await maestro['waitForCompletion']();
 
-      expect(errorSpy).toHaveBeenCalledWith(
-        '3 flow(s) failed across 1 run(s)',
-      );
+      expect(errorSpy).toHaveBeenCalledWith('3 flow(s) failed across 1 run(s)');
 
       consoleSpy.mockRestore();
       errorSpy.mockRestore();
@@ -4701,9 +4835,7 @@ flows:
 
       await maestro['waitForCompletion']();
 
-      expect(errorSpy).toHaveBeenCalledWith(
-        '3 flow(s) failed across 2 run(s)',
-      );
+      expect(errorSpy).toHaveBeenCalledWith('3 flow(s) failed across 2 run(s)');
 
       consoleSpy.mockRestore();
       errorSpy.mockRestore();
@@ -4768,9 +4900,7 @@ flows:
 
       await maestro['waitForCompletion']();
 
-      expect(errorSpy).toHaveBeenCalledWith(
-        '1 flow(s) failed across 1 run(s)',
-      );
+      expect(errorSpy).toHaveBeenCalledWith('1 flow(s) failed across 1 run(s)');
 
       consoleSpy.mockRestore();
       errorSpy.mockRestore();

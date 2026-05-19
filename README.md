@@ -92,6 +92,13 @@ testingbot maestro <app> <flows...> [options]
 - `app` - Path to your app file (.apk, .ipa, .app, or .zip)
 - `flows` - One or more paths to flow files (.yaml/.yml), directories, .zip files, or glob patterns
 
+**App Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--app <path>` | Path to the application under test (alternative to the positional `app` argument) |
+| `--other-app <path>` | Additional companion app to install on the device alongside `--app`. Repeatable, **max 4** entries. |
+
 **Device Options:**
 
 | Option | Description |
@@ -178,6 +185,12 @@ testingbot maestro app.apk ./flows --groups "smoke,critical"
 
 # With environment variables
 testingbot maestro app.apk ./flows -e API_URL=https://staging.example.com -e API_KEY=secret
+
+# With companion apps installed alongside the main app (up to 4)
+testingbot maestro --app main.apk \
+  --other-app helper.apk \
+  --other-app mock-server.apk \
+  ./flows
 
 # Download JUnit report
 testingbot maestro app.apk ./flows --report junit --report-output-dir ./reports

@@ -258,6 +258,15 @@ program
     '--app <path>',
     'Path to application under test (.apk, .ipa, .app, or .zip).',
   )
+  .option(
+    '--other-app <path>',
+    'Additional app to install alongside --app (.apk, .ipa, .app, or .zip). Repeatable, max 4.',
+    (val: string, acc: string[]) => {
+      acc.push(val);
+      return acc;
+    },
+    [] as string[],
+  )
   // Device configuration
   .option(
     '--device <device>',
@@ -292,7 +301,11 @@ program
   .option(
     '--groups <names>',
     'Tag the test session with one or more groups (comma-separated).',
-    (val) => val.split(',').map((g) => g.trim()).filter((g) => g.length > 0),
+    (val) =>
+      val
+        .split(',')
+        .map((g) => g.trim())
+        .filter((g) => g.length > 0),
   )
   // Network and geo
   .option(
@@ -423,6 +436,18 @@ program
         );
       }
 
+      const otherApps: string[] = Array.isArray(args.otherApp)
+        ? args.otherApp.slice()
+        : [];
+      // Commander stores the accumulator on a shared default array; reset it so
+      // values do not leak across repeated parses (e.g. in tests).
+      if (Array.isArray(args.otherApp)) args.otherApp.length = 0;
+      if (otherApps.length > 4) {
+        throw new TestingBotError(
+          `Too many --other-app entries (${otherApps.length}). Maximum is 4.`,
+        );
+      }
+
       const credentials = await Auth.getCredentials({
         apiKey: args.apiKey,
         apiSecret: args.apiSecret,
@@ -491,6 +516,7 @@ program
         configFile: args.config,
         groups: args.groups,
         metadata,
+        otherApps,
       });
       if (args.debug) {
         enableDebugLogging();
