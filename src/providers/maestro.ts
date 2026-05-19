@@ -1820,8 +1820,23 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           }
         } else {
           const failedRuns = status.runs.filter((run) => run.success !== 1);
-          setTitle(`maestro · ✘ ${failedRuns.length} failed`);
-          logger.error(`${failedRuns.length} test run(s) failed`);
+          const failedFlows = status.runs
+            .flatMap((run) => run.flows ?? [])
+            .filter(
+              (flow) =>
+                (flow.status === 'DONE' && flow.success !== 1) ||
+                flow.status === 'FAILED' ||
+                (flow.error_messages && flow.error_messages.length > 0),
+            );
+          if (failedFlows.length > 0) {
+            setTitle(`maestro · ✘ ${failedFlows.length} failed`);
+            logger.error(
+              `${failedFlows.length} flow(s) failed across ${failedRuns.length} run(s)`,
+            );
+          } else {
+            setTitle(`maestro · ✘ ${failedRuns.length} failed`);
+            logger.error(`${failedRuns.length} test run(s) failed`);
+          }
         }
 
         if (this.options.report && this.options.reportOutputDir) {

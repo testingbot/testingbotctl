@@ -5,6 +5,7 @@ import Maestro, {
 } from '../../src/providers/maestro';
 import MaestroOptions from '../../src/models/maestro_options';
 import TestingBotError from '../../src/models/testingbot_error';
+import logger from '../../src/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import axios from 'axios';
@@ -4626,6 +4627,153 @@ flows:
       expect(result.runs).toHaveLength(2);
 
       consoleSpy.mockRestore();
+    });
+
+    it('should report failed flow count and run count when flows fail', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+
+      const responseWithMultipleFailedFlows = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 9', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'a.yaml', status: 'DONE', success: 1 },
+                { id: 2, name: 'b.yaml', status: 'DONE', success: 0 },
+                { id: 3, name: 'c.yaml', status: 'DONE', success: 0 },
+                { id: 4, name: 'd.yaml', status: 'FAILED', success: 0 },
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseWithMultipleFailedFlows);
+
+      await maestro['waitForCompletion']();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        '3 flow(s) failed across 1 run(s)',
+      );
+
+      consoleSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it('should aggregate failed flow counts across multiple failed runs', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+
+      const responseMultipleFailingRuns = {
+        data: {
+          runs: [
+            {
+              id: 1,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 9', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'a.yaml', status: 'DONE', success: 0 },
+                { id: 2, name: 'b.yaml', status: 'DONE', success: 1 },
+              ],
+            },
+            {
+              id: 2,
+              status: 'DONE',
+              capabilities: { deviceName: 'iPhone 15', platformName: 'iOS' },
+              success: 0,
+              flows: [
+                { id: 3, name: 'c.yaml', status: 'DONE', success: 0 },
+                { id: 4, name: 'd.yaml', status: 'FAILED', success: 0 },
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseMultipleFailingRuns);
+
+      await maestro['waitForCompletion']();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        '3 flow(s) failed across 2 run(s)',
+      );
+
+      consoleSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it('should fall back to run count when failed run has no flows', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+
+      const responseRunFailedNoFlows = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 9', platformName: 'Android' },
+              success: 0,
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseRunFailedNoFlows);
+
+      await maestro['waitForCompletion']();
+
+      expect(errorSpy).toHaveBeenCalledWith('1 test run(s) failed');
+
+      consoleSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    it('should treat flows with error_messages as failed even if success is 1', async () => {
+      const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+
+      const responseFlowWithErrors = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 9', platformName: 'Android' },
+              success: 0,
+              flows: [
+                {
+                  id: 1,
+                  name: 'flaky.yaml',
+                  status: 'DONE',
+                  success: 1,
+                  error_messages: ['Element not found'],
+                },
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(responseFlowWithErrors);
+
+      await maestro['waitForCompletion']();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        '1 flow(s) failed across 1 run(s)',
+      );
+
+      consoleSpy.mockRestore();
+      errorSpy.mockRestore();
     });
   });
 
