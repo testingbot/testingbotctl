@@ -97,7 +97,7 @@ testingbot maestro <app> <flows...> [options]
 | Option | Description |
 |--------|-------------|
 | `--app <path>` | Path to the application under test (alternative to the positional `app` argument) |
-| `--other-app <path>` | Additional companion app to install on the device alongside `--app`. Repeatable, **max 4** entries. |
+| `--other-app <path-or-url>` | Additional companion app to install on the device alongside `--app`. Accepts a local file path (`.apk`, `.ipa`, `.app`, `.zip`) **or** a `tb://<appkey>` / `http(s)://...` URL — local paths are uploaded; URLs are passed through to the run as-is. Repeatable, **max 4** entries. |
 
 **Device Options:**
 
@@ -187,9 +187,11 @@ testingbot maestro app.apk ./flows --groups "smoke,critical"
 testingbot maestro app.apk ./flows -e API_URL=https://staging.example.com -e API_KEY=secret
 
 # With companion apps installed alongside the main app (up to 4)
+# Each --other-app can be a local file (uploaded) or a tb:// / http(s):// URL (passed through)
 testingbot maestro --app main.apk \
   --other-app helper.apk \
-  --other-app mock-server.apk \
+  --other-app tb://existing-appkey \
+  --other-app https://example.com/mock-server.apk \
   ./flows
 
 # Download JUnit report
