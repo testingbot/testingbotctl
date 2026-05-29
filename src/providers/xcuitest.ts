@@ -27,8 +27,16 @@ export interface XCUITestRunInfo {
     version?: string;
   };
   environment?: XCUITestRunEnvironment;
-  success: number;
+  // The API returns a boolean here; older/other endpoints may use 1/0.
+  success: number | boolean;
   report?: string;
+  // The status payload nests the live session under `test`; the run-level
+  // `report` field is generally absent here (reports are fetched separately
+  // via the html_report / junit_report endpoints when --report is used).
+  test?: {
+    sessionId?: string;
+    environment?: XCUITestRunEnvironment;
+  };
 }
 
 export interface XCUITestStatusResponse {
@@ -311,6 +319,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         const latestVersion = response.headers?.['x-testingbotctl-version'];
         utils.checkForUpdate(latestVersion);
 
+        if (this.options.debug) {
+          logger.debug(
+            `API response: ${JSON.stringify(response.data, null, 2)}`,
+          );
+        }
+
         return response.data;
       });
     } catch (error) {
@@ -356,7 +370,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         if (!this.options.quiet) {
           this.spinner.stop();
           for (const run of status.runs) {
-            const passed = run.success === 1;
+            const passed = this.isRunSuccessful(run.success);
             const symbol = passed ? pc.green('✔') : pc.red('✘');
             const statusText = passed
               ? pc.green('Test completed successfully')
@@ -367,7 +381,9 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           }
         }
 
-        const allSucceeded = status.runs.every((run) => run.success === 1);
+        const allSucceeded = status.runs.every((run) =>
+          this.isRunSuccessful(run.success),
+        );
 
         if (allSucceeded) {
           setTitle('xcuitest · ✔ passed');
@@ -375,12 +391,23 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             logger.info('All tests completed successfully!');
           }
         } else {
-          const failedRuns = status.runs.filter((run) => run.success !== 1);
+          const failedRuns = status.runs.filter(
+            (run) => !this.isRunSuccessful(run.success),
+          );
           setTitle(`xcuitest · ✘ ${failedRuns.length} failed`);
           logger.error(`${failedRuns.length} test run(s) failed:`);
           for (const run of failedRuns) {
+            // The status payload does not carry a report field (reports are
+            // fetched separately via --report). Surface the session id so the
+            // run can be located on the TestingBot dashboard.
+            const sessionId = run.test?.sessionId;
+            const detail =
+              run.report ||
+              (sessionId
+                ? `session ${sessionId}`
+                : 'see the TestingBot dashboard for details');
             logger.error(
-              `  - Run ${run.id} (${this.getRunDisplayName(run)}): ${run.report || 'No report available'}`,
+              `  - Run ${run.id} (${this.getRunDisplayName(run)}): ${detail}`,
             );
           }
         }
@@ -495,10 +522,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
 
     for (const run of runs) {
       try {
-        const endpoint =
-          reportFormat === 'junit'
-            ? `${this.URL}/${this.appId}/${run.id}/junit_report`
-            : `${this.URL}/${this.appId}/${run.id}/html_report`;
+        // Both endpoints return a JSON envelope ({ junit_report } /
+        // { html_report }) keyed by the report format, matching the Maestro
+        // per-run report endpoints.
+        const reportKey =
+          reportFormat === 'junit' ? 'junit_report' : 'html_report';
+        const endpoint = `${this.URL}/${this.appId}/${run.id}/${reportKey}`;
 
         const response = await axios.get(endpoint, {
           headers: {
@@ -508,7 +537,6 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             username: this.credentials.userName,
             password: this.credentials.accessKey,
           },
-          responseType: reportFormat === 'html' ? 'arraybuffer' : 'text',
           timeout: HTTP.TIMEOUT_MS,
         });
 
@@ -516,10 +544,10 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         const latestVersion = response.headers?.['x-testingbotctl-version'];
         utils.checkForUpdate(latestVersion);
 
-        const reportContent = response.data;
+        const reportContent = response.data?.[reportKey];
 
         if (!reportContent) {
-          logger.error(`No report content received for run ${run.id}`);
+          logger.error(`No ${reportFormat} report found for run ${run.id}`);
           continue;
         }
 
@@ -527,7 +555,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         const fileName = `xcuitest_report_${this.appId}_${run.id}.${extension}`;
         const filePath = path.join(outputDir, fileName);
 
-        await fs.promises.writeFile(filePath, reportContent);
+        await fs.promises.writeFile(filePath, reportContent, 'utf-8');
 
         if (!this.options.quiet) {
           logger.info(`  Saved report: ${filePath}`);

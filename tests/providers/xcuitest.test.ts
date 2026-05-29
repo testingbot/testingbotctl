@@ -647,6 +647,71 @@ describe('XCUITest', () => {
       expect(result.runs[0].success).toBe(0);
     });
 
+    // Regression: the real API serializes run.success as a boolean
+    // (test_case.success?), not the number 1. A strict `=== 1` check reported
+    // passing runs as failed. The status payload also has no run-level report
+    // field — the session is nested under `test`.
+    it('should treat a boolean success:true run as passed', async () => {
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      const mockStatusResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: {
+                deviceName: 'iPhone Air',
+                platformName: 'iOS',
+              },
+              success: true,
+              test: {
+                sessionId: 'abc-123',
+                environment: { name: 'Safari', os: 'iPhone Air - 26.2' },
+              },
+            },
+          ],
+          success: true,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(mockStatusResponse);
+
+      const result = await xcuiTest['waitForCompletion']();
+
+      expect(result.success).toBe(true);
+      const output = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(output).toContain('Test completed successfully');
+      expect(output).not.toContain('Test failed');
+      logSpy.mockRestore();
+    });
+
+    it('should treat a boolean success:false run as failed', async () => {
+      const mockStatusResponse = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: {
+                deviceName: 'iPhone Air',
+                platformName: 'iOS',
+              },
+              success: false,
+              test: { sessionId: 'abc-123' },
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      axios.get = jest.fn().mockResolvedValue(mockStatusResponse);
+
+      const result = await xcuiTest['waitForCompletion']();
+
+      expect(result.success).toBe(false);
+      expect(result.runs[0].success).toBe(false);
+    });
+
     it('should poll until completion', async () => {
       const waitingResponse = {
         data: {
@@ -1190,6 +1255,88 @@ describe('XCUITest', () => {
 
       const result = await xcuiTestTunnelAsync.run();
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Fetch Reports', () => {
+    const buildRun = (id: number) => ({
+      id,
+      status: 'DONE' as const,
+      capabilities: { deviceName: 'iPhone Air', platformName: 'iOS' },
+      success: true,
+    });
+
+    it('extracts junit_report from the JSON envelope and saves it', async () => {
+      const options = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone Air',
+        { report: 'junit', reportOutputDir: '/tmp/reports' },
+      );
+      const provider = new XCUITest(mockCredentials, options);
+      provider['appId'] = 2464;
+
+      axios.get = jest
+        .fn()
+        .mockResolvedValue({ data: { junit_report: '<testsuites/>' } });
+
+      await provider['fetchReports']([buildRun(2509)]);
+
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/xcuitest/2464/2509/junit_report',
+        expect.objectContaining({
+          auth: { username: 'testUser', password: 'testKey' },
+        }),
+      );
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        '/tmp/reports/xcuitest_report_2464_2509.xml',
+        '<testsuites/>',
+        'utf-8',
+      );
+    });
+
+    it('extracts html_report from the JSON envelope and saves it', async () => {
+      const options = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone Air',
+        { report: 'html', reportOutputDir: '/tmp/reports' },
+      );
+      const provider = new XCUITest(mockCredentials, options);
+      provider['appId'] = 2464;
+
+      axios.get = jest
+        .fn()
+        .mockResolvedValue({ data: { html_report: '<html></html>' } });
+
+      await provider['fetchReports']([buildRun(2509)]);
+
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/xcuitest/2464/2509/html_report',
+        expect.anything(),
+      );
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        '/tmp/reports/xcuitest_report_2464_2509.html',
+        '<html></html>',
+        'utf-8',
+      );
+    });
+
+    it('does not write a file when the envelope key is missing', async () => {
+      const options = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone Air',
+        { report: 'junit', reportOutputDir: '/tmp/reports' },
+      );
+      const provider = new XCUITest(mockCredentials, options);
+      provider['appId'] = 2464;
+
+      axios.get = jest.fn().mockResolvedValue({ data: {} });
+
+      await provider['fetchReports']([buildRun(2509)]);
+
+      expect(fs.promises.writeFile).not.toHaveBeenCalled();
     });
   });
 });

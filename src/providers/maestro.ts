@@ -149,12 +149,15 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         `Too many other apps (${otherApps.length}). Maximum is 4.`,
       );
     }
-    for (const otherAppPath of otherApps) {
-      const otherExt = path.extname(otherAppPath).toLowerCase();
+    for (const otherAppEntry of otherApps) {
+      if (Maestro.isOtherAppUrl(otherAppEntry)) {
+        continue;
+      }
+      const otherExt = path.extname(otherAppEntry).toLowerCase();
       if (!Maestro.SUPPORTED_APP_EXTENSIONS.includes(otherExt)) {
         throw new TestingBotError(
-          `Unsupported other-app file format: ${otherExt || '(no extension)'} for ${otherAppPath}. ` +
-            `Supported formats: ${Maestro.SUPPORTED_APP_EXTENSIONS.join(', ')}`,
+          `Unsupported other-app file format: ${otherExt || '(no extension)'} for ${otherAppEntry}. ` +
+            `Supported formats: ${Maestro.SUPPORTED_APP_EXTENSIONS.join(', ')}, or a tb:// / http(s):// URL`,
         );
       }
     }
@@ -168,11 +171,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }),
     ];
 
-    for (const otherAppPath of otherApps) {
+    for (const otherAppEntry of otherApps) {
+      if (Maestro.isOtherAppUrl(otherAppEntry)) {
+        continue;
+      }
       fileChecks.push(
-        fs.promises.access(otherAppPath, fs.constants.R_OK).catch(() => {
+        fs.promises.access(otherAppEntry, fs.constants.R_OK).catch(() => {
           throw new TestingBotError(
-            `Provided other-app path does not exist ${otherAppPath}`,
+            `Provided other-app path does not exist ${otherAppEntry}`,
           );
         }),
       );
@@ -250,6 +256,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const flowResult = await this.collectFlows();
 
       const otherApps = this.options.otherApps;
+      const otherAppPaths = otherApps.filter((v) => !Maestro.isOtherAppUrl(v));
+      let uploadCounter = 0;
+      const previewOtherAppUrls = otherApps.map((entry) =>
+        Maestro.isOtherAppUrl(entry)
+          ? entry
+          : `<tb://appkey-other-app-${++uploadCounter}>`,
+      );
 
       this.printDryRunSummary({
         provider: 'Maestro',
@@ -260,7 +273,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             filePath: this.options.app,
             endpoint: `${this.URL}/app`,
           },
-          ...otherApps.map((p, i) => ({
+          ...otherAppPaths.map((p, i) => ({
             label: `Other App ${i + 1}`,
             filePath: p,
             endpoint: `${this.URL}/other-apps`,
@@ -279,9 +292,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           }),
           ...(metadata && { metadata }),
           ...(otherApps.length > 0 && {
-            otherApps: otherApps.map(
-              (_, i) => `<tb://appkey-other-app-${i + 1}>`,
-            ),
+            otherApps: previewOtherAppUrls,
           }),
         },
       });
@@ -467,17 +478,39 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
   }
 
+  private static isOtherAppUrl(value: string): boolean {
+    return (
+      value.startsWith('tb://') ||
+      value.startsWith('http://') ||
+      value.startsWith('https://')
+    );
+  }
+
   private async uploadOtherApps(): Promise<void> {
     const others = this.options.otherApps;
     if (!others || others.length === 0) return;
 
+    const uploadable = others.filter((v) => !Maestro.isOtherAppUrl(v));
     if (!this.options.quiet) {
-      logger.info(`Uploading ${others.length} other app(s)`);
+      if (uploadable.length > 0) {
+        logger.info(`Uploading ${uploadable.length} other app(s)`);
+      } else {
+        logger.info(`Using ${others.length} other app URL(s)`);
+      }
     }
 
     for (let i = 0; i < others.length; i++) {
-      const appPath = others[i];
-      const ext = path.extname(appPath).toLowerCase();
+      const entry = others[i];
+
+      if (Maestro.isOtherAppUrl(entry)) {
+        if (!this.options.quiet) {
+          logger.info(`  [${i + 1}/${others.length}] ${entry} (URL)`);
+        }
+        this.otherAppUrls.push(entry);
+        continue;
+      }
+
+      const ext = path.extname(entry).toLowerCase();
       const contentType =
         ext === '.apk'
           ? 'application/vnd.android.package-archive'
@@ -488,11 +521,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
               : 'application/octet-stream';
 
       if (!this.options.quiet) {
-        logger.info(`  [${i + 1}/${others.length}] ${path.basename(appPath)}`);
+        logger.info(`  [${i + 1}/${others.length}] ${path.basename(entry)}`);
       }
 
       const result = await this.upload.upload({
-        filePath: appPath,
+        filePath: entry,
         url: `${this.URL}/other-apps`,
         credentials: this.credentials,
         contentType,
@@ -502,7 +535,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       if (!result.app_url) {
         throw new TestingBotError(
-          `Other-app upload returned no app_url for ${appPath}`,
+          `Other-app upload returned no app_url for ${entry}`,
         );
       }
       this.otherAppUrls.push(result.app_url);

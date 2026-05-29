@@ -422,6 +422,72 @@ describe('Maestro', () => {
         /Other-app upload returned no app_url/,
       );
     });
+
+    it('should pass tb:// and http(s):// URLs through without uploading', async () => {
+      const m = makeMaestroWithOthers([
+        'tb://existing-appkey',
+        'https://example.com/helper.apk',
+        'http://example.com/mock.ipa',
+      ]);
+
+      axios.post = jest.fn();
+
+      await expect(m['uploadOtherApps']()).resolves.toBeUndefined();
+      expect(axios.post).not.toHaveBeenCalled();
+      expect(m['otherAppUrls']).toEqual([
+        'tb://existing-appkey',
+        'https://example.com/helper.apk',
+        'http://example.com/mock.ipa',
+      ]);
+    });
+
+    it('should mix uploaded files and pass-through URLs in order', async () => {
+      const m = makeMaestroWithOthers([
+        'helper.apk',
+        'tb://prebuilt',
+        'mock.ipa',
+      ]);
+
+      axios.post = jest
+        .fn()
+        .mockResolvedValueOnce({
+          data: { id: 11, app_url: 'tb://appkey-1' },
+          headers: {},
+        })
+        .mockResolvedValueOnce({
+          data: { id: 22, app_url: 'tb://appkey-2' },
+          headers: {},
+        });
+
+      await expect(m['uploadOtherApps']()).resolves.toBeUndefined();
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      expect(m['otherAppUrls']).toEqual([
+        'tb://appkey-1',
+        'tb://prebuilt',
+        'tb://appkey-2',
+      ]);
+    });
+
+    it('validate() accepts URL other-apps without checking file existence', async () => {
+      const optionsWithUrls = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          otherApps: ['tb://existing-appkey', 'https://example.com/helper.apk'],
+        },
+      );
+      const m = new Maestro(mockCredentials, optionsWithUrls);
+      const accessSpy = jest
+        .spyOn(fs.promises, 'access')
+        .mockResolvedValue(undefined);
+
+      await expect(m['validate']()).resolves.toBe(true);
+
+      const accessedPaths = accessSpy.mock.calls.map((c) => c[0]);
+      expect(accessedPaths).not.toContain('tb://existing-appkey');
+      expect(accessedPaths).not.toContain('https://example.com/helper.apk');
+    });
   });
 
   describe('Run Tests', () => {

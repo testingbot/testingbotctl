@@ -63,6 +63,18 @@ export default abstract class BaseProvider<
   protected readonly MAX_POLL_DURATION_MS: number = POLLING.MAX_DURATION_MS;
 
   /**
+   * Whether a run/flow `success` field reported by the API indicates success.
+   * The API is inconsistent about the representation: some endpoints return a
+   * boolean (`true`/`false`) and others a number (`1`/`0`). A strict
+   * `success === 1` check silently treats a passing run reported as `true` as a
+   * failure, which is why a test that passes on TestingBot was shown as failed
+   * by the CLI. Accept both representations.
+   */
+  protected isRunSuccessful(success: number | boolean | undefined): boolean {
+    return success === 1 || success === true;
+  }
+
+  /**
    * Returns the next polling interval based on whether the status payload
    * changed since the last poll. Resets to the minimum on change; otherwise
    * multiplies the current interval by the backoff factor up to the maximum.

@@ -27,7 +27,9 @@ export interface EspressoRunInfo {
     version?: string;
   };
   environment?: EspressoRunEnvironment;
-  success: number;
+  // The API serializes this as a boolean (test_case.success?); older/other
+  // endpoints may use 1/0. Compare via isRunSuccessful, not `=== 1`.
+  success: number | boolean;
   report?: string;
 }
 
@@ -357,7 +359,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         if (!this.options.quiet) {
           this.spinner.stop();
           for (const run of status.runs) {
-            const passed = run.success === 1;
+            const passed = this.isRunSuccessful(run.success);
             const symbol = passed ? pc.green('✔') : pc.red('✘');
             const statusText = passed
               ? pc.green('Test completed successfully')
@@ -368,7 +370,9 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           }
         }
 
-        const allSucceeded = status.runs.every((run) => run.success === 1);
+        const allSucceeded = status.runs.every((run) =>
+          this.isRunSuccessful(run.success),
+        );
 
         if (allSucceeded) {
           setTitle('espresso · ✔ passed');
@@ -376,7 +380,9 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
             logger.info('All tests completed successfully!');
           }
         } else {
-          const failedRuns = status.runs.filter((run) => run.success !== 1);
+          const failedRuns = status.runs.filter(
+            (run) => !this.isRunSuccessful(run.success),
+          );
           setTitle(`espresso · ✘ ${failedRuns.length} failed`);
           logger.error(`${failedRuns.length} test run(s) failed:`);
           for (const run of failedRuns) {
