@@ -621,6 +621,7 @@ program
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
+  .option('--debug', 'Enable debug logging of API responses.')
   .action(async (appFileArg, testAppFileArg, args) => {
     try {
       // Positional arguments take precedence, fall back to options
@@ -680,8 +681,12 @@ program
         dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        debug: args.debug,
         metadata,
       });
+      if (args.debug) {
+        enableDebugLogging();
+      }
       const xcuitest = new XCUITest(credentials, options);
       const result = await xcuitest.run();
       if (!result.success) {

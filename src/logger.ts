@@ -2,7 +2,6 @@ import pc from 'picocolors';
 import tracer from 'tracer';
 
 const logger = tracer.colorConsole({
-  level: 'info',
   format: '{{timestamp}} {{message}}',
   dateformat: 'HH:MM:ss.L',
   filters: [
@@ -13,6 +12,8 @@ const logger = tracer.colorConsole({
     },
   ],
 });
+
+tracer.setLevel('info');
 
 export function enableDebugLogging(): void {
   tracer.setLevel('debug');
