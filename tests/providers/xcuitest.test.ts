@@ -2,6 +2,7 @@ import XCUITest, { XCUITestSocketMessage } from '../../src/providers/xcuitest';
 import XCUITestOptions from '../../src/models/xcuitest_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
+import path from 'node:path';
 import axios from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
@@ -1289,7 +1290,7 @@ describe('XCUITest', () => {
         }),
       );
       expect(fs.promises.writeFile).toHaveBeenCalledWith(
-        '/tmp/reports/xcuitest_report_2464_2509.xml',
+        path.join('/tmp/reports', 'xcuitest_report_2464_2509.xml'),
         '<testsuites/>',
         'utf-8',
       );
@@ -1316,7 +1317,7 @@ describe('XCUITest', () => {
         expect.anything(),
       );
       expect(fs.promises.writeFile).toHaveBeenCalledWith(
-        '/tmp/reports/xcuitest_report_2464_2509.html',
+        path.join('/tmp/reports', 'xcuitest_report_2464_2509.html'),
         '<html></html>',
         'utf-8',
       );
