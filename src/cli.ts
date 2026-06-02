@@ -350,6 +350,12 @@ program
   // Execution mode
   .option('-q, --quiet', 'Quieter console output without progress updates.')
   .option(
+    '--retry <count>',
+    'Retry failed flows up to N times (0-2, default 0). Stops as soon as a flow passes.',
+    (val) => parseInt(val, 10),
+    0,
+  )
+  .option(
     '--async',
     'Start tests and exit immediately without waiting for results.',
   )
@@ -511,6 +517,7 @@ program
         artifactsOutputDir: args.artifactsOutputDir,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
+        retry: args.retry,
         debug: args.debug,
         googlePlayStore: args.googlePlay,
         configFile: args.config,

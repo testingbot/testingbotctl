@@ -112,6 +112,35 @@ describe('MaestroOptions', () => {
           }),
       ).toThrow(/Too many other apps \(5\)\. Maximum is 4\./);
     });
+
+    it('should default retry to 0 when not specified', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+      expect(options.retry).toBe(0);
+    });
+
+    it('should accept retry values between 0 and 2', () => {
+      for (const retry of [0, 1, 2]) {
+        const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+          retry,
+        });
+        expect(options.retry).toBe(retry);
+      }
+    });
+
+    it('should throw when retry exceeds the cap of 2', () => {
+      expect(
+        () => new MaestroOptions('app.apk', './flows', 'Pixel 8', { retry: 3 }),
+      ).toThrow(
+        /Invalid --retry value \(3\)\. It must be an integer between 0 and 2\./,
+      );
+    });
+
+    it('should throw when retry is negative', () => {
+      expect(
+        () =>
+          new MaestroOptions('app.apk', './flows', 'Pixel 8', { retry: -1 }),
+      ).toThrow(/Invalid --retry value/);
+    });
   });
 
   describe('getCapabilities', () => {

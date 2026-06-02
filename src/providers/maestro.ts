@@ -19,6 +19,9 @@ import { HTTP, SOCKET } from '../config/constants';
 
 const FLOW_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const FLOW_ANIMATION_MS = 120;
+// Single-column glyph so it does not disturb the row-width math used by the
+// in-place table redraw; marks flow rows that are retry attempts.
+const RETRY_ICON = '↻';
 
 export interface MaestroRunAssets {
   logs?: Record<string, string>;
@@ -37,6 +40,7 @@ export interface MaestroFlowInfo {
   status: MaestroFlowStatus;
   success?: number;
   test_case_id?: number;
+  shard_index?: number;
   error_messages?: string[];
   assets?: MaestroRunAssets;
 }
@@ -105,6 +109,16 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private flowAnimationTimer: NodeJS.Timeout | null = null;
   private latestFlows: MaestroFlowInfo[] = [];
   private latestDisplayedLineCount = 0;
+  private flowsTableDisplayed = false;
+  // Tracks whether the currently-drawn table header includes the "Fail reason"
+  // column. When failures appear after the header was first drawn (e.g. a flow
+  // fails while others still run, or during a retry), the header is redrawn so
+  // the live in-place rows can show fail reasons instead of waiting for the
+  // final summary.
+  private flowTableHasFailuresColumn = false;
+  // Maps a flow's MaestroRunTest id to its 1-based attempt number within its
+  // logical group. Attempt > 1 means the row is a retry. Recomputed on render.
+  private flowAttempts: Map<number, number> = new Map();
 
   public constructor(credentials: Credentials, options: MaestroOptions) {
     super(credentials, options);
@@ -344,6 +358,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       if (this.options.tunnel && this.options.async) {
         throw new TestingBotError(
           'Cannot use --tunnel with --async mode. The tunnel would close when the CLI exits. Use a standalone tunnel instead.',
+        );
+      }
+
+      if (this.options.retry > 0 && this.options.async) {
+        throw new TestingBotError(
+          'Cannot use --retry with --async mode. Retrying failed flows requires waiting for results.',
         );
       }
 
@@ -1788,6 +1808,222 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private async waitForCompletion(): Promise<MaestroResult> {
+    let status = await this.pollOnce((s) => s.completed);
+
+    if (this.options.retry > 0) {
+      status = await this.runRetryLoop(status);
+    }
+
+    return this.finalize(status);
+  }
+
+  /**
+   * After a run completes with failures, re-run only the failed flows/shards
+   * via the per-flow retry endpoint, up to `retry` times. Stops as soon as no
+   * failed flows remain. Final pass/fail uses last-attempt-wins (see finalize).
+   */
+  private async runRetryLoop(
+    initial: MaestroStatusResponse,
+  ): Promise<MaestroStatusResponse> {
+    let status = initial;
+
+    for (let attempt = 1; attempt <= this.options.retry; attempt++) {
+      if (this.isShuttingDown) break;
+
+      const failed = this.failedLatestAttempts(status.runs);
+      if (failed.length === 0) break;
+
+      if (!this.options.quiet) {
+        logger.info(
+          `Retry ${attempt}/${this.options.retry}: re-running ${failed.length} failed flow(s)`,
+        );
+      }
+      setTitle(`maestro · retry ${attempt}/${this.options.retry}`);
+
+      // Issue the retries first, collecting the new attempt IDs. We poll on
+      // those IDs rather than status.completed: the server does not reset the
+      // run status when a retry is queued, so `completed` flips true prematurely.
+      const newFlowIds: number[] = [];
+      for (const { runId, flow } of failed) {
+        try {
+          const newId = await this.retryFlow(runId, flow.id);
+          if (typeof newId === 'number') newFlowIds.push(newId);
+        } catch (err) {
+          logger.warn(
+            `Could not retry flow "${flow.name}" (run ${runId}): ${
+              err instanceof Error ? err.message : err
+            }`,
+          );
+        }
+      }
+
+      if (newFlowIds.length === 0) break;
+
+      status = await this.pollOnce((s) => this.flowsSettled(s, newFlowIds));
+    }
+
+    return status;
+  }
+
+  /**
+   * Triggers a retry of a single flow/shard and returns the new attempt's
+   * MaestroRunTest id.
+   */
+  private async retryFlow(
+    runId: number,
+    flowId: number,
+  ): Promise<number | undefined> {
+    return await this.withRetry('Retrying Maestro flow', async () => {
+      const response = await axios.post(
+        `${this.URL}/${this.appId}/${runId}/${flowId}/retry`,
+        {},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+          timeout: HTTP.TIMEOUT_MS,
+        },
+      );
+
+      const data = response.data;
+      if (data?.success === false) {
+        const errorMessage =
+          data.errors?.join('\n') || data.error || 'Unknown error';
+        throw new TestingBotError('Retrying Maestro flow failed', {
+          cause: errorMessage,
+        });
+      }
+
+      return data?.flow?.id as number | undefined;
+    });
+  }
+
+  /** Stable key identifying the logical flow/shard a flow attempt belongs to. */
+  private flowGroupKey(flow: MaestroFlowInfo): string {
+    return flow.shard_index != null
+      ? `shard:${flow.shard_index}`
+      : `name:${flow.name}`;
+  }
+
+  /** Latest attempt per logical flow/shard (highest id wins). */
+  private groupLatest(flows: MaestroFlowInfo[]): MaestroFlowInfo[] {
+    const latest = new Map<string, MaestroFlowInfo>();
+    for (const flow of flows) {
+      const key = this.flowGroupKey(flow);
+      const current = latest.get(key);
+      if (!current || flow.id > current.id) latest.set(key, flow);
+    }
+    return [...latest.values()];
+  }
+
+  /**
+   * Maps each flow's id to its 1-based attempt number within its logical
+   * group (ordered by id). The first attempt is 1; anything higher is a retry.
+   */
+  private computeFlowAttempts(flows: MaestroFlowInfo[]): Map<number, number> {
+    const groups = new Map<string, MaestroFlowInfo[]>();
+    for (const flow of flows) {
+      const key = this.flowGroupKey(flow);
+      const arr = groups.get(key);
+      if (arr) arr.push(flow);
+      else groups.set(key, [flow]);
+    }
+
+    const attempts = new Map<number, number>();
+    for (const arr of groups.values()) {
+      arr
+        .slice()
+        .sort((a, b) => a.id - b.id)
+        .forEach((flow, index) => attempts.set(flow.id, index + 1));
+    }
+    return attempts;
+  }
+
+  /**
+   * The flow name as shown in the table, prefixed with a retry marker when the
+   * row is a retry attempt. Reads the attempt map populated at render time.
+   */
+  private flowRowName(flow: MaestroFlowInfo): string {
+    const attempt = this.flowAttempts.get(flow.id) ?? 1;
+    if (attempt > 1) {
+      return `${RETRY_ICON} ${flow.name} (retry ${attempt - 1})`;
+    }
+    return flow.name;
+  }
+
+  /**
+   * Colorizes the retry marker without affecting column width: the padding is
+   * computed on the plain string first, then the glyph is wrapped in color.
+   */
+  private colorizeRetryIcon(text: string): string {
+    return text.includes(RETRY_ICON)
+      ? text.replace(RETRY_ICON, pc.cyan(RETRY_ICON))
+      : text;
+  }
+
+  private isFlowFailed(flow: MaestroFlowInfo): boolean {
+    return (
+      (flow.status === 'DONE' && flow.success !== 1) ||
+      flow.status === 'FAILED' ||
+      (flow.error_messages != null && flow.error_messages.length > 0)
+    );
+  }
+
+  /** Failed flows/shards, considering only the latest attempt per group. */
+  private failedLatestAttempts(
+    runs: MaestroRunInfo[],
+  ): Array<{ runId: number; flow: MaestroFlowInfo }> {
+    const failed: Array<{ runId: number; flow: MaestroFlowInfo }> = [];
+    for (const run of runs) {
+      for (const flow of this.groupLatest(run.flows ?? [])) {
+        if (this.isFlowFailed(flow)) failed.push({ runId: run.id, flow });
+      }
+    }
+    return failed;
+  }
+
+  /** A run passes if every logical flow's latest attempt passed. */
+  private runPassed(run: MaestroRunInfo): boolean {
+    const groups = this.groupLatest(run.flows ?? []);
+    if (groups.length === 0) return run.success === 1;
+    return groups.every((flow) => !this.isFlowFailed(flow));
+  }
+
+  private computeOverallSuccess(runs: MaestroRunInfo[]): boolean {
+    return runs.every((run) => this.runPassed(run));
+  }
+
+  /** True once every flow whose id is in `flowIds` has reached DONE/FAILED. */
+  private flowsSettled(
+    status: MaestroStatusResponse,
+    flowIds: number[],
+  ): boolean {
+    for (const id of flowIds) {
+      let found: MaestroFlowInfo | undefined;
+      for (const run of status.runs) {
+        found = (run.flows ?? []).find((flow) => flow.id === id);
+        if (found) break;
+      }
+      if (!found || (found.status !== 'DONE' && found.status !== 'FAILED')) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Polls the run status, rendering the live flow table, until `isComplete`
+   * returns true. Returns the raw status without printing the final summary or
+   * fetching reports/artifacts — that is finalize()'s job.
+   */
+  private async pollOnce(
+    isComplete: (status: MaestroStatusResponse) => boolean,
+  ): Promise<MaestroStatusResponse> {
     const startTime = Date.now();
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
     const previousFlowStatus: Map<number, MaestroFlowStatus> = new Map();
@@ -1876,104 +2112,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         }
       }
 
-      if (status.completed) {
+      if (isComplete(status)) {
         this.stopFlowAnimation();
-        // Display final flows table with error messages if there are failures
-        if (!this.options.quiet && flowsTableDisplayed) {
-          const allFlows: MaestroFlowInfo[] = [];
-          for (const run of status.runs) {
-            if (run.flows && run.flows.length > 0) {
-              allFlows.push(...run.flows);
-            }
-          }
-
-          const hasFailures = this.hasAnyFlowFailed(allFlows);
-          if (hasFailures) {
-            // Move cursor up to overwrite the existing table
-            // +2 for header and separator lines
-            const linesToMove = displayedLineCount + 2;
-            process.stdout.write(`\x1b[${linesToMove}A`);
-
-            // Clear header line, write new header, then clear separator line
-            process.stdout.write('\x1b[2K');
-            console.log(
-              pc.dim(
-                ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(10)} Flow                              Fail reason`,
-              ),
-            );
-            process.stdout.write('\x1b[2K');
-            console.log(
-              pc.dim(
-                ` ${'─'.repeat(10)} ${'─'.repeat(10)} ${'─'.repeat(30)} ${'─'.repeat(80)}`,
-              ),
-            );
-
-            // Redraw all flows with error messages
-            for (const flow of allFlows) {
-              // Clear the line before writing
-              process.stdout.write('\x1b[2K');
-              this.displayFlowRow(flow, false, true);
-            }
-          }
-        }
-
-        // Print final summary
-        if (!this.options.quiet) {
-          this.spinner.stop();
-          console.log(); // Empty line before summary
-
-          for (const run of status.runs) {
-            const passed = run.success === 1;
-            const symbol = passed ? pc.green('✔') : pc.red('✘');
-            const statusText = passed
-              ? pc.green('Test completed successfully')
-              : pc.red('Test failed');
-            console.log(
-              `  ${symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusText}`,
-            );
-          }
-        }
-
-        const allSucceeded = status.runs.every((run) => run.success === 1);
-
-        if (allSucceeded) {
-          setTitle('maestro · ✔ passed');
-          if (!this.options.quiet) {
-            logger.info('All tests completed successfully!');
-          }
-        } else {
-          const failedRuns = status.runs.filter((run) => run.success !== 1);
-          const failedFlows = status.runs
-            .flatMap((run) => run.flows ?? [])
-            .filter(
-              (flow) =>
-                (flow.status === 'DONE' && flow.success !== 1) ||
-                flow.status === 'FAILED' ||
-                (flow.error_messages && flow.error_messages.length > 0),
-            );
-          if (failedFlows.length > 0) {
-            setTitle(`maestro · ✘ ${failedFlows.length} failed`);
-            logger.error(
-              `${failedFlows.length} flow(s) failed across ${failedRuns.length} run(s)`,
-            );
-          } else {
-            setTitle(`maestro · ✘ ${failedRuns.length} failed`);
-            logger.error(`${failedRuns.length} test run(s) failed`);
-          }
-        }
-
-        if (this.options.report && this.options.reportOutputDir) {
-          await this.fetchReports(status.runs);
-        }
-
-        if (this.options.downloadArtifacts) {
-          await this.downloadArtifacts(status.runs);
-        }
-
-        return {
-          success: status.success,
-          runs: status.runs,
-        };
+        this.flowsTableDisplayed = flowsTableDisplayed;
+        this.latestDisplayedLineCount = displayedLineCount;
+        return status;
       }
 
       // Checked after getStatus() so a run that completes during the final
@@ -1998,6 +2141,101 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       pollInterval = this.computeNextPollInterval(pollInterval, changed);
       await this.sleep(pollInterval);
     }
+  }
+
+  /**
+   * Renders the final table/summary, reports the last-attempt-wins result, and
+   * fetches reports/artifacts. Called once after the (optional) retry loop.
+   */
+  private async finalize(
+    status: MaestroStatusResponse,
+  ): Promise<MaestroResult> {
+    this.stopFlowAnimation();
+
+    // Display final flows table with error messages if there are failures
+    if (!this.options.quiet && this.flowsTableDisplayed) {
+      const allFlows: MaestroFlowInfo[] = [];
+      for (const run of status.runs) {
+        if (run.flows && run.flows.length > 0) {
+          allFlows.push(...run.flows);
+        }
+      }
+
+      this.flowAttempts = this.computeFlowAttempts(allFlows);
+      const hasFailures = this.hasAnyFlowFailed(allFlows);
+      if (hasFailures) {
+        // Move cursor up to overwrite the existing table
+        // +2 for header and separator lines
+        const linesToMove = this.latestDisplayedLineCount + 2;
+        process.stdout.write(`\x1b[${linesToMove}A`);
+
+        // Clear header line, write new header, then clear separator line
+        const { header, separator } = this.buildFlowsTableHeader(true);
+        process.stdout.write('\x1b[2K');
+        console.log(header);
+        process.stdout.write('\x1b[2K');
+        console.log(separator);
+        this.flowTableHasFailuresColumn = true;
+
+        // Redraw all flows with error messages
+        for (const flow of allFlows) {
+          // Clear the line before writing
+          process.stdout.write('\x1b[2K');
+          this.displayFlowRow(flow, false, true);
+        }
+      }
+    }
+
+    // Print final summary (last-attempt-wins per run)
+    if (!this.options.quiet) {
+      this.spinner.stop();
+      console.log(); // Empty line before summary
+
+      for (const run of status.runs) {
+        const passed = this.runPassed(run);
+        const symbol = passed ? pc.green('✔') : pc.red('✘');
+        const statusText = passed
+          ? pc.green('Test completed successfully')
+          : pc.red('Test failed');
+        console.log(
+          `  ${symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusText}`,
+        );
+      }
+    }
+
+    const allSucceeded = this.computeOverallSuccess(status.runs);
+
+    if (allSucceeded) {
+      setTitle('maestro · ✔ passed');
+      if (!this.options.quiet) {
+        logger.info('All tests completed successfully!');
+      }
+    } else {
+      const failedRuns = status.runs.filter((run) => !this.runPassed(run));
+      const failedFlows = this.failedLatestAttempts(status.runs);
+      if (failedFlows.length > 0) {
+        setTitle(`maestro · ✘ ${failedFlows.length} failed`);
+        logger.error(
+          `${failedFlows.length} flow(s) failed across ${failedRuns.length} run(s)`,
+        );
+      } else {
+        setTitle(`maestro · ✘ ${failedRuns.length} failed`);
+        logger.error(`${failedRuns.length} test run(s) failed`);
+      }
+    }
+
+    if (this.options.report && this.options.reportOutputDir) {
+      await this.fetchReports(status.runs);
+    }
+
+    if (this.options.downloadArtifacts) {
+      await this.downloadArtifacts(status.runs);
+    }
+
+    return {
+      success: allSucceeded,
+      runs: status.runs,
+    };
   }
 
   private displayRunStatus(
@@ -2210,6 +2448,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     previousFlowStatus: Map<number, MaestroFlowStatus>,
     hasFailures: boolean = false,
   ): number {
+    this.flowAttempts = this.computeFlowAttempts(flows);
     const maxFlows = this.getMaxDisplayableFlows();
     const displayFlows = flows.slice(0, maxFlows);
     let linesWritten = 0;
@@ -2229,7 +2468,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return linesWritten;
   }
 
-  private displayFlowsTableHeader(hasFailures: boolean = false): void {
+  /**
+   * Builds the (dimmed) header and separator lines for the flows table. When
+   * `hasFailures` is set, the "Fail reason" column is appended.
+   */
+  private buildFlowsTableHeader(hasFailures: boolean): {
+    header: string;
+    separator: string;
+  } {
     let header = ` ${'Duration'.padEnd(10)} ${'Status'.padEnd(10)} Flow`;
     let separator = ` ${'─'.repeat(10)} ${'─'.repeat(10)} ${'─'.repeat(30)}`;
 
@@ -2238,15 +2484,27 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       separator += ` ${'─'.repeat(80)}`;
     }
 
-    console.log(pc.dim(header));
-    console.log(pc.dim(separator));
+    return { header: pc.dim(header), separator: pc.dim(separator) };
   }
 
-  private displayFlowRow(
+  private displayFlowsTableHeader(hasFailures: boolean = false): void {
+    const { header, separator } = this.buildFlowsTableHeader(hasFailures);
+    console.log(header);
+    console.log(separator);
+    this.flowTableHasFailuresColumn = hasFailures;
+  }
+
+  /**
+   * Builds the single-line representation of a flow row: duration, status, the
+   * (padded) flow name, and — when the flow has failed — its first error
+   * message inline. Shared by the static render (displayFlowRow) and the live
+   * in-place updates (updateFlowsInPlace) so the fail reason shows
+   * consistently, including while a retry is still running.
+   */
+  private buildFlowRowLine(
     flow: MaestroFlowInfo,
-    isUpdate: boolean = false,
-    hasFailures: boolean = false,
-  ): number {
+    hasFailures: boolean,
+  ): string {
     const duration = this.calculateFlowDuration(flow).padEnd(10);
     const statusDisplay = this.getFlowStatusDisplay(flow);
     // Pad based on display text length, add extra for color codes
@@ -2254,7 +2512,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       statusDisplay.colored +
       ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
 
-    let linesWritten = 0;
     const isFailed = flow.status === 'DONE' && flow.success !== 1;
     const errorMessages = flow.error_messages || [];
     const firstError =
@@ -2263,17 +2520,32 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         : '';
     const errorReserve = firstError ? firstError.length + 1 : 0;
     const maxName = this.getMaxNameLength(errorReserve);
-    const name = this.truncateForRow(flow.name, maxName).padEnd(
+    const name = this.truncateForRow(this.flowRowName(flow), maxName).padEnd(
       Math.min(30, maxName),
     );
 
-    // Build the main row
-    let row = ` ${duration} ${statusPadded} ${name}`;
+    // Build the main row (colorize the retry marker after padding so the
+    // column-width math stays based on the plain glyph).
+    let row = ` ${duration} ${statusPadded} ${this.colorizeRetryIcon(name)}`;
 
     // Add first error message on the same line if failed and has errors
     if (firstError) {
       row += ` ${pc.red(firstError)}`;
     }
+
+    return row;
+  }
+
+  private displayFlowRow(
+    flow: MaestroFlowInfo,
+    isUpdate: boolean = false,
+    hasFailures: boolean = false,
+  ): number {
+    const row = this.buildFlowRowLine(flow, hasFailures);
+
+    let linesWritten = 0;
+    const isFailed = flow.status === 'DONE' && flow.success !== 1;
+    const errorMessages = flow.error_messages || [];
 
     if (isUpdate) {
       process.stdout.write(`\r${row}`);
@@ -2362,28 +2634,35 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     previousFlowStatus: Map<number, MaestroFlowStatus>,
     displayedLineCount: number,
   ): number {
+    this.flowAttempts = this.computeFlowAttempts(flows);
     const maxFlows = this.getMaxDisplayableFlows();
     const displayFlows = flows.slice(0, maxFlows);
     const hasRemaining = flows.length > maxFlows;
+    const hasFailures = this.hasAnyFlowFailed(flows);
 
-    // Move cursor up by the number of lines we PREVIOUSLY displayed
-    if (displayedLineCount > 0) {
+    // If failures appeared after the header was first drawn (e.g. mid-run, or
+    // when re-rendering during a retry), redraw the header to add the "Fail
+    // reason" column. This also moves the cursor back up to the first flow row.
+    // Otherwise just move up by the number of lines we PREVIOUSLY displayed.
+    if (hasFailures && !this.flowTableHasFailuresColumn) {
+      const { header, separator } = this.buildFlowsTableHeader(true);
+      process.stdout.write(`\x1b[${displayedLineCount + 2}A`);
+      process.stdout.write('\x1b[2K');
+      console.log(header);
+      process.stdout.write('\x1b[2K');
+      console.log(separator);
+      this.flowTableHasFailuresColumn = true;
+    } else if (displayedLineCount > 0) {
       process.stdout.write(`\x1b[${displayedLineCount}A`);
     }
 
     let linesWritten = 0;
 
-    // Redraw displayed flows
-    const maxName = this.getMaxNameLength();
+    // Redraw displayed flows. buildFlowRowLine appends the first error message
+    // inline for failed flows so fail reasons stay visible during live updates
+    // (including while a retry re-runs the failed flows).
     for (const flow of displayFlows) {
-      const duration = this.calculateFlowDuration(flow).padEnd(10);
-      const statusDisplay = this.getFlowStatusDisplay(flow);
-      const statusPadded =
-        statusDisplay.colored +
-        ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
-      const name = this.truncateForRow(flow.name, maxName);
-
-      const row = ` ${duration} ${statusPadded} ${name}`;
+      const row = this.buildFlowRowLine(flow, hasFailures);
       process.stdout.write(`\r\x1b[2K${row}\n`);
 
       previousFlowStatus.set(flow.id, flow.status);

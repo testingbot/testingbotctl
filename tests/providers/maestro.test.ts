@@ -4547,6 +4547,93 @@ flows:
 
         stdoutSpy.mockRestore();
       });
+
+      it('should render the fail reason inline for failed flows', () => {
+        const stdoutSpy = jest
+          .spyOn(process.stdout, 'write')
+          .mockImplementation();
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        const flows: MaestroFlowInfo[] = [
+          {
+            id: 1,
+            name: 'flow1.yaml',
+            status: 'DONE',
+            success: 0,
+            requested_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            error_messages: [
+              'Assertion is false: id: legal-checkbox is visible',
+            ],
+          },
+          {
+            id: 2,
+            name: 'flow2.yaml',
+            status: 'READY',
+            requested_at: new Date().toISOString(),
+          },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'READY');
+        previousStatus.set(2, 'WAITING');
+
+        maestro['updateFlowsInPlace'](flows, previousStatus, 2);
+
+        const allOutput = [
+          ...stdoutSpy.mock.calls.map((c) => String(c[0])),
+          ...consoleSpy.mock.calls.map((c) => String(c[0])),
+        ].join('');
+
+        // Fail reason should be visible in the live (in-place) table, not just
+        // in the final summary.
+        expect(allOutput).toContain(
+          'Assertion is false: id: legal-checkbox is visible',
+        );
+        // Header should be redrawn to add the "Fail reason" column.
+        expect(allOutput).toContain('Fail reason');
+
+        consoleSpy.mockRestore();
+        stdoutSpy.mockRestore();
+      });
+
+      it('should not redraw the header again once the failure column exists', () => {
+        const stdoutSpy = jest
+          .spyOn(process.stdout, 'write')
+          .mockImplementation();
+        const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+
+        // Header already advertises the failure column (e.g. drawn during the
+        // initial render of a retry pass).
+        maestro['flowTableHasFailuresColumn'] = true;
+
+        const flows: MaestroFlowInfo[] = [
+          {
+            id: 1,
+            name: 'flow1.yaml',
+            status: 'DONE',
+            success: 0,
+            requested_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            error_messages: ['boom'],
+          },
+        ];
+        const previousStatus = new Map<number, MaestroFlowStatus>();
+        previousStatus.set(1, 'READY');
+
+        maestro['updateFlowsInPlace'](flows, previousStatus, 1);
+
+        // Still shows the fail reason inline...
+        const allOutput = [
+          ...stdoutSpy.mock.calls.map((c) => String(c[0])),
+          ...consoleSpy.mock.calls.map((c) => String(c[0])),
+        ].join('');
+        expect(allOutput).toContain('boom');
+        // ...but does not redraw the header (no header text emitted).
+        expect(allOutput).not.toContain('Fail reason');
+
+        consoleSpy.mockRestore();
+        stdoutSpy.mockRestore();
+      });
     });
   });
 
@@ -5675,6 +5762,273 @@ onFlowStart:
         .mockResolvedValue(undefined);
 
       const result = await maestroTunnelAsync.run();
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Retry', () => {
+    it('groupLatest keeps the highest-id attempt per logical flow', () => {
+      const flows = [
+        { id: 1, name: 'login', status: 'FAILED', success: 0 },
+        { id: 2, name: 'login', status: 'DONE', success: 1 },
+        { id: 3, name: 'checkout', status: 'DONE', success: 1 },
+      ];
+      const latest = maestro['groupLatest'](flows as MaestroFlowInfo[]);
+      expect(latest).toHaveLength(2);
+      expect(latest.find((f) => f.name === 'login')?.id).toBe(2);
+    });
+
+    it('groupLatest groups sharded attempts by shard_index', () => {
+      const flows = [
+        { id: 1, name: 'a, b', status: 'FAILED', success: 0, shard_index: 0 },
+        { id: 2, name: 'a, b', status: 'DONE', success: 1, shard_index: 0 },
+        { id: 3, name: 'c, d', status: 'DONE', success: 1, shard_index: 1 },
+      ];
+      const latest = maestro['groupLatest'](flows as MaestroFlowInfo[]);
+      expect(latest).toHaveLength(2);
+      expect(latest.find((f) => f.shard_index === 0)?.id).toBe(2);
+    });
+
+    it('failedLatestAttempts ignores a superseded failure', () => {
+      const runs = [
+        {
+          id: 5678,
+          flows: [
+            { id: 1, name: 'login', status: 'FAILED', success: 0 },
+            { id: 2, name: 'login', status: 'DONE', success: 1 },
+          ],
+        },
+      ];
+      expect(maestro['failedLatestAttempts'](runs as never)).toHaveLength(0);
+    });
+
+    it('failedLatestAttempts reports a flow still failing on its latest attempt', () => {
+      const runs = [
+        {
+          id: 5678,
+          flows: [
+            { id: 1, name: 'login', status: 'FAILED', success: 0 },
+            { id: 2, name: 'login', status: 'FAILED', success: 0 },
+          ],
+        },
+      ];
+      const failed = maestro['failedLatestAttempts'](runs as never);
+      expect(failed).toHaveLength(1);
+      expect(failed[0].runId).toBe(5678);
+      expect(failed[0].flow.id).toBe(2);
+    });
+
+    it('computeOverallSuccess uses last-attempt-wins', () => {
+      const runs = [
+        {
+          id: 1,
+          success: 0,
+          flows: [
+            { id: 1, name: 'login', status: 'FAILED', success: 0 },
+            { id: 2, name: 'login', status: 'DONE', success: 1 },
+          ],
+        },
+      ];
+      expect(maestro['computeOverallSuccess'](runs as never)).toBe(true);
+    });
+
+    it('flowsSettled is true only when every target id has settled', () => {
+      const status = {
+        runs: [
+          {
+            id: 1,
+            flows: [
+              { id: 9, name: 'a', status: 'READY' },
+              { id: 10, name: 'b', status: 'DONE', success: 1 },
+            ],
+          },
+        ],
+        success: false,
+        completed: false,
+      };
+      expect(maestro['flowsSettled'](status as never, [10])).toBe(true);
+      expect(maestro['flowsSettled'](status as never, [9])).toBe(false);
+      expect(maestro['flowsSettled'](status as never, [10, 9])).toBe(false);
+      expect(maestro['flowsSettled'](status as never, [999])).toBe(false);
+    });
+
+    it('retryFlow posts to the per-flow retry endpoint and returns the new id', async () => {
+      maestro['appId'] = 1234;
+      axios.post = jest
+        .fn()
+        .mockResolvedValueOnce({ data: { success: true, flow: { id: 99 } } });
+
+      const newId = await maestro['retryFlow'](5678, 42);
+
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/42/retry',
+        {},
+        expect.objectContaining({
+          auth: { username: 'testUser', password: 'testKey' },
+        }),
+      );
+      expect(newId).toBe(99);
+    });
+
+    it('runRetryLoop retries failed flows and stops once they pass', async () => {
+      const options = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { retry: 2, quiet: true },
+      );
+      const m = new Maestro(mockCredentials, options);
+
+      const initial = {
+        runs: [
+          {
+            id: 5678,
+            success: 0,
+            flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
+          },
+        ],
+        success: false,
+        completed: true,
+      };
+      const afterRetry = {
+        runs: [
+          {
+            id: 5678,
+            success: 0,
+            flows: [
+              { id: 1, name: 'login', status: 'FAILED', success: 0 },
+              { id: 2, name: 'login', status: 'DONE', success: 1 },
+            ],
+          },
+        ],
+        success: false,
+        completed: true,
+      };
+
+      m['retryFlow'] = jest.fn().mockResolvedValue(2);
+      m['pollOnce'] = jest.fn().mockResolvedValue(afterRetry);
+
+      const result = await m['runRetryLoop'](initial as never);
+
+      expect(m['retryFlow']).toHaveBeenCalledTimes(1);
+      expect(m['retryFlow']).toHaveBeenCalledWith(5678, 1);
+      expect(m['pollOnce']).toHaveBeenCalledTimes(1);
+      expect(result).toBe(afterRetry);
+      expect(m['computeOverallSuccess'](result.runs)).toBe(true);
+    });
+
+    it('runRetryLoop stops after exhausting the retry budget', async () => {
+      const options = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { retry: 2, quiet: true },
+      );
+      const m = new Maestro(mockCredentials, options);
+
+      const stillFailing = {
+        runs: [
+          {
+            id: 5678,
+            success: 0,
+            flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
+          },
+        ],
+        success: false,
+        completed: true,
+      };
+
+      m['retryFlow'] = jest.fn().mockResolvedValue(2);
+      m['pollOnce'] = jest.fn().mockResolvedValue(stillFailing);
+
+      const result = await m['runRetryLoop'](stillFailing as never);
+
+      expect(m['retryFlow']).toHaveBeenCalledTimes(2);
+      expect(m['computeOverallSuccess'](result.runs)).toBe(false);
+    });
+
+    it('waitForCompletion does not retry when --retry is 0', async () => {
+      const failedStatus = {
+        runs: [
+          {
+            id: 5678,
+            success: 0,
+            flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
+          },
+        ],
+        success: false,
+        completed: true,
+      };
+
+      maestro['pollOnce'] = jest.fn().mockResolvedValue(failedStatus);
+      maestro['finalize'] = jest
+        .fn()
+        .mockResolvedValue({ success: false, runs: failedStatus.runs });
+      maestro['retryFlow'] = jest.fn();
+
+      const result = await maestro['waitForCompletion']();
+
+      expect(maestro['retryFlow']).not.toHaveBeenCalled();
+      expect(maestro['finalize']).toHaveBeenCalledWith(failedStatus);
+      expect(result.success).toBe(false);
+    });
+
+    it('computeFlowAttempts numbers attempts per logical group by id', () => {
+      const flows = [
+        { id: 1, name: 'login', status: 'FAILED', success: 0 },
+        { id: 3, name: 'login', status: 'DONE', success: 1 },
+        { id: 2, name: 'checkout', status: 'DONE', success: 1 },
+      ];
+      const attempts = maestro['computeFlowAttempts'](
+        flows as MaestroFlowInfo[],
+      );
+      expect(attempts.get(1)).toBe(1); // first login attempt
+      expect(attempts.get(3)).toBe(2); // retry of login
+      expect(attempts.get(2)).toBe(1); // checkout, single attempt
+    });
+
+    it('flowRowName marks retry attempts with the retry icon', () => {
+      const flows = [
+        { id: 1, name: 'login', status: 'FAILED', success: 0 },
+        { id: 2, name: 'login', status: 'DONE', success: 1 },
+      ];
+      maestro['flowAttempts'] = maestro['computeFlowAttempts'](
+        flows as MaestroFlowInfo[],
+      );
+      expect(maestro['flowRowName'](flows[0] as MaestroFlowInfo)).toBe('login');
+      expect(maestro['flowRowName'](flows[1] as MaestroFlowInfo)).toBe(
+        '↻ login (retry 1)',
+      );
+    });
+
+    it('flowRowName groups sharded retries by shard_index', () => {
+      const flows = [
+        { id: 1, name: 'a, b', status: 'FAILED', success: 0, shard_index: 0 },
+        { id: 2, name: 'a, b', status: 'DONE', success: 1, shard_index: 0 },
+      ];
+      maestro['flowAttempts'] = maestro['computeFlowAttempts'](
+        flows as MaestroFlowInfo[],
+      );
+      expect(maestro['flowRowName'](flows[1] as MaestroFlowInfo)).toBe(
+        '↻ a, b (retry 1)',
+      );
+    });
+
+    it('throws when --retry is combined with --async', async () => {
+      const optionsRetryAsync = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { retry: 1, async: true },
+      );
+      const m = new Maestro(mockCredentials, optionsRetryAsync);
+
+      m['validate'] = jest.fn().mockResolvedValue(true);
+      m['ensureConnectivity'] = jest.fn().mockResolvedValue(undefined);
+      m['uploadApp'] = jest.fn().mockResolvedValue(undefined);
+      m['uploadFlows'] = jest.fn().mockResolvedValue(undefined);
+
+      const result = await m.run();
       expect(result.success).toBe(false);
     });
   });

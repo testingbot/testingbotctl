@@ -529,6 +529,44 @@ describe('TestingBotCTL CLI', () => {
     expect(opts.googlePlayStore).toBe(false);
   });
 
+  test('maestro command should parse --retry into MaestroOptions', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'Pixel 9',
+      '--retry',
+      '2',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ retry: number }>(Maestro);
+    expect(opts.retry).toBe(2);
+  });
+
+  test('maestro command should default retry to 0 when --retry omitted', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'maestro',
+      'app.apk',
+      './flows',
+      '--device',
+      'Pixel 9',
+    ]);
+
+    expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{ retry: number }>(Maestro);
+    expect(opts.retry).toBe(0);
+  });
+
   test('espresso command should accept metadata options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
     mockEspressoRun.mockResolvedValue({ success: true, runs: [] });

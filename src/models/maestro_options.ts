@@ -44,6 +44,9 @@ export interface MaestroRunOptions {
 
 export const MAX_OTHER_APPS = 4;
 
+// Mirror devicecloud.dev: retries are capped at 2 (max 3 total runs per flow).
+export const MAX_RETRY = 2;
+
 export default class MaestroOptions {
   private static isIpaFile(app?: string): boolean {
     return app?.toLowerCase().endsWith('.ipa') ?? false;
@@ -78,6 +81,7 @@ export default class MaestroOptions {
   private _artifactsOutputDir?: string;
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
+  private _retry: number;
   private _debug: boolean;
   private _configFile?: string;
   private _groups?: string[];
@@ -114,6 +118,7 @@ export default class MaestroOptions {
       artifactsOutputDir?: string;
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
+      retry?: number;
       debug?: boolean;
       configFile?: string;
       groups?: string[];
@@ -161,6 +166,16 @@ export default class MaestroOptions {
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
+    this._retry = options?.retry ?? 0;
+    if (
+      !Number.isInteger(this._retry) ||
+      this._retry < 0 ||
+      this._retry > MAX_RETRY
+    ) {
+      throw new Error(
+        `Invalid --retry value (${options?.retry}). It must be an integer between 0 and ${MAX_RETRY}.`,
+      );
+    }
     this._debug = options?.debug ?? false;
     this._configFile = options?.configFile;
     this._groups = options?.groups;
@@ -278,6 +293,10 @@ export default class MaestroOptions {
 
   public get shardSplit(): number | undefined {
     return this._shardSplit;
+  }
+
+  public get retry(): number {
+    return this._retry;
   }
 
   public get debug(): boolean {
