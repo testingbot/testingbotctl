@@ -5832,24 +5832,168 @@ onFlowStart:
       expect(maestro['computeOverallSuccess'](runs as never)).toBe(true);
     });
 
-    it('flowsSettled is true only when every target id has settled', () => {
+    it('retriesComplete waits while a flow is still running', () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 1,
+      });
+      const m = new Maestro(mockCredentials, options);
       const status = {
         runs: [
           {
             id: 1,
+            status: 'READY',
             flows: [
               { id: 9, name: 'a', status: 'READY' },
               { id: 10, name: 'b', status: 'DONE', success: 1 },
             ],
           },
         ],
-        success: false,
-        completed: false,
       };
-      expect(maestro['flowsSettled'](status as never, [10])).toBe(true);
-      expect(maestro['flowsSettled'](status as never, [9])).toBe(false);
-      expect(maestro['flowsSettled'](status as never, [10, 9])).toBe(false);
-      expect(maestro['flowsSettled'](status as never, [999])).toBe(false);
+      expect(m['retriesComplete'](status as never, new Set(), new Set())).toBe(
+        false,
+      );
+    });
+
+    it('retriesComplete waits for a freshly-retried flow to surface', () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 1,
+      });
+      const m = new Maestro(mockCredentials, options);
+      const status = {
+        runs: [
+          {
+            id: 1,
+            status: 'DONE',
+            flows: [{ id: 9, name: 'a', status: 'FAILED', success: 0 }],
+          },
+        ],
+      };
+      // A retry was issued from attempt 9 but its replacement hasn't appeared.
+      expect(
+        m['retriesComplete'](status as never, new Set([9]), new Set()),
+      ).toBe(false);
+    });
+
+    it('retriesComplete is true once a failed flow exhausts its budget', () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 1,
+      });
+      const m = new Maestro(mockCredentials, options);
+      const status = {
+        runs: [
+          {
+            id: 1,
+            status: 'DONE',
+            flows: [
+              { id: 9, name: 'a', status: 'FAILED', success: 0 },
+              { id: 12, name: 'a', status: 'FAILED', success: 0 },
+            ],
+          },
+        ],
+      };
+      // attempt 12 is the 2nd attempt; with retry=1 the budget is spent.
+      expect(
+        m['retriesComplete'](status as never, new Set([9]), new Set()),
+      ).toBe(true);
+    });
+
+    it('retriesComplete treats an abandoned retry as terminal', () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 1,
+      });
+      const m = new Maestro(mockCredentials, options);
+      const status = {
+        runs: [
+          {
+            id: 1,
+            status: 'DONE',
+            flows: [{ id: 9, name: 'a', status: 'FAILED', success: 0 }],
+          },
+        ],
+      };
+      expect(
+        m['retriesComplete'](status as never, new Set(), new Set([9])),
+      ).toBe(true);
+    });
+
+    it('issueEligibleRetries retries a just-failed flow immediately', async () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 1,
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, options);
+      m['retryFlow'] = jest.fn().mockResolvedValue(20);
+
+      const retriedFrom = new Set<number>();
+      const abandoned = new Set<number>();
+      // Flow 9 has failed while flow 10 is still running.
+      const status = {
+        runs: [
+          {
+            id: 5678,
+            status: 'READY',
+            flows: [
+              { id: 9, name: 'login', status: 'FAILED', success: 0 },
+              { id: 10, name: 'checkout', status: 'READY' },
+            ],
+          },
+        ],
+      };
+
+      await m['issueEligibleRetries'](status as never, retriedFrom, abandoned);
+
+      expect(m['retryFlow']).toHaveBeenCalledTimes(1);
+      expect(m['retryFlow']).toHaveBeenCalledWith(5678, 9);
+      expect(retriedFrom.has(9)).toBe(true);
+    });
+
+    it('issueEligibleRetries does not re-retry the same attempt', async () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 2,
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, options);
+      m['retryFlow'] = jest.fn().mockResolvedValue(20);
+
+      const status = {
+        runs: [
+          {
+            id: 5678,
+            status: 'DONE',
+            flows: [{ id: 9, name: 'login', status: 'FAILED', success: 0 }],
+          },
+        ],
+      };
+
+      await m['issueEligibleRetries'](status as never, new Set([9]), new Set());
+
+      expect(m['retryFlow']).not.toHaveBeenCalled();
+    });
+
+    it('issueEligibleRetries abandons a flow whose retry request fails', async () => {
+      const options = new MaestroOptions('a.apk', 'flows', 'Pixel 6', {
+        retry: 1,
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, options);
+      m['retryFlow'] = jest.fn().mockRejectedValue(new Error('boom'));
+
+      const retriedFrom = new Set<number>();
+      const abandoned = new Set<number>();
+      const status = {
+        runs: [
+          {
+            id: 5678,
+            status: 'DONE',
+            flows: [{ id: 9, name: 'login', status: 'FAILED', success: 0 }],
+          },
+        ],
+      };
+
+      await m['issueEligibleRetries'](status as never, retriedFrom, abandoned);
+
+      expect(retriedFrom.has(9)).toBe(false);
+      expect(abandoned.has(9)).toBe(true);
     });
 
     it('retryFlow posts to the per-flow retry endpoint and returns the new id', async () => {
@@ -5870,7 +6014,7 @@ onFlowStart:
       expect(newId).toBe(99);
     });
 
-    it('runRetryLoop retries failed flows and stops once they pass', async () => {
+    it('retries a failed flow while other flows are still running', async () => {
       const options = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
@@ -5878,73 +6022,145 @@ onFlowStart:
         { retry: 2, quiet: true },
       );
       const m = new Maestro(mockCredentials, options);
+      m['appId'] = 1234;
+      m['MIN_POLL_INTERVAL_MS'] = 1;
+      m['MAX_POLL_INTERVAL_MS'] = 1;
 
-      const initial = {
-        runs: [
-          {
-            id: 5678,
-            success: 0,
-            flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
-          },
-        ],
-        success: false,
-        completed: true,
+      // Poll 1: login failed, checkout still running -> retry must fire NOW.
+      const poll1 = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'READY',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'login', status: 'FAILED', success: 0 },
+                { id: 2, name: 'checkout', status: 'READY' },
+              ],
+            },
+          ],
+          success: false,
+          completed: false,
+        },
       };
-      const afterRetry = {
-        runs: [
-          {
-            id: 5678,
-            success: 0,
-            flows: [
-              { id: 1, name: 'login', status: 'FAILED', success: 0 },
-              { id: 2, name: 'login', status: 'DONE', success: 1 },
-            ],
-          },
-        ],
-        success: false,
-        completed: true,
+      // Poll 2: retry attempt (id 3) running, checkout finished.
+      const poll2 = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'READY',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'login', status: 'FAILED', success: 0 },
+                { id: 2, name: 'checkout', status: 'DONE', success: 1 },
+                { id: 3, name: 'login', status: 'READY' },
+              ],
+            },
+          ],
+          success: false,
+          completed: false,
+        },
+      };
+      // Poll 3: retry passed -> last-attempt-wins success.
+      const poll3 = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'login', status: 'FAILED', success: 0 },
+                { id: 2, name: 'checkout', status: 'DONE', success: 1 },
+                { id: 3, name: 'login', status: 'DONE', success: 1 },
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
       };
 
-      m['retryFlow'] = jest.fn().mockResolvedValue(2);
-      m['pollOnce'] = jest.fn().mockResolvedValue(afterRetry);
+      axios.get = jest
+        .fn()
+        .mockResolvedValueOnce(poll1)
+        .mockResolvedValueOnce(poll2)
+        .mockResolvedValue(poll3);
+      const retryFlow = jest.fn().mockResolvedValue(3);
+      m['retryFlow'] = retryFlow;
 
-      const result = await m['runRetryLoop'](initial as never);
+      const result = await m['waitForCompletion']();
 
-      expect(m['retryFlow']).toHaveBeenCalledTimes(1);
-      expect(m['retryFlow']).toHaveBeenCalledWith(5678, 1);
-      expect(m['pollOnce']).toHaveBeenCalledTimes(1);
-      expect(result).toBe(afterRetry);
-      expect(m['computeOverallSuccess'](result.runs)).toBe(true);
+      // The retry was issued on poll 1, before checkout (flow 2) finished.
+      expect(retryFlow).toHaveBeenCalledTimes(1);
+      expect(retryFlow).toHaveBeenCalledWith(5678, 1);
+      expect(result.success).toBe(true);
     });
 
-    it('runRetryLoop stops after exhausting the retry budget', async () => {
+    it('stops retrying once the per-flow budget is exhausted', async () => {
       const options = new MaestroOptions(
         'path/to/app.apk',
         'path/to/flows',
         'Pixel 6',
-        { retry: 2, quiet: true },
+        { retry: 1, quiet: true },
       );
       const m = new Maestro(mockCredentials, options);
+      m['appId'] = 1234;
+      m['MIN_POLL_INTERVAL_MS'] = 1;
+      m['MAX_POLL_INTERVAL_MS'] = 1;
 
-      const stillFailing = {
-        runs: [
-          {
-            id: 5678,
-            success: 0,
-            flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
-          },
-        ],
-        success: false,
-        completed: true,
+      const poll1 = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      };
+      // Retry attempt also fails -> budget (retry=1) exhausted, loop stops.
+      const poll2 = {
+        data: {
+          runs: [
+            {
+              id: 5678,
+              status: 'DONE',
+              capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+              success: 0,
+              flows: [
+                { id: 1, name: 'login', status: 'FAILED', success: 0 },
+                { id: 2, name: 'login', status: 'FAILED', success: 0 },
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
       };
 
-      m['retryFlow'] = jest.fn().mockResolvedValue(2);
-      m['pollOnce'] = jest.fn().mockResolvedValue(stillFailing);
+      axios.get = jest
+        .fn()
+        .mockResolvedValueOnce(poll1)
+        .mockResolvedValue(poll2);
+      const retryFlow = jest.fn().mockResolvedValue(2);
+      m['retryFlow'] = retryFlow;
 
-      const result = await m['runRetryLoop'](stillFailing as never);
+      const result = await m['waitForCompletion']();
 
-      expect(m['retryFlow']).toHaveBeenCalledTimes(2);
-      expect(m['computeOverallSuccess'](result.runs)).toBe(false);
+      expect(retryFlow).toHaveBeenCalledTimes(1);
+      expect(retryFlow).toHaveBeenCalledWith(5678, 1);
+      expect(result.success).toBe(false);
     });
 
     it('waitForCompletion does not retry when --retry is 0', async () => {

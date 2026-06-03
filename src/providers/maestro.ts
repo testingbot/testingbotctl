@@ -1808,61 +1808,105 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private async waitForCompletion(): Promise<MaestroResult> {
-    let status = await this.pollOnce((s) => s.completed);
+    let status: MaestroStatusResponse;
 
     if (this.options.retry > 0) {
-      status = await this.runRetryLoop(status);
+      // Retry failed flows the moment they settle — while the rest of the run
+      // is still executing — instead of waiting for the whole run to finish
+      // first. Each retry creates a new attempt that surfaces in the live
+      // table (marked with the ↻ icon) on the following poll.
+      const retriedFrom = new Set<number>();
+      const abandoned = new Set<number>();
+      status = await this.pollOnce(
+        (s) => this.retriesComplete(s, retriedFrom, abandoned),
+        (s) => this.issueEligibleRetries(s, retriedFrom, abandoned),
+      );
+    } else {
+      status = await this.pollOnce((s) => s.completed);
     }
 
     return this.finalize(status);
   }
 
   /**
-   * After a run completes with failures, re-run only the failed flows/shards
-   * via the per-flow retry endpoint, up to `retry` times. Stops as soon as no
-   * failed flows remain. Final pass/fail uses last-attempt-wins (see finalize).
+   * Poll completion condition used when --retry > 0. True once no flow is
+   * still running and no failed flow is still eligible for — or awaiting the
+   * result of — a retry. Replaces the run-level `completed` flag, which can
+   * flip prematurely while a freshly-queued retry has not yet surfaced.
    */
-  private async runRetryLoop(
-    initial: MaestroStatusResponse,
-  ): Promise<MaestroStatusResponse> {
-    let status = initial;
-
-    for (let attempt = 1; attempt <= this.options.retry; attempt++) {
-      if (this.isShuttingDown) break;
-
-      const failed = this.failedLatestAttempts(status.runs);
-      if (failed.length === 0) break;
-
-      if (!this.options.quiet) {
-        logger.info(
-          `Retry ${attempt}/${this.options.retry}: re-running ${failed.length} failed flow(s)`,
-        );
+  private retriesComplete(
+    status: MaestroStatusResponse,
+    retriedFrom: Set<number>,
+    abandoned: Set<number>,
+  ): boolean {
+    for (const run of status.runs) {
+      const flows = run.flows ?? [];
+      if (flows.length === 0) {
+        // No flows yet: only settled once the run itself reaches a terminal
+        // state (e.g. it failed before producing any flow).
+        if (run.status !== 'DONE' && run.status !== 'FAILED') return false;
+        continue;
       }
-      setTitle(`maestro · retry ${attempt}/${this.options.retry}`);
 
-      // Issue the retries first, collecting the new attempt IDs. We poll on
-      // those IDs rather than status.completed: the server does not reset the
-      // run status when a retry is queued, so `completed` flips true prematurely.
-      const newFlowIds: number[] = [];
-      for (const { runId, flow } of failed) {
+      const attempts = this.computeFlowAttempts(flows);
+      for (const latest of this.groupLatest(flows)) {
+        if (latest.status === 'WAITING' || latest.status === 'READY') {
+          return false; // still running
+        }
+        if (this.isFlowFailed(latest) && !abandoned.has(latest.id)) {
+          // A retry was issued from this attempt but its replacement has not
+          // surfaced yet — wait for the new attempt to appear and settle.
+          if (retriedFrom.has(latest.id)) return false;
+          // Still within the retry budget: a retry is about to be issued.
+          const attemptNumber = attempts.get(latest.id) ?? 1;
+          if (attemptNumber <= this.options.retry) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Issues a retry for every failed flow/shard whose latest attempt has just
+   * settled and still has retries left — immediately, without waiting for the
+   * rest of the run. Each attempt id is retried at most once; a retry whose
+   * request permanently fails is abandoned so the poll loop can still finish.
+   */
+  private async issueEligibleRetries(
+    status: MaestroStatusResponse,
+    retriedFrom: Set<number>,
+    abandoned: Set<number>,
+  ): Promise<void> {
+    if (this.isShuttingDown) return;
+
+    for (const run of status.runs) {
+      const flows = run.flows ?? [];
+      if (flows.length === 0) continue;
+
+      const attempts = this.computeFlowAttempts(flows);
+      for (const latest of this.groupLatest(flows)) {
+        if (!this.isFlowFailed(latest)) continue;
+        if (retriedFrom.has(latest.id) || abandoned.has(latest.id)) continue;
+
+        const attemptNumber = attempts.get(latest.id) ?? 1;
+        if (attemptNumber > this.options.retry) continue; // budget exhausted
+
         try {
-          const newId = await this.retryFlow(runId, flow.id);
-          if (typeof newId === 'number') newFlowIds.push(newId);
+          await this.retryFlow(run.id, latest.id);
+          retriedFrom.add(latest.id);
+          setTitle(`maestro · retry ${attemptNumber}/${this.options.retry}`);
         } catch (err) {
+          // Couldn't queue the retry — give up on this attempt so completion
+          // isn't blocked forever waiting for a replacement that never comes.
+          abandoned.add(latest.id);
           logger.warn(
-            `Could not retry flow "${flow.name}" (run ${runId}): ${
+            `Could not retry flow "${latest.name}" (run ${run.id}): ${
               err instanceof Error ? err.message : err
             }`,
           );
         }
       }
-
-      if (newFlowIds.length === 0) break;
-
-      status = await this.pollOnce((s) => this.flowsSettled(s, newFlowIds));
     }
-
-    return status;
   }
 
   /**
@@ -1998,31 +2042,18 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return runs.every((run) => this.runPassed(run));
   }
 
-  /** True once every flow whose id is in `flowIds` has reached DONE/FAILED. */
-  private flowsSettled(
-    status: MaestroStatusResponse,
-    flowIds: number[],
-  ): boolean {
-    for (const id of flowIds) {
-      let found: MaestroFlowInfo | undefined;
-      for (const run of status.runs) {
-        found = (run.flows ?? []).find((flow) => flow.id === id);
-        if (found) break;
-      }
-      if (!found || (found.status !== 'DONE' && found.status !== 'FAILED')) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   /**
    * Polls the run status, rendering the live flow table, until `isComplete`
    * returns true. Returns the raw status without printing the final summary or
    * fetching reports/artifacts — that is finalize()'s job.
+   *
+   * `onPoll`, when provided, runs after each poll is rendered and before the
+   * completion check — used by --retry to queue retries for flows that have
+   * just failed without waiting for the rest of the run to finish.
    */
   private async pollOnce(
     isComplete: (status: MaestroStatusResponse) => boolean,
+    onPoll?: (status: MaestroStatusResponse) => Promise<void>,
   ): Promise<MaestroStatusResponse> {
     const startTime = Date.now();
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
@@ -2110,6 +2141,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           // No flows yet, show run status
           this.displayRunStatus(status.runs, startTime, previousStatus);
         }
+      }
+
+      // Queue any eligible retries from this poll's results before deciding
+      // whether we're done, so a flow that just failed is retried immediately
+      // rather than after the whole run completes.
+      if (onPoll) {
+        await onPoll(status);
       }
 
       if (isComplete(status)) {

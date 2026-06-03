@@ -154,10 +154,10 @@ testingbot maestro <app> <flows...> [options]
 | Option | Description |
 |--------|-------------|
 | `--shard-split <number>` | Split flows into N parallel sessions for faster execution |
-| `--retry <count>` | Retry failed flows up to N times (0-2, default 0). Re-runs only the flows (or shards) that failed, stopping as soon as one passes. Cannot be combined with `--async`. |
+| `--retry <count>` | Retry failed flows up to N times (0-2, default 0). Re-runs only the flows (or shards) that failed, the moment they fail, while the rest of the run continues. Cannot be combined with `--async`. |
 | `--ignore-checksum-check` | Skip checksum verification and always upload the app |
 
-> **Note on `--retry`:** retries re-run only the failed flows/shards (not the whole run), stopping as soon as a flow passes. Pass/fail uses the result of the **last** attempt per flow (last-attempt-wins), consistently across the CLI exit code, the TestingBot dashboard, and reports downloaded via `--report`.
+> **Note on `--retry`:** a failed flow/shard is retried immediately — as soon as it fails — without waiting for the other flows in the run to finish. Retry attempts appear live in the flow table marked with a `↻` icon. Each flow is retried independently up to N times, stopping as soon as that flow passes. Pass/fail uses the result of the **last** attempt per flow (last-attempt-wins), consistently across the CLI exit code, the TestingBot dashboard, and reports downloaded via `--report`.
 
 **CI/CD Integration:**
 
