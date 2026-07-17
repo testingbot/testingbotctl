@@ -321,15 +321,29 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       // Show zip structure details
       if (flowResult) {
-        const { allFlowFiles, baseDir } = flowResult;
+        const { allFlowFiles, topLevelFlowFiles, baseDir } = flowResult;
         const effectiveBase =
           baseDir || this.computeCommonDirectory(allFlowFiles);
+        const topLevelSet = new Set(
+          topLevelFlowFiles.map((f) => path.resolve(f)),
+        );
         logger.info(
           'Zip structure (files as they will appear in the archive):',
         );
         for (const file of allFlowFiles) {
-          const archiveName = path.relative(effectiveBase, path.resolve(file));
-          logger.info(`  ${archiveName}`);
+          const resolved = path.resolve(file);
+          const archiveName = path.relative(effectiveBase, resolved);
+          const ext = path.extname(archiveName).toLowerCase();
+          const isFlowYaml =
+            (ext === '.yaml' || ext === '.yml') &&
+            !this.isConfigFile(archiveName);
+          let tag = '';
+          if (isFlowYaml) {
+            tag = topLevelSet.has(resolved)
+              ? '  (runs standalone)'
+              : '  (subflow — runFlow only)';
+          }
+          logger.info(`  ${archiveName}${tag}`);
         }
         logger.info(`  Base directory: ${path.resolve(effectiveBase)}`);
       } else {
@@ -640,6 +654,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    */
   async collectFlows(): Promise<{
     allFlowFiles: string[];
+    // Subset of allFlowFiles that will each execute as a standalone flow (i.e.
+    // not pulled in solely as a runFlow/runScript/addMedia dependency).
+    topLevelFlowFiles: string[];
     baseDir: string | undefined;
   } | null> {
     const flowsPaths = this.options.flows;
@@ -776,7 +793,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     if (!this.options.quiet) {
-      this.logIncludedFiles(allFlowFiles, baseDir);
+      this.logIncludedFiles(allFlowFiles, topLevelFlowFiles, baseDir);
 
       // Show info about potential slow execution on specific real devices
       utils.showRealDeviceFlowsInfo({
@@ -810,7 +827,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
-    return { allFlowFiles, baseDir };
+    // Only report top-level flows that survived tag filtering.
+    const finalFlowFileSet = new Set(allFlowFiles.map((f) => path.resolve(f)));
+    const survivingTopLevel = topLevelFlowFiles.filter((f) =>
+      finalFlowFileSet.has(path.resolve(f)),
+    );
+
+    return { allFlowFiles, topLevelFlowFiles: survivingTopLevel, baseDir };
   }
 
   private async uploadFlows() {
@@ -1783,16 +1806,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     );
   }
 
-  private logIncludedFiles(files: string[], baseDir?: string): void {
+  private logIncludedFiles(
+    files: string[],
+    topLevelFlowFiles: string[],
+    baseDir?: string,
+  ): void {
     // Get relative paths for display
     const effectiveBase = baseDir || this.computeCommonDirectory(files);
     const relativePaths = files
       .map((f) => path.relative(effectiveBase, f))
       .sort();
 
-    // Group by file type
+    // Resolved paths of flows that will each run standalone, so we can tell
+    // them apart from .yaml files that are only bundled as runFlow subflows.
+    const topLevelSet = new Set(topLevelFlowFiles.map((f) => path.resolve(f)));
+
+    // Group by file type. Flow YAML is split into "will run" vs "subflow
+    // dependency" so a user can see at a glance which files actually execute.
     const groups: Record<string, string[]> = {
-      'Flow files': [],
+      'Flows that will run': [],
+      'Bundled subflows (runFlow)': [],
       Scripts: [],
       'Media files': [],
       'Config files': [],
@@ -1805,7 +1838,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         if (this.isConfigFile(filePath)) {
           groups['Config files'].push(filePath);
         } else {
-          groups['Flow files'].push(filePath);
+          const resolved = path.resolve(effectiveBase, filePath);
+          if (topLevelSet.has(resolved)) {
+            groups['Flows that will run'].push(filePath);
+          } else {
+            groups['Bundled subflows (runFlow)'].push(filePath);
+          }
         }
       } else if (ext === '.js' || ext === '.ts') {
         groups['Scripts'].push(filePath);

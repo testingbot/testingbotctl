@@ -3944,6 +3944,60 @@ flows:
     });
   });
 
+  describe('collectFlows top-level vs subflow classification', () => {
+    const projectDir = path.resolve(path.sep, 'project');
+    const mainFlow = path.join(projectDir, 'main.yaml');
+    const subFlow = path.join(projectDir, 'sub.yaml');
+
+    it('reports only the passed flow as top-level and its runFlow target as a bundled subflow', async () => {
+      const yamlByPath: Record<string, string> = {
+        [mainFlow]: `- runFlow: sub.yaml`,
+        [subFlow]: `- launchApp`,
+      };
+
+      // A single file is passed explicitly; the subflow is discovered as a
+      // runFlow dependency, not as a top-level flow.
+      fs.promises.stat = jest.fn().mockImplementation((p: string) => {
+        if (p === mainFlow) {
+          return Promise.resolve({
+            isFile: () => true,
+            isDirectory: () => false,
+          });
+        }
+        return Promise.reject(new Error(`ENOENT: ${p}`));
+      });
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          yamlByPath[p] !== undefined
+            ? Promise.resolve(yamlByPath[p])
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+      // Only the subflow exists on disk; config lookups (findMaestroProjectRoot)
+      // must fail so no config.yaml is pulled in and baseDir stays undefined.
+      fs.promises.access = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          p === subFlow
+            ? Promise.resolve(undefined)
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+
+      const opts = new MaestroOptions('app.apk', mainFlow, 'Pixel 6', {
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+      const result = await m.collectFlows();
+
+      expect(result).not.toBeNull();
+      expect(result!.allFlowFiles).toEqual(
+        expect.arrayContaining([mainFlow, subFlow]),
+      );
+      expect(result!.topLevelFlowFiles).toEqual([mainFlow]);
+      expect(result!.topLevelFlowFiles).not.toContain(subFlow);
+    });
+  });
+
   describe('Flow Status Display', () => {
     describe('getFlowStatusDisplay', () => {
       it('should return yellow WAITING for WAITING status', () => {

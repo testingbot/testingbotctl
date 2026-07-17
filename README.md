@@ -226,6 +226,72 @@ testingbot maestro app.apk ./flows \
   --repo-name "myapp"
 ```
 
+#### Organizing flows and subflows
+
+Every top-level flow you pass runs as its own test. A **subflow** (a reusable
+flow another flow pulls in with `runFlow`) should **not** be passed as a
+top-level flow — if it is, it runs twice: once standalone and once as part of
+the flow that calls it.
+
+> Maestro has no notion of a "subflow-only" file. A `.yaml` sitting alongside
+> your real flows is a runnable flow, regardless of its name. Naming it
+> `*.shared.yaml` does **not** make Maestro treat it as shared.
+
+Recommended structure — keep subflows in their own directory:
+
+```
+flows/
+  login.yaml            # top-level, runs
+  checkout.yaml         # top-level, runs
+  subflows/
+    sign-in.yaml        # only runs when a flow calls it via runFlow
+```
+
+```yaml
+# flows/login.yaml
+- runFlow:
+    file: subflows/sign-in.yaml
+    env:
+      APP_ID: com.example.app
+```
+
+Then pass only the directory of top-level flows:
+
+```sh
+# Runs login.yaml and checkout.yaml; sign-in.yaml is bundled automatically
+# (as a runFlow dependency) but never runs on its own.
+testingbot maestro app.apk ./flows
+```
+
+When you pass individual files, list only the flows you want to run — their
+`runFlow` targets are discovered and uploaded for you:
+
+```sh
+# Correct: only the top-level flow. sign-in.yaml is bundled automatically.
+testingbot maestro app.apk ./flows/login.yaml
+
+# Wrong: sign-in.yaml would run twice.
+testingbot maestro app.apk ./flows/login.yaml ./flows/subflows/sign-in.yaml
+```
+
+Other ways to keep a subflow out of a run:
+
+- **`config.yaml` globs** — list only the folders that hold top-level flows
+  (e.g. `flows: ["*.yaml"]`), leaving subflow folders out of discovery.
+- **Tags** — add `tags: [subflow]` to the subflow's header and pass
+  `--exclude-tags subflow`.
+
+**Preview before you run.** `--dry-run` prints exactly which flows run
+standalone and which are bundled as `runFlow` subflows, without spending any
+device minutes:
+
+```sh
+testingbot maestro app.apk ./flows --dry-run
+```
+
+`testingbotctl` also prints a warning if a flow you passed will run more than
+once because another top-level flow calls it via `runFlow`.
+
 ---
 
 ### Espresso
