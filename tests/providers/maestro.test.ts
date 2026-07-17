@@ -5570,6 +5570,167 @@ onFlowStart:
     });
   });
 
+  describe('findDuplicateFlowReferences', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    // Mock readFile so each flow path returns its own content.
+    const mockFlowContents = (contents: Record<string, string>): void => {
+      fs.promises.readFile = jest.fn().mockImplementation((p: string) => {
+        const key = path.resolve(p);
+        if (key in contents) {
+          return Promise.resolve(contents[key]);
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+    };
+
+    it('flags a top-level flow that another top-level flow calls via runFlow', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const suite = path.join(projectDir, '00. Login suite.yaml');
+      const shared = path.join(projectDir, '01. Screencheck.shared.yaml');
+
+      mockFlowContents({
+        [suite]: `
+- runFlow:
+    file: 01. Screencheck.shared.yaml
+    env:
+      APP_ID: com.example.app
+`,
+        [shared]: `appId: \${APP_ID}\n---\n- launchApp\n`,
+      });
+
+      const duplicates = await maestro['findDuplicateFlowReferences']([
+        suite,
+        shared,
+      ]);
+
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0].referencedFlow).toBe(shared);
+      expect(duplicates[0].referencedBy).toEqual([suite]);
+    });
+
+    it('does not flag a subflow that is not passed as a top-level flow', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const suite = path.join(projectDir, '00. Login suite.yaml');
+
+      mockFlowContents({
+        [suite]: `
+- runFlow: subflows/screencheck.yaml
+`,
+      });
+
+      // Only the suite is passed as a top-level flow; the subflow is a
+      // dependency that gets bundled automatically, not run standalone.
+      const duplicates = await maestro['findDuplicateFlowReferences']([suite]);
+
+      expect(duplicates).toHaveLength(0);
+    });
+
+    it('resolves relative runFlow paths against the referencing flow', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const suite = path.join(projectDir, 'flows', 'main.yaml');
+      const shared = path.join(projectDir, 'shared', 'login.yaml');
+
+      mockFlowContents({
+        [suite]: `
+- runFlow: ../shared/login.yaml
+`,
+        [shared]: `- launchApp\n`,
+      });
+
+      const duplicates = await maestro['findDuplicateFlowReferences']([
+        suite,
+        shared,
+      ]);
+
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0].referencedFlow).toBe(shared);
+    });
+
+    it('deduplicates and lists all top-level flows that reference the shared flow', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const suiteA = path.join(projectDir, 'a.yaml');
+      const suiteB = path.join(projectDir, 'b.yaml');
+      const shared = path.join(projectDir, 'shared.yaml');
+
+      mockFlowContents({
+        [suiteA]: `- runFlow: shared.yaml\n`,
+        [suiteB]: `- runFlow: shared.yaml\n`,
+        [shared]: `- launchApp\n`,
+      });
+
+      const duplicates = await maestro['findDuplicateFlowReferences']([
+        suiteA,
+        suiteB,
+        shared,
+      ]);
+
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0].referencedFlow).toBe(shared);
+      expect(duplicates[0].referencedBy.sort()).toEqual(
+        [suiteA, suiteB].sort(),
+      );
+    });
+
+    it('detects runFlow nested inside inline commands', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const suite = path.join(projectDir, 'main.yaml');
+      const shared = path.join(projectDir, 'shared.yaml');
+
+      mockFlowContents({
+        [suite]: `
+- runFlow:
+    when:
+      visible: "Home"
+    commands:
+      - runFlow: shared.yaml
+`,
+        [shared]: `- launchApp\n`,
+      });
+
+      const duplicates = await maestro['findDuplicateFlowReferences']([
+        suite,
+        shared,
+      ]);
+
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0].referencedFlow).toBe(shared);
+    });
+
+    it('ignores a flow that only references itself', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const suite = path.join(projectDir, 'self.yaml');
+
+      mockFlowContents({
+        [suite]: `- runFlow: self.yaml\n`,
+      });
+
+      const duplicates = await maestro['findDuplicateFlowReferences']([suite]);
+
+      expect(duplicates).toHaveLength(0);
+    });
+
+    it('returns nothing when no top-level flow references another', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowA = path.join(projectDir, 'a.yaml');
+      const flowB = path.join(projectDir, 'b.yaml');
+
+      mockFlowContents({
+        [flowA]: `- launchApp\n`,
+        [flowB]: `- launchApp\n`,
+      });
+
+      const duplicates = await maestro['findDuplicateFlowReferences']([
+        flowA,
+        flowB,
+      ]);
+
+      expect(duplicates).toHaveLength(0);
+    });
+  });
+
   describe('findMaestroProjectRoot', () => {
     beforeEach(() => {
       jest.clearAllMocks();

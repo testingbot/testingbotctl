@@ -95,6 +95,14 @@ export interface MissingFileReference {
   resolvedPath: string;
 }
 
+export interface DuplicateFlowReference {
+  // A top-level flow (resolved path) that is also invoked via runFlow by
+  // another top-level flow, so it executes both standalone and as a subflow.
+  referencedFlow: string;
+  // Resolved paths of the top-level flow(s) that invoke it via runFlow.
+  referencedBy: string[];
+}
+
 export default class Maestro extends BaseProvider<MaestroOptions> {
   protected readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
 
@@ -716,6 +724,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
+    // Snapshot the set of top-level flow files (the ones that will each be
+    // executed as a standalone flow) before dependency discovery expands the
+    // list with runFlow/runScript/addMedia targets. Used to warn when a flow
+    // is both passed as a top-level flow AND pulled in via runFlow by another
+    // top-level flow — Maestro has no notion of a "subflow-only" file, so it
+    // runs twice.
+    const topLevelFlowFiles = allFlowFiles.filter((f) => {
+      const ext = path.extname(f).toLowerCase();
+      return (ext === '.yaml' || ext === '.yml') && !this.isConfigFile(f);
+    });
+
     // Discover dependencies (addMedia, runScript, runFlow, etc.) for all flow files
     // This ensures referenced files are included even when individual YAML files are passed
     const allFilesSet = new Set(allFlowFiles.map((f) => path.resolve(f)));
@@ -778,6 +797,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     );
     if (!this.options.quiet && missingReferences.length > 0) {
       this.logMissingReferences(missingReferences, baseDir);
+    }
+
+    // Warn about flows that will execute twice: a top-level flow that is also
+    // referenced via runFlow by another top-level flow runs once standalone and
+    // once as a subflow.
+    if (!this.options.quiet) {
+      const duplicates =
+        await this.findDuplicateFlowReferences(topLevelFlowFiles);
+      if (duplicates.length > 0) {
+        this.logDuplicateFlowReferences(duplicates, baseDir);
+      }
     }
 
     return { allFlowFiles, baseDir };
@@ -1406,6 +1436,157 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     return missingReferences;
+  }
+
+  /**
+   * Find flows that were passed as top-level flows (each executed standalone)
+   * but are ALSO referenced via `runFlow` by another top-level flow. Maestro
+   * has no notion of a "subflow-only" file, so such a flow runs twice: once
+   * standalone and once per runFlow invocation. Returns the offending flows so
+   * the user can be warned.
+   */
+  public async findDuplicateFlowReferences(
+    topLevelFlowFiles: string[],
+  ): Promise<DuplicateFlowReference[]> {
+    const resolvedTopLevel = new Set(
+      topLevelFlowFiles.map((f) => path.resolve(f)),
+    );
+
+    // Resolved-referenced-flow -> set of top-level flows referencing it.
+    const referencedBy = new Map<string, Set<string>>();
+
+    for (const flowFile of topLevelFlowFiles) {
+      const resolvedFlowFile = path.resolve(flowFile);
+      const refs = await this.extractRunFlowReferences(flowFile);
+      for (const ref of refs) {
+        // A flow referencing itself is a separate (recursive) concern.
+        if (ref === resolvedFlowFile) {
+          continue;
+        }
+        if (resolvedTopLevel.has(ref)) {
+          let referrers = referencedBy.get(ref);
+          if (!referrers) {
+            referrers = new Set();
+            referencedBy.set(ref, referrers);
+          }
+          referrers.add(resolvedFlowFile);
+        }
+      }
+    }
+
+    return Array.from(referencedBy.entries()).map(([referencedFlow, by]) => ({
+      referencedFlow,
+      referencedBy: Array.from(by),
+    }));
+  }
+
+  /**
+   * Extract the set of resolved absolute file paths referenced via `runFlow`
+   * (including nested runFlow inside inline commands) in a single flow file.
+   */
+  private async extractRunFlowReferences(
+    flowFile: string,
+  ): Promise<Set<string>> {
+    const refs = new Set<string>();
+    const ext = path.extname(flowFile).toLowerCase();
+    if (ext !== '.yaml' && ext !== '.yml') {
+      return refs;
+    }
+
+    try {
+      const content = await fs.promises.readFile(flowFile, 'utf-8');
+      const documents: unknown[] = [];
+      yaml.loadAll(content, (doc) => documents.push(doc));
+      for (const doc of documents) {
+        if (doc !== null && typeof doc === 'object') {
+          this.collectRunFlowRefs(doc, flowFile, refs);
+        }
+      }
+    } catch {
+      // Ignore parsing errors; invalid/missing files are handled elsewhere.
+    }
+
+    return refs;
+  }
+
+  /**
+   * Recursively collect resolved `runFlow` file references into `refs`.
+   */
+  private collectRunFlowRefs(
+    value: unknown,
+    flowFile: string,
+    refs: Set<string>,
+  ): void {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        this.collectRunFlowRefs(item, flowFile, refs);
+      }
+      return;
+    }
+    if (value === null || typeof value !== 'object') {
+      return;
+    }
+
+    const obj = value as Record<string, unknown>;
+    if ('runFlow' in obj) {
+      const runFlow = obj.runFlow;
+      const flowRef =
+        typeof runFlow === 'string'
+          ? runFlow
+          : (runFlow as Record<string, unknown>)?.file;
+      if (typeof flowRef === 'string') {
+        refs.add(path.resolve(path.dirname(flowFile), flowRef));
+      }
+      // runFlow with inline commands can nest further runFlow calls.
+      if (typeof runFlow === 'object' && runFlow !== null) {
+        this.collectRunFlowRefs(
+          (runFlow as Record<string, unknown>).commands,
+          flowFile,
+          refs,
+        );
+      }
+    }
+
+    // Recurse into other keys (onFlowStart, onFlowComplete, step arrays, etc.).
+    for (const [key, val] of Object.entries(obj)) {
+      if (key === 'runFlow') {
+        continue;
+      }
+      this.collectRunFlowRefs(val, flowFile, refs);
+    }
+  }
+
+  /**
+   * Log warnings for flows that will execute more than once (top-level flows
+   * also invoked via runFlow by another top-level flow).
+   */
+  private logDuplicateFlowReferences(
+    duplicates: DuplicateFlowReference[],
+    baseDir?: string,
+  ): void {
+    if (duplicates.length === 0) {
+      return;
+    }
+
+    const rel = (f: string): string =>
+      baseDir ? path.relative(baseDir, f) : path.basename(f);
+
+    logger.warn(
+      pc.yellow(
+        `Warning: ${duplicates.length} flow(s) will run more than once:`,
+      ),
+    );
+    for (const dup of duplicates) {
+      const referrers = dup.referencedBy.map(rel).join(', ');
+      logger.warn(
+        `  ${rel(dup.referencedFlow)} is passed as a top-level flow and is also called via runFlow by ${referrers}.`,
+      );
+    }
+    logger.warn(
+      'It will execute standalone AND as a subflow. If it is a shared/subflow, ' +
+        'stop passing it as a top-level flow (it is still bundled automatically ' +
+        'as a runFlow dependency), move it to a subdirectory, or exclude it with tags.',
+    );
   }
 
   /**
