@@ -1885,13 +1885,15 @@ describe('Maestro', () => {
       maestro['appId'] = 1234;
     });
 
-    it('should call stop API for a specific run', async () => {
+    // Maestro overrides the base provider's /stop with /cancel, which also releases
+    // the run's device session and drops its still-queued grid requests.
+    it('should call cancel API for a specific run', async () => {
       axios.post = jest.fn().mockResolvedValue({ data: { success: true } });
 
       await maestro['stopRun'](5678);
 
       expect(axios.post).toHaveBeenCalledWith(
-        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/stop',
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/cancel',
         {},
         expect.objectContaining({
           auth: {
@@ -1910,15 +1912,35 @@ describe('Maestro', () => {
 
       expect(axios.post).toHaveBeenCalledTimes(2);
       expect(axios.post).toHaveBeenCalledWith(
-        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/stop',
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/cancel',
         {},
         expect.any(Object),
       );
       expect(axios.post).toHaveBeenCalledWith(
-        'https://api.testingbot.com/v1/app-automate/maestro/1234/9012/stop',
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/9012/cancel',
         {},
         expect.any(Object),
       );
+    });
+
+    // 409 is the API saying the run already reached a terminal state, which is the
+    // normal race when Ctrl-C lands as the last flow finishes. Nothing to report.
+    it('should treat a 409 as an already-finished run rather than a failure', async () => {
+      const conflict = Object.assign(new Error('Request failed'), {
+        isAxiosError: true,
+        response: { status: 409, data: { error: 'already finished' } },
+      });
+      axios.post = jest.fn().mockRejectedValue(conflict);
+      (axios.isAxiosError as unknown as jest.Mock).mockReturnValue(true);
+      const infoSpy = jest.spyOn(logger, 'info').mockImplementation();
+
+      await expect(maestro['stopRun'](5678)).resolves.toBeUndefined();
+      expect(infoSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Cancelled run 5678'),
+      );
+
+      infoSpy.mockRestore();
+      (axios.isAxiosError as unknown as jest.Mock).mockReset();
     });
 
     it('should not call stop API when no active runs', async () => {

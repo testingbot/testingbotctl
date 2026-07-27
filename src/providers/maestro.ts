@@ -22,6 +22,11 @@ const FLOW_ANIMATION_MS = 120;
 // Single-column glyph so it does not disturb the row-width math used by the
 // in-place table redraw; marks flow rows that are retry attempts.
 const RETRY_ICON = '↻';
+const TERMINAL_RUN_STATUSES: ReadonlySet<MaestroRunInfo['status']> = new Set([
+  'DONE',
+  'FAILED',
+  'CANCELLED',
+]);
 
 export interface MaestroRunAssets {
   logs?: Record<string, string>;
@@ -29,7 +34,12 @@ export interface MaestroRunAssets {
   screenshots?: string[];
 }
 
-export type MaestroFlowStatus = 'WAITING' | 'READY' | 'DONE' | 'FAILED';
+export type MaestroFlowStatus =
+  | 'WAITING'
+  | 'READY'
+  | 'DONE'
+  | 'FAILED'
+  | 'CANCELLED';
 
 export interface MaestroFlowInfo {
   id: number;
@@ -53,7 +63,7 @@ export interface MaestroRunEnvironment {
 
 export interface MaestroRunInfo {
   id: number;
-  status: 'WAITING' | 'READY' | 'DONE' | 'FAILED';
+  status: 'WAITING' | 'READY' | 'DONE' | 'FAILED' | 'CANCELLED';
   capabilities: {
     deviceName: string;
     platformName: string;
@@ -2062,8 +2072,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const flows = run.flows ?? [];
       if (flows.length === 0) {
         // No flows yet: only settled once the run itself reaches a terminal
-        // state (e.g. it failed before producing any flow).
-        if (run.status !== 'DONE' && run.status !== 'FAILED') return false;
+        // state (e.g. it failed before producing any flow, or it was cancelled).
+        if (!TERMINAL_RUN_STATUSES.has(run.status)) return false;
         continue;
       }
 
@@ -2164,6 +2174,45 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       return data?.flow?.id as number | undefined;
     });
+  }
+
+  /**
+   * Stops a run, overriding the base provider's `/stop` with Maestro's `/cancel`.
+   *
+   * A 409 means the run reached a terminal state first, which is the normal
+   * outcome when Ctrl-C lands as the last flow finishes. That is a success for
+   * our purposes, so it is not reported as a failure to stop.
+   */
+  protected override async stopRun(runId: number): Promise<void> {
+    if (!this.appId) {
+      return;
+    }
+
+    try {
+      await axios.post(
+        `${this.URL}/${this.appId}/${runId}/cancel`,
+        {},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': utils.getUserAgent(),
+          },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+          timeout: HTTP.TIMEOUT_MS,
+        },
+      );
+
+      if (!this.options.quiet) {
+        logger.info(`Cancelled run ${runId}`);
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        return;
+      }
+    }
   }
 
   /** Stable key identifying the logical flow/shard a flow attempt belongs to. */
@@ -2291,9 +2340,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       const status = await this.getStatus();
 
-      // Track active run IDs for graceful shutdown
+      // Track active run IDs for graceful shutdown. CANCELLED belongs in the terminal
+      // set: a run cancelled from the dashboard while we poll must not be listed as
+      // active, or Ctrl-C would fire another stop at a run that is already settled.
       this.activeRunIds = status.runs
-        .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
+        .filter((run) => !TERMINAL_RUN_STATUSES.has(run.status))
         .map((run) => run.id);
 
       const running = status.runs.find((r) => r.status === 'READY');
@@ -2556,6 +2607,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         return { symbol: pc.green('✔'), text: 'Test has finished running' };
       case 'FAILED':
         return { symbol: pc.red('✘'), text: 'Test failed' };
+      case 'CANCELLED':
+        return { symbol: pc.yellow('⊘'), text: 'Test was cancelled' };
       default:
         return { symbol: pc.dim('?'), text: status };
     }
@@ -2585,6 +2638,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         }
       case 'FAILED':
         return { text: '✘ FAILED', colored: pc.red('✘ FAILED') };
+      case 'CANCELLED':
+        return { text: '⊘ CANCELLED', colored: pc.yellow('⊘ CANCELLED') };
       default:
         return { text: flow.status, colored: flow.status };
     }
@@ -2669,6 +2724,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     let running = 0;
     let passed = 0;
     let failed = 0;
+    let cancelled = 0;
 
     for (const flow of remaining) {
       switch (flow.status) {
@@ -2688,6 +2744,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         case 'FAILED':
           failed++;
           break;
+        case 'CANCELLED':
+          cancelled++;
+          break;
       }
     }
 
@@ -2696,6 +2755,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     if (running > 0) parts.push(pc.blue(`${running} running`));
     if (passed > 0) parts.push(pc.green(`${passed} passed`));
     if (failed > 0) parts.push(pc.red(`${failed} failed`));
+    if (cancelled > 0) parts.push(pc.yellow(`${cancelled} cancelled`));
 
     return ` ... and ${remaining.length} more: ${parts.join(', ')}`;
   }
