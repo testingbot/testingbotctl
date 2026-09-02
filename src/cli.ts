@@ -371,6 +371,11 @@ program
     'Path to application under test (.apk, .ipa, .app, or .zip).',
   )
   .option(
+    '--app-binary-id <projectId>',
+    'Reuse the app of a project uploaded earlier (see "testingbot upload") instead of uploading one. All positional arguments are then flows.',
+    parseProjectId,
+  )
+  .option(
     '--other-app <path>',
     'Additional app to install alongside --app (.apk, .ipa, .app, or .zip). Repeatable, max 4.',
     (val: string, acc: string[]) => {
@@ -545,9 +550,9 @@ program
       let app: string;
       let flows: string[];
 
-      if (args.app) {
-        // If --app is specified, treat all positional arguments as flows
-        app = args.app;
+      if (args.app || args.appBinaryId != null) {
+        // With --app or --app-binary-id, every positional argument is a flow
+        app = args.app ?? '';
         flows = appFileArg
           ? [appFileArg, ...(flowsArgs || [])]
           : flowsArgs || [];
@@ -558,7 +563,8 @@ program
       }
 
       const missing: string[] = [];
-      if (!app) missing.push('<appFile> or --app');
+      if (!app && args.appBinaryId == null)
+        missing.push('<appFile>, --app or --app-binary-id');
       if (flows.length === 0)
         missing.push(
           '<flows...> (one or more flow files, directories, or globs)',
@@ -651,6 +657,7 @@ program
         groups: args.groups,
         metadata,
         otherApps,
+        appBinaryId: args.appBinaryId,
       });
       if (args.debug) {
         enableDebugLogging();
@@ -867,6 +874,75 @@ function withFlags(
   }
   return command;
 }
+
+withFlags(
+  withFlags(
+    program
+      .command('upload')
+      .description(
+        'Upload a Maestro app once and get a project ID to reuse with "testingbot maestro --app-binary-id".',
+      )
+      .argument('<appFile>', 'Path to the app (.apk, .ipa, .app or .zip)')
+      .option(
+        '--ignore-checksum-check',
+        'Skip checksum verification and always upload the app.',
+      )
+      .option(
+        '-q, --quiet',
+        'Quieter console output without progress updates.',
+      ),
+    JSON_FLAGS,
+  ),
+  AUTH_FLAGS,
+)
+  .action(async (appFile, args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
+    try {
+      jsonOptions = jsonOptionsFrom(args);
+      const credentials = await requireCredentials(args);
+      if (args.debug) enableDebugLogging();
+      const maestro = new Maestro(
+        credentials,
+        new MaestroOptions(appFile, [], undefined, {
+          quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
+          ignoreChecksumCheck: args.ignoreChecksumCheck,
+          debug: args.debug,
+        }),
+      );
+      const result = await maestro.uploadOnly();
+      if (!result.success) {
+        await finishCommand(
+          {
+            provider: 'maestro',
+            outcome: 'error',
+            success: false,
+            error: result.error,
+            runs: [],
+          },
+          jsonOptions,
+        );
+        return;
+      }
+      const output = {
+        provider: 'maestro' as const,
+        appId: result.appId,
+        file: appFile,
+        url: `https://testingbot.com/members/maestro/${result.appId}`,
+      };
+      const written = await writeJsonOutput(output, jsonOptions);
+      if (!jsonOptions.json) {
+        logger.info(`App ready: ${appFile}. Project ID: ${result.appId}`);
+        logger.info(
+          `Run flows against it with: testingbot maestro --app-binary-id ${result.appId} ./flows`,
+        );
+        if (written) logger.info(`JSON results written to ${written}`);
+      }
+      process.exitCode = 0;
+    } catch (err) {
+      await failCommand('maestro', 'Upload', err, jsonOptions);
+    }
+  })
+  .showHelpAfterError(true);
 
 withFlags(
   withFlags(

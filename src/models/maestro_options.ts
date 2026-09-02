@@ -69,6 +69,7 @@ export default class MaestroOptions {
   }
 
   private _app: string;
+  private _appBinaryId?: number;
   private _flows: string[];
   private _otherApps: string[];
   private _device?: string;
@@ -141,9 +142,11 @@ export default class MaestroOptions {
       googlePlayStore?: boolean;
       metadata?: RunMetadata;
       otherApps?: string[];
+      appBinaryId?: number;
     },
   ) {
     this._app = app;
+    this._appBinaryId = options?.appBinaryId;
     this._flows = flows ? (Array.isArray(flows) ? flows : [flows]) : [];
     this._otherApps = options?.otherApps ?? [];
     if (this._otherApps.length > MAX_OTHER_APPS) {
@@ -201,6 +204,14 @@ export default class MaestroOptions {
 
   public get app(): string {
     return this._app;
+  }
+
+  /**
+   * ID of an existing project whose uploaded app should be reused instead of
+   * uploading `app`. Set by --app-binary-id.
+   */
+  public get appBinaryId(): number | undefined {
+    return this._appBinaryId;
   }
 
   public get flows(): string[] {

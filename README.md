@@ -98,6 +98,7 @@ testingbot maestro <app> <flows...> [options]
 |--------|-------------|
 | `--app <path>` | Path to the application under test (alternative to the positional `app` argument) |
 | `--other-app <path-or-url>` | Additional companion app to install on the device alongside `--app`. Accepts a local file path (`.apk`, `.ipa`, `.app`, `.zip`) **or** a `tb://<appkey>` / `http(s)://...` URL — local paths are uploaded; URLs are passed through to the run as-is. Repeatable, **max 4** entries. |
+| `--app-binary-id <projectId>` | Reuse the app of a project uploaded earlier (`testingbot upload`, or any previous run's Project ID) instead of uploading one. Every positional argument is then a flow. The platform is taken from the stored app unless `--platform` is given |
 
 **Device Options:**
 
@@ -296,6 +297,31 @@ testingbot maestro app.apk ./flows --dry-run
 once because another top-level flow calls it via `runFlow`.
 
 ---
+
+### Upload once, run many times
+
+`testingbot upload` pushes an app once and prints a Project ID. Later runs pass that ID with `--app-binary-id` and skip the upload entirely; each run still gets its own project and results.
+
+```sh
+testingbot upload app.apk
+#   Uploaded app.apk. Project ID: 4321
+#   Run flows against it with: testingbot maestro --app-binary-id 4321 ./flows
+
+APP_ID=$(testingbot upload app.apk --json | jq -r .appId)
+testingbot maestro --app-binary-id "$APP_ID" ./flows/smoke
+testingbot maestro --app-binary-id "$APP_ID" ./flows/regression --device "Pixel 9"
+```
+
+Every `maestro` run also prints its Project ID after the app upload, so any previous run's ID works with `--app-binary-id` too. Unchanged binaries are deduplicated by checksum on upload as well; pass `--ignore-checksum-check` to force a fresh upload.
+
+**`upload <appFile>`**
+
+| Option | Description |
+|--------|-------------|
+| `--ignore-checksum-check` | Skip checksum verification and always upload the app |
+| `-q, --quiet` | Suppress upload progress |
+
+`--json` returns `{ provider, appId, file, url }`. Fails with exit code `1` if the upload was rejected.
 
 ### Status, artifacts and list
 
