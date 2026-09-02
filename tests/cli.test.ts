@@ -1713,6 +1713,74 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  describe('--device-matrix', () => {
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      mockMaestroRun.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+    });
+
+    type Opts = { deviceMatrix?: unknown; device?: string };
+
+    test('parses comma-separated and repeated cells with version and real flag', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--device-matrix',
+        'Pixel 9:14, Samsung Galaxy S24:14:real',
+        '--device-matrix',
+        'Pixel 8',
+        '--device-matrix',
+        'Pixel 7:REAL',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).deviceMatrix).toEqual([
+        { device: 'Pixel 9', version: '14' },
+        { device: 'Samsung Galaxy S24', version: '14', realDevice: true },
+        { device: 'Pixel 8' },
+        { device: 'Pixel 7', realDevice: true },
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).device).toBeUndefined();
+    });
+
+    test('is undefined when the flag is absent', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+      ]);
+      expect(
+        lastConstructorOptions<Opts>(Maestro).deviceMatrix,
+      ).toBeUndefined();
+    });
+
+    test('rejects malformed cells', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--device-matrix',
+        'Pixel 9:14:extra:junk',
+      ]);
+      expect(mockMaestroRun).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Invalid --device-matrix cell "Pixel 9:14:extra:junk"',
+        ),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+  });
+
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')

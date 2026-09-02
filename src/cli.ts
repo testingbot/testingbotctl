@@ -24,7 +24,7 @@ import Maestro from './providers/maestro';
 import Login from './providers/login';
 import Credentials from './models/credentials';
 import path from 'node:path';
-import type { RunMetadata } from './models/maestro_options';
+import type { DeviceMatrixCell, RunMetadata } from './models/maestro_options';
 import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
 import {
@@ -128,6 +128,36 @@ function parseKeyValues(
     result[entry.slice(0, eq).trim()] = entry.slice(eq + 1);
   }
   return result;
+}
+
+/**
+ * Parses `--device-matrix` cells of the form `<device>[:<version>][:real]`.
+ * Each cell is exactly one device; there is no cross-product, because not
+ * every device exists in every OS version.
+ */
+function parseDeviceMatrix(
+  cells: string[] | undefined,
+): DeviceMatrixCell[] | undefined {
+  if (!cells || cells.length === 0) return undefined;
+  return cells.map((raw) => {
+    const parts = raw.split(':').map((p) => p.trim());
+    const realIndex = parts.findIndex(
+      (p, i) => i > 0 && p.toLowerCase() === 'real',
+    );
+    const realDevice = realIndex !== -1;
+    if (realDevice) parts.splice(realIndex, 1);
+    const [device, version, ...rest] = parts;
+    if (!device || rest.length > 0) {
+      throw new TestingBotError(
+        `Invalid --device-matrix cell "${raw}": expected "<device>[:<version>][:real]", e.g. "Pixel 9:14" or "iPhone 16:18.2:real".`,
+      );
+    }
+    return {
+      device,
+      ...(version && { version }),
+      ...(realDevice && { realDevice: true }),
+    };
+  });
 }
 
 /** Drops unset fields; returns undefined when nothing is set. */
@@ -543,6 +573,11 @@ program
     'Use a real device instead of an emulator/simulator.',
   )
   .option(
+    '--device-matrix <cells>',
+    'Run every flow on each listed device: "<device>[:<version>][:real]", comma-separated or repeatable (e.g. "Pixel 9:14,Samsung Galaxy S24:14:real"). Cannot be combined with --device or --deviceVersion.',
+    collectCommaSeparated,
+  )
+  .option(
     '--google-play',
     'Use the Google Play Store-enabled version (Android emulator only).',
   )
@@ -836,6 +871,7 @@ program
         excludeFlows: args.excludeFlows,
         platformName: args.platform,
         version: args.deviceVersion,
+        deviceMatrix: parseDeviceMatrix(args.deviceMatrix),
         name: args.name,
         orientation: args.orientation,
         locale: args.deviceLocale,

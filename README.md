@@ -108,6 +108,7 @@ testingbot maestro <app> <flows...> [options]
 | `--platform <name>` | Platform: Android or iOS |
 | `--deviceVersion <version>` | OS version (e.g., "14", "17.2") |
 | `--real-device` | Use a real device instead of emulator/simulator |
+| `--device-matrix <cells>` | Run every flow on each listed device in one go. Cells are `<device>[:<version>][:real]`, comma-separated or repeatable. Cannot be combined with `--device` or `--deviceVersion`; `--real-device` (or an `.ipa` app) applies to every cell |
 | `--orientation <orientation>` | Screen orientation: PORTRAIT or LANDSCAPE |
 | `--device-locale <locale>` | Device locale (e.g., "en_US", "de_DE") |
 | `--timezone <timezone>` | Timezone (e.g., "America/New_York", "Europe/London") |
@@ -238,6 +239,19 @@ testingbot maestro app.apk ./flows \
   --repo-name "myapp"
 ```
 
+#### Device matrix
+
+Run the same flows across several devices in a single command. Each cell names exactly one device; there is no cross-product, because not every device exists in every OS version. Every flow runs once per device, so the cost is devices × flows, and the CLI prints that summary before submitting.
+
+```sh
+testingbot maestro app.apk ./flows \
+  --device-matrix "Pixel 9:14" \
+  --device-matrix "Samsung Galaxy S24:14:real" \
+  --device-matrix "Pixel 8"
+```
+
+Each device becomes its own run with its own results, live table rows and dashboard link; `--json` lists the `device` per run, and `--retry` re-runs only the flow that failed on the device it failed on. If any cell is not a valid device/OS combination the whole request is rejected and nothing runs, so a matrix never partially submits.
+
 #### Organizing flows and subflows
 
 Every top-level flow you pass runs as its own test. A **subflow** (a reusable
@@ -356,7 +370,7 @@ testingbot list --count 25 --offset 25 --json
 
 | Option | Description |
 |--------|-------------|
-| `-w, --wait` | Block until every run has finished, showing the same live flow table as a foreground run |
+| `-w, --wait` | Block until every run has finished, showing the same live flow table as a foreground run. Ctrl-C detaches without cancelling the runs |
 | `-q, --quiet` | Suppress progress output |
 
 Exit code is `0` while the project is still running (JSON `outcome: "running"`), `0`/`2` once it completed, `1` on errors.
