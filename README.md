@@ -121,6 +121,7 @@ testingbot maestro <app> <flows...> [options]
 | `--groups <names>` | Tag the test session with one or more groups (comma-separated). Groups appear on the test in the TestingBot dashboard |
 | `--include-tags <tags>` | Only run flows with these tags (comma-separated) |
 | `--exclude-tags <tags>` | Exclude flows with these tags (comma-separated) |
+| `--exclude-flows <paths>` | Flow files, directories or glob patterns to leave out of the run (comma-separated, repeatable). An excluded flow that another flow still invokes via `runFlow` is bundled as a subflow but never runs on its own |
 | `-e, --env <KEY=VALUE>` | Environment variable for flows (can be repeated) |
 | `--config <path>` | Path to a custom Maestro config file (default: config.yaml in project root) |
 | `--maestro-version <version>` | Maestro version to use (e.g., "2.0.10") |
@@ -148,7 +149,7 @@ testingbot maestro <app> <flows...> [options]
 | `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
 | `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
 | `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
-| `--report <format>` | Download report after completion: html or junit |
+| `--report <format>` | Download report after completion: `html`, `html-detailed`, `junit` or `allure` |
 | `--report-output-dir <path>` | Directory to save reports (required with --report) |
 | `--download-artifacts [mode]` | Download test artifacts (logs, screenshots, video). Mode: `all` (default) or `failed` |
 | `--artifacts-output-dir <path>` | Directory to save artifacts zip (defaults to current directory) |
@@ -167,10 +168,17 @@ testingbot maestro <app> <flows...> [options]
 
 | Option | Description |
 |--------|-------------|
+| `--branch <name>` | Git branch this test run was built from |
 | `--commit-sha <sha>` | Git commit SHA associated with this test run |
 | `--pull-request-id <id>` | Pull request ID this test run originated from |
+| `--pr-url <url>` | Pull request URL this test run originated from |
 | `--repo-name <name>` | Repository name (e.g., GitHub repo slug) |
 | `--repo-owner <owner>` | Repository owner (e.g., GitHub organization or username) |
+| `-m, --metadata <KEY=VALUE>` | Free-form metadata attached to the run and shown in the dashboard (repeatable, e.g. `-m team=mobile -m env=staging`) |
+
+**Allure reports:** `--report allure` converts each run's results into Allure result files under `<report-output-dir>/allure-results/`, one JSON per flow with its steps, status and failure details. Render them with `allure serve <report-output-dir>/allure-results` (requires the [Allure CLI](https://allurereport.org/docs/install/)). Results from several runs or shards accumulate in the same directory.
+
+**Migrating from Maestro Cloud:** the `maestro cloud` spelling of common flags is accepted as hidden aliases, so an existing command line runs unchanged: `--app-file`, `--flows <a,b>`, `--apiKey`, `--device-model iPhone-17-Pro`, `--device-os iOS-18-2` / `android-34`, `--format JUNIT|HTML`, `--output <file>` (its directory becomes `--report-output-dir`) and `--test-suite-name`. The canonical flag wins when both are given.
 
 **Examples:**
 
@@ -357,7 +365,7 @@ Exit code is `0` while the project is still running (JSON `outcome: "running"`),
 
 | Option | Description |
 |--------|-------------|
-| `--report <format>` | Download report: `html`, `html-detailed` or `junit` |
+| `--report <format>` | Download report: `html`, `html-detailed`, `junit` or `allure` |
 | `--report-output-dir <path>` | Directory to save reports (required with `--report`) |
 | `--download-artifacts [mode]` | Download logs, screenshots and video. Mode: `all` (default) or `failed` |
 | `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory) |
