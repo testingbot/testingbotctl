@@ -1357,6 +1357,143 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  describe('upload command and --app-binary-id', () => {
+    let mockUploadOnly: jest.Mock;
+    let stdoutSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      mockUploadOnly = jest.fn();
+      Maestro.prototype.uploadOnly = mockUploadOnly;
+      stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test('upload stores the app and prints the reusable project id', async () => {
+      mockUploadOnly.mockResolvedValue({ success: true, appId: 4321 });
+      await program.parseAsync(['node', 'cli', 'upload', 'app.apk']);
+      expect(mockUploadOnly).toHaveBeenCalledTimes(1);
+      const opts = lastConstructorOptions<{
+        app: string;
+        flows: string[];
+        ignoreChecksumCheck: boolean;
+      }>(Maestro);
+      expect(opts.app).toBe('app.apk');
+      expect(opts.flows).toEqual([]);
+      expect(opts.ignoreChecksumCheck).toBe(false);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Project ID: 4321'),
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('--app-binary-id 4321'),
+      );
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('upload --json emits the project id and url', async () => {
+      mockUploadOnly.mockResolvedValue({ success: true, appId: 4321 });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'upload',
+        'app.apk',
+        '--ignore-checksum-check',
+        '--json',
+      ]);
+      expect(
+        lastConstructorOptions<{
+          ignoreChecksumCheck: boolean;
+          quiet: boolean;
+        }>(Maestro),
+      ).toMatchObject({ ignoreChecksumCheck: true, quiet: true });
+      expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toEqual({
+        provider: 'maestro',
+        appId: 4321,
+        file: 'app.apk',
+        url: 'https://testingbot.com/members/maestro/4321',
+      });
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('upload exits 1 when the provider reports a failure', async () => {
+      mockUploadOnly.mockResolvedValue({ success: false, error: 'bad app' });
+      await program.parseAsync(['node', 'cli', 'upload', 'app.apk', '--json']);
+      expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toMatchObject({
+        outcome: 'error',
+        error: 'bad app',
+      });
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('upload requires an app file argument', async () => {
+      await expect(
+        program.parseAsync(['node', 'cli', 'upload']),
+      ).rejects.toThrow('process.exit called with code: 1');
+      expect(mockUploadOnly).not.toHaveBeenCalled();
+    });
+
+    test('maestro --app-binary-id treats every positional as a flow', async () => {
+      mockMaestroRun.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        '--app-binary-id',
+        '4321',
+        './flows',
+        './more',
+      ]);
+      const opts = lastConstructorOptions<{
+        app: string;
+        flows: string[];
+        appBinaryId?: number;
+      }>(Maestro);
+      expect(opts.appBinaryId).toBe(4321);
+      expect(opts.app).toBe('');
+      expect(opts.flows).toEqual(['./flows', './more']);
+      expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    });
+
+    test('maestro --app-binary-id still requires flows', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        '--app-binary-id',
+        '4321',
+      ]);
+      expect(mockMaestroRun).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('<flows...>'),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('maestro --app-binary-id rejects a non-numeric id', async () => {
+      jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      await expect(
+        program.parseAsync([
+          'node',
+          'cli',
+          'maestro',
+          '--app-binary-id',
+          'abc',
+          './flows',
+        ]),
+      ).rejects.toThrow('process.exit called with code: 1');
+      expect(mockMaestroRun).not.toHaveBeenCalled();
+    });
+  });
+
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')

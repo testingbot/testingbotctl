@@ -176,18 +176,36 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     '.zip',
   ];
 
-  private async validate(): Promise<boolean> {
-    if (this.options.app === undefined) {
+  /** Rejects an app path that is missing, has an unsupported extension, or is unreadable. */
+  private async validateAppFile(): Promise<void> {
+    if (!this.options.app) {
       throw new TestingBotError(`app option is required`);
     }
 
-    // Validate app file extension
     const appExt = path.extname(this.options.app).toLowerCase();
     if (!Maestro.SUPPORTED_APP_EXTENSIONS.includes(appExt)) {
       throw new TestingBotError(
         `Unsupported app file format: ${appExt || '(no extension)'}. ` +
           `Supported formats: ${Maestro.SUPPORTED_APP_EXTENSIONS.join(', ')}`,
       );
+    }
+
+    await fs.promises.access(this.options.app, fs.constants.R_OK).catch(() => {
+      throw new TestingBotError(
+        `Provided app path does not exist ${this.options.app}`,
+      );
+    });
+  }
+
+  private async validate(): Promise<boolean> {
+    const reusingApp = this.options.appBinaryId != null;
+    if (reusingApp && this.options.app) {
+      throw new TestingBotError(
+        'Pass either an app file or --app-binary-id, not both.',
+      );
+    }
+    if (!reusingApp) {
+      await this.validateAppFile();
     }
 
     if (this.options.flows === undefined || this.options.flows.length === 0) {
@@ -221,13 +239,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
 
     // Build list of all file checks to run in parallel
-    const fileChecks: Promise<void>[] = [
-      fs.promises.access(this.options.app, fs.constants.R_OK).catch(() => {
-        throw new TestingBotError(
-          `Provided app path does not exist ${this.options.app}`,
-        );
-      }),
-    ];
+    const fileChecks: Promise<void>[] = [];
 
     for (const otherAppEntry of otherApps) {
       if (Maestro.isOtherAppUrl(otherAppEntry)) {
@@ -331,11 +343,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         provider: 'Maestro',
         apiUrl: this.URL,
         uploads: [
-          {
-            label: 'App',
-            filePath: this.options.app,
-            endpoint: `${this.URL}/app`,
-          },
+          this.options.appBinaryId != null
+            ? {
+                label: 'App',
+                filePath: `(reuse app of project ${this.options.appBinaryId})`,
+                endpoint: `${this.URL}/app/${this.options.appBinaryId}/reuse`,
+              }
+            : {
+                label: 'App',
+                filePath: this.options.app,
+                endpoint: `${this.URL}/app`,
+              },
           ...otherAppPaths.map((p, i) => ({
             label: `Other App ${i + 1}`,
             filePath: p,
@@ -406,6 +424,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
       setTitle('maestro · uploading app');
       await this.uploadApp();
+      if (!this.options.quiet) {
+        logger.info(
+          `App ready. Project ID: ${this.appId} (reuse this app later with --app-binary-id ${this.appId})`,
+        );
+      }
 
       if (this.options.otherApps.length > 0) {
         setTitle('maestro · uploading other apps');
@@ -490,7 +513,84 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     }
   }
 
+  /**
+   * `testingbot upload`: uploads (or dedupes) the app and returns the project
+   * id that can be passed to `--app-binary-id`. No flows, no run.
+   */
+  public async uploadOnly(): Promise<
+    { success: true; appId: number } | { success: false; error: string }
+  > {
+    try {
+      await this.validateAppFile();
+      await this.ensureConnectivity();
+      await this.uploadApp();
+      if (this.appId == null) {
+        throw new TestingBotError('Upload did not return a project id');
+      }
+      return { success: true, appId: this.appId };
+    } catch (error) {
+      this.spinner.stop();
+      const result = this.errorResult(error);
+      return { success: false, error: result.error ?? 'Upload failed' };
+    }
+  }
+
+  /**
+   * Creates a fresh project that shares the stored app of `sourceId`
+   * (--app-binary-id). The server reports the app's platform, which replaces
+   * file-based detection when --platform was not given.
+   */
+  private async reuseApp(sourceId: number): Promise<void> {
+    if (!this.options.quiet) {
+      logger.info(`Reusing app of project ${sourceId}`);
+    }
+    const data = await this.withRetry(
+      `Reusing app of project ${sourceId}`,
+      async () => {
+        const response = await axios.post<{
+          id: number;
+          source_id: number;
+          platform: 'Android' | 'iOS' | null;
+        }>(
+          `${this.URL}/app/${sourceId}/reuse`,
+          {},
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': utils.getUserAgent(),
+            },
+            auth: {
+              username: this.credentials.userName,
+              password: this.credentials.accessKey,
+            },
+          },
+        );
+        return response.data;
+      },
+    ).catch(async (error) => {
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        `Failed to reuse the app of project ${sourceId}`,
+      );
+    });
+
+    this.appId = data.id;
+    if (!this.options.platformName) {
+      if (!data.platform) {
+        throw new TestingBotError(
+          `Could not determine the platform of project ${sourceId}. Pass --platform Android|iOS.`,
+        );
+      }
+      this.detectedPlatform = data.platform;
+    }
+  }
+
   private async uploadApp() {
+    if (this.options.appBinaryId != null) {
+      await this.reuseApp(this.options.appBinaryId);
+      return true;
+    }
+
     let appPath = this.options.app;
     const ext = path.extname(appPath).toLowerCase();
     let tempZipDir: string | null = null;

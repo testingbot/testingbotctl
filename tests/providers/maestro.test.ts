@@ -7029,4 +7029,125 @@ onFlowStart:
       expect((axios.get as jest.Mock).mock.calls[0][1].params).toEqual({});
     });
   });
+
+  describe('--app-binary-id and uploadOnly()', () => {
+    const reuseOptions = (extra: Record<string, unknown> = {}) =>
+      new MaestroOptions('', 'path/to/flows', 'Pixel 6', {
+        appBinaryId: 4321,
+        ...extra,
+      });
+
+    it('validate() skips the app file when reusing an app', async () => {
+      const m = new Maestro(mockCredentials, reuseOptions());
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest.fn().mockResolvedValue({
+        isFile: () => false,
+        isDirectory: () => true,
+      });
+      await expect(m['validate']()).resolves.toBe(true);
+      expect(fs.promises.access).not.toHaveBeenCalledWith(
+        '',
+        expect.anything(),
+      );
+    });
+
+    it('validate() rejects an app file combined with --app-binary-id', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('path/to/app.apk', 'path/to/flows', 'Pixel 6', {
+          appBinaryId: 4321,
+        }),
+      );
+      await expect(m['validate']()).rejects.toThrow(
+        'Pass either an app file or --app-binary-id, not both.',
+      );
+    });
+
+    it('uploadApp() reuses the app via POST /app/:id/reuse and adopts the platform', async () => {
+      const m = new Maestro(mockCredentials, reuseOptions());
+      axios.post = jest.fn().mockResolvedValue({
+        data: { id: 9999, source_id: 4321, platform: 'Android' },
+        headers: {},
+      });
+      await m['uploadApp']();
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/app/4321/reuse',
+        {},
+        expect.objectContaining({
+          auth: { username: 'testUser', password: 'testKey' },
+        }),
+      );
+      expect(m['appId']).toBe(9999);
+      expect(m['detectedPlatform']).toBe('Android');
+      expect(
+        m['options'].getCapabilities(m['detectedPlatform']).platformName,
+      ).toBe('Android');
+    });
+
+    it('uploadApp() keeps an explicit --platform over the server-reported one', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        reuseOptions({ platformName: 'iOS' }),
+      );
+      axios.post = jest.fn().mockResolvedValue({
+        data: { id: 9999, source_id: 4321, platform: 'Android' },
+        headers: {},
+      });
+      await m['uploadApp']();
+      expect(m['detectedPlatform']).toBeUndefined();
+      expect(m['options'].getCapabilities(undefined).platformName).toBe('iOS');
+    });
+
+    it('uploadApp() fails clearly when the platform is unknown and --platform is absent', async () => {
+      const m = new Maestro(mockCredentials, reuseOptions());
+      axios.post = jest.fn().mockResolvedValue({
+        data: { id: 9999, source_id: 4321, platform: null },
+        headers: {},
+      });
+      await expect(m['uploadApp']()).rejects.toThrow(
+        'Pass --platform Android|iOS',
+      );
+    });
+
+    it('dry run reports the reuse endpoint instead of an upload', async () => {
+      const m = new Maestro(mockCredentials, reuseOptions({ dryRun: true }));
+      m['validate'] = jest.fn().mockResolvedValue(true);
+      m['collectFlows'] = jest.fn().mockResolvedValue(null);
+      m['printDryRunSummary'] = jest.fn();
+      const result = await m.run();
+      expect(result.outcome).toBe('dry-run');
+      const summary = (m['printDryRunSummary'] as jest.Mock).mock.calls[0][0];
+      expect(summary.uploads[0]).toEqual({
+        label: 'App',
+        filePath: '(reuse app of project 4321)',
+        endpoint:
+          'https://api.testingbot.com/v1/app-automate/maestro/app/4321/reuse',
+      });
+    });
+
+    it('uploadOnly() validates, uploads and returns the project id', async () => {
+      maestro['validateAppFile'] = jest.fn().mockResolvedValue(undefined);
+      maestro['ensureConnectivity'] = jest.fn().mockResolvedValue(undefined);
+      maestro['uploadApp'] = jest.fn().mockImplementation(async () => {
+        maestro['appId'] = 777;
+        return true;
+      });
+      await expect(maestro.uploadOnly()).resolves.toEqual({
+        success: true,
+        appId: 777,
+      });
+    });
+
+    it('uploadOnly() reports validation failures as an error result', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('path/to/app.txt', [], undefined, {}),
+      );
+      const result = await m.uploadOnly();
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain('Unsupported app file format: .txt');
+      }
+    });
+  });
 });
