@@ -8,7 +8,7 @@ import pc from 'picocolors';
 import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
-import BaseProvider from './base_provider';
+import BaseProvider, { ProviderResult } from './base_provider';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
@@ -45,10 +45,7 @@ export interface XCUITestStatusResponse {
   completed: boolean;
 }
 
-export interface XCUITestResult {
-  success: boolean;
-  runs: XCUITestRunInfo[];
-}
+export type XCUITestResult = ProviderResult<XCUITestRunInfo>;
 
 export interface XCUITestSocketMessage {
   id: number;
@@ -58,6 +55,7 @@ export interface XCUITestSocketMessage {
 export default class XCUITest extends BaseProvider<XCUITestOptions> {
   protected readonly URL =
     'https://api.testingbot.com/v1/app-automate/xcuitest';
+  protected readonly jsonProvider = 'xcuitest' as const;
 
   private socket: Socket | null = null;
   private updateServer: string | null = null;
@@ -109,7 +107,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
 
   public async run(): Promise<XCUITestResult> {
     if (!(await this.validate())) {
-      return { success: false, runs: [] };
+      return {
+        success: false,
+        outcome: 'error',
+        error: 'Validation failed',
+        runs: [],
+      };
     }
 
     if (this.options.dryRun) {
@@ -139,7 +142,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         },
       });
 
-      return { success: true, runs: [] };
+      return { success: true, outcome: 'dry-run', runs: [] };
     }
 
     try {
@@ -177,7 +180,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         if (!this.options.quiet) {
           logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
         }
-        return { success: true, runs: [] };
+        return { success: true, outcome: 'started', runs: [] };
       }
 
       // Set up signal handlers before waiting for completion
@@ -212,7 +215,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           logger.error(`  Reason: ${causeMessage}`);
         }
       }
-      return { success: false, runs: [] };
+      return {
+        success: false,
+        outcome: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        runs: [],
+      };
     }
   }
 
@@ -419,6 +427,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
 
         return {
           success: status.success,
+          outcome: status.success ? 'passed' : 'failed',
           runs: status.runs,
         };
       }

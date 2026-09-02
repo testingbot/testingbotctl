@@ -13,7 +13,8 @@ import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
 import pc from 'picocolors';
-import BaseProvider from './base_provider';
+import BaseProvider, { ProviderResult } from './base_provider';
+import type { JsonFlowResult, JsonRunResult } from '../utils/json_output';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
@@ -89,10 +90,7 @@ export interface MaestroStatusResponse {
   completed: boolean;
 }
 
-export interface MaestroResult {
-  success: boolean;
-  runs: MaestroRunInfo[];
-}
+export type MaestroResult = ProviderResult<MaestroRunInfo>;
 
 export interface MaestroSocketMessage {
   id: number;
@@ -115,6 +113,7 @@ export interface DuplicateFlowReference {
 
 export default class Maestro extends BaseProvider<MaestroOptions> {
   protected readonly URL = 'https://api.testingbot.com/v1/app-automate/maestro';
+  protected readonly jsonProvider = 'maestro' as const;
 
   private detectedPlatform: 'Android' | 'iOS' | undefined = undefined;
   private socket: Socket | null = null;
@@ -271,7 +270,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   public async run(): Promise<MaestroResult> {
     if (!(await this.validate())) {
-      return { success: false, runs: [] };
+      return {
+        success: false,
+        outcome: 'error',
+        error: 'Validation failed',
+        runs: [],
+      };
     }
 
     if (this.options.dryRun) {
@@ -360,7 +364,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         logger.info('Flows: single .zip file (uploaded as-is)');
       }
 
-      return { success: true, runs: [] };
+      return { success: true, outcome: 'dry-run', runs: [] };
     }
 
     try {
@@ -414,7 +418,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             `View realtime results: https://testingbot.com/members/maestro/${this.appId}`,
           );
         }
-        return { success: true, runs: [] };
+        return { success: true, outcome: 'started', runs: [] };
       }
 
       this.setupSignalHandlers();
@@ -450,7 +454,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           logger.error(`  Reason: ${causeMessage}`);
         }
       }
-      return { success: false, runs: [] };
+      return {
+        success: false,
+        outcome: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        runs: [],
+      };
     }
   }
 
@@ -2332,6 +2341,60 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return runs.every((run) => this.runPassed(run));
   }
 
+  protected override dashboardUrl(runId?: number): string | undefined {
+    if (!this.appId) return undefined;
+    const base = `https://testingbot.com/members/maestro/${this.appId}`;
+    return runId == null ? base : `${base}/runs/${runId}`;
+  }
+
+  /**
+   * Adds per-flow rows to the JSON run. Every attempt is listed so retries
+   * are visible; `latest` marks the attempt whose verdict counts, and the run's
+   * `passed` follows the same last-attempt-wins rule as the console summary.
+   */
+  protected override runToJson(run: MaestroRunInfo): JsonRunResult {
+    const flows = run.flows ?? [];
+    const attempts = this.computeFlowAttempts(flows);
+    const latestIds = new Set(this.groupLatest(flows).map((flow) => flow.id));
+
+    const jsonFlows: JsonFlowResult[] = flows
+      .slice()
+      .sort((a, b) => a.id - b.id)
+      .map((flow) => {
+        const durationSeconds =
+          flow.requested_at && flow.completed_at
+            ? Math.max(
+                0,
+                Math.floor(
+                  (new Date(flow.completed_at).getTime() -
+                    new Date(flow.requested_at).getTime()) /
+                    1000,
+                ),
+              )
+            : undefined;
+        return {
+          id: flow.id,
+          runId: run.id,
+          name: flow.name,
+          status: flow.status,
+          passed: !this.isFlowFailed(flow) && flow.status === 'DONE',
+          attempt: attempts.get(flow.id) ?? 1,
+          latest: latestIds.has(flow.id),
+          ...(flow.shard_index != null && { shardIndex: flow.shard_index }),
+          ...(flow.requested_at && { startedAt: flow.requested_at }),
+          ...(flow.completed_at && { completedAt: flow.completed_at }),
+          ...(durationSeconds != null && { durationSeconds }),
+          errors: flow.error_messages ?? [],
+        };
+      });
+
+    return {
+      ...super.runToJson(run),
+      passed: this.runPassed(run),
+      flows: jsonFlows,
+    };
+  }
+
   /**
    * Polls the run status, rendering the live flow table, until `isComplete`
    * returns true. Returns the raw status without printing the final summary or
@@ -2564,6 +2627,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     return {
       success: allSucceeded,
+      outcome: allSucceeded ? 'passed' : 'failed',
       runs: status.runs,
     };
   }

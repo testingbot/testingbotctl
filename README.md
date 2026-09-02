@@ -144,6 +144,9 @@ testingbot maestro <app> <flows...> [options]
 |--------|-------------|
 | `--async` | Start tests and exit without waiting for results |
 | `-q, --quiet` | Suppress progress output |
+| `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
+| `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
 | `--report <format>` | Download report after completion: html or junit |
 | `--report-output-dir <path>` | Directory to save reports (required with --report) |
 | `--download-artifacts [mode]` | Download test artifacts (logs, screenshots, video). Mode: `all` (default) or `failed` |
@@ -361,6 +364,9 @@ testingbot espresso [appFile] [testAppFile] [options]
 |--------|-------------|
 | `--async` | Start tests and exit without waiting for results |
 | `-q, --quiet` | Suppress progress output |
+| `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
+| `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
 | `--report <format>` | Download report after completion: html or junit |
 | `--report-output-dir <path>` | Directory to save reports (required with --report) |
 
@@ -461,6 +467,9 @@ testingbot xcuitest [appFile] [testAppFile] [options]
 |--------|-------------|
 | `--async` | Start tests and exit without waiting for results |
 | `-q, --quiet` | Suppress progress output |
+| `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
+| `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
 | `--report <format>` | Download report after completion: html or junit |
 | `--report-output-dir <path>` | Directory to save reports (required with --report) |
 
@@ -556,8 +565,55 @@ Artifacts are saved as a zip file named after the `--build` value (or with a tim
 
 ## Exit Codes
 
-- `0` - All tests passed
-- `1` - One or more tests failed or an error occurred
+| Code | Meaning |
+|------|---------|
+| `0` | All tests passed (also for `--async`, `--dry-run`, and failed tests with `--json-file`) |
+| `1` | CLI or infrastructure error: invalid arguments, missing credentials, upload failure, timeout |
+| `2` | One or more tests failed |
+
+Distinguishing `1` from `2` lets CI decide whether to retry the job or fail the build.
+
+## JSON Output
+
+`--json` prints one JSON document on stdout and moves all log lines to stderr, so `testingbot maestro app.apk ./flows --json | jq` works. `--json-file` writes the same document to disk while keeping the normal console output. Both flags imply `--quiet`.
+
+```json
+{
+  "provider": "maestro",
+  "outcome": "failed",
+  "success": false,
+  "appId": 1234,
+  "url": "https://testingbot.com/members/maestro/1234",
+  "runs": [
+    {
+      "id": 5678,
+      "status": "DONE",
+      "passed": false,
+      "device": { "name": "Pixel 6", "platform": "Android", "version": "14" },
+      "url": "https://testingbot.com/members/maestro/1234/runs/5678",
+      "flows": [
+        {
+          "id": 1,
+          "runId": 5678,
+          "name": "login",
+          "status": "DONE",
+          "passed": true,
+          "attempt": 1,
+          "latest": true,
+          "startedAt": "2026-01-01T00:00:00Z",
+          "completedAt": "2026-01-01T00:00:30Z",
+          "durationSeconds": 30,
+          "errors": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `outcome` is one of `passed`, `failed`, `started` (`--async`), `dry-run`, or `error`. On `error` the document carries an `error` message and the exit code is `1`.
+- `flows` (Maestro only) lists every attempt, including `--retry` re-runs. `attempt` counts from 1; `latest` marks the attempt whose verdict counts for the run.
+- `runs` is empty for `--async`, `--dry-run`, and errors raised before tests were submitted.
 
 ## Documentation
 

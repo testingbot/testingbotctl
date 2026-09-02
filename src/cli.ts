@@ -23,6 +23,76 @@ import MaestroOptions, {
 import Maestro from './providers/maestro';
 import Login from './providers/login';
 import TestingBotError from './models/testingbot_error';
+import { redirectLogsToStderr } from './logger';
+import {
+  EXIT_ERROR,
+  JsonOutput,
+  JsonOutputOptions,
+  resolveExitCode,
+  validateJsonOptions,
+  writeJsonOutput,
+} from './utils/json_output';
+
+interface JsonCliArgs {
+  json?: boolean;
+  jsonFile?: boolean;
+  jsonFileName?: string;
+}
+
+/**
+ * Normalizes the --json* flags, validates their combination and, for --json,
+ * moves logging to stderr before any output is produced.
+ */
+function jsonOptionsFrom(args: JsonCliArgs): JsonOutputOptions {
+  const options: JsonOutputOptions = {
+    json: Boolean(args.json),
+    jsonFile: Boolean(args.jsonFile),
+    jsonFileName: args.jsonFileName,
+  };
+  validateJsonOptions(options);
+  if (options.json) {
+    redirectLogsToStderr();
+  }
+  return options;
+}
+
+/** Emits JSON output (if requested) and sets the exit code for a finished run. */
+async function finishCommand(
+  output: JsonOutput,
+  jsonOptions: JsonOutputOptions,
+): Promise<void> {
+  const written = await writeJsonOutput(output, jsonOptions);
+  if (written && !jsonOptions.json) {
+    logger.info(`JSON results written to ${written}`);
+  }
+  process.exitCode = resolveExitCode(output, jsonOptions);
+}
+
+/**
+ * Reports a CLI/infrastructure error: logs it, exits 1, and still emits a JSON
+ * document when requested so a consumer never has to parse missing output.
+ */
+async function failCommand(
+  provider: JsonOutput['provider'],
+  label: string,
+  err: unknown,
+  jsonOptions: JsonOutputOptions | undefined,
+): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err);
+  logger.error(`${label} error: ${message}`);
+  process.exitCode = EXIT_ERROR;
+  if (!jsonOptions || (!jsonOptions.json && !jsonOptions.jsonFile)) return;
+  try {
+    await writeJsonOutput(
+      { provider, outcome: 'error', success: false, error: message, runs: [] },
+      jsonOptions,
+    );
+  } catch (writeError) {
+    logger.error(
+      writeError instanceof Error ? writeError.message : String(writeError),
+    );
+  }
+}
 
 const program = new Command();
 
@@ -160,8 +230,23 @@ program
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
+  // Machine-readable output
+  .option(
+    '--json',
+    'Print results as JSON on stdout; logs move to stderr. Exits 2 when tests fail, 1 on CLI errors.',
+  )
+  .option(
+    '--json-file',
+    'Write results as JSON to a file (default: <appId>_testingbot.json). Exits 0 even when tests fail, 1 on CLI errors.',
+  )
+  .option(
+    '--json-file-name <path>',
+    'Custom path for the JSON results file (requires --json-file).',
+  )
   .action(async (appFileArg, testAppFileArg, args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
     try {
+      jsonOptions = jsonOptionsFrom(args);
       // Positional arguments take precedence, fall back to options
       const app = appFileArg || args.app;
       const testApp = testAppFileArg || args.testApp;
@@ -221,7 +306,7 @@ program
         throttleNetwork: args.throttleNetwork,
         tunnel: args.tunnel,
         tunnelIdentifier: args.tunnelIdentifier,
-        quiet: args.quiet,
+        quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
         async: args.async,
         dryRun: args.dryRun,
         report: args.report,
@@ -230,14 +315,9 @@ program
       });
       const espresso = new Espresso(credentials, options);
       const result = await espresso.run();
-      if (!result.success) {
-        process.exitCode = 1;
-      }
+      await finishCommand(espresso.toJsonOutput(result), jsonOptions);
     } catch (err) {
-      logger.error(
-        `Espresso error: ${err instanceof Error ? err.message : err}`,
-      );
-      process.exitCode = 1;
+      await failCommand('espresso', 'Espresso', err, jsonOptions);
     }
   })
   .showHelpAfterError(true);
@@ -413,8 +493,23 @@ program
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
   .option('--debug', 'Enable debug logging of API responses.')
+  // Machine-readable output
+  .option(
+    '--json',
+    'Print results as JSON on stdout; logs move to stderr. Exits 2 when tests fail, 1 on CLI errors.',
+  )
+  .option(
+    '--json-file',
+    'Write results as JSON to a file (default: <appId>_testingbot.json). Exits 0 even when tests fail, 1 on CLI errors.',
+  )
+  .option(
+    '--json-file-name <path>',
+    'Custom path for the JSON results file (requires --json-file).',
+  )
   .action(async (appFileArg, flowsArgs, args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
     try {
+      jsonOptions = jsonOptionsFrom(args);
       let app: string;
       let flows: string[];
 
@@ -504,7 +599,7 @@ program
         maestroVersion: args.maestroVersion,
         tunnel: args.tunnel,
         tunnelIdentifier: args.tunnelIdentifier,
-        quiet: args.quiet,
+        quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
         async: args.async,
         dryRun: args.dryRun,
         report: args.report,
@@ -530,14 +625,9 @@ program
       }
       const maestro = new Maestro(credentials, options);
       const result = await maestro.run();
-      if (!result.success) {
-        process.exitCode = 1;
-      }
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
     } catch (err) {
-      logger.error(
-        `Maestro error: ${err instanceof Error ? err.message : err}`,
-      );
-      process.exitCode = 1;
+      await failCommand('maestro', 'Maestro', err, jsonOptions);
     }
   })
   .showHelpAfterError(true);
@@ -629,8 +719,23 @@ program
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
   .option('--debug', 'Enable debug logging of API responses.')
+  // Machine-readable output
+  .option(
+    '--json',
+    'Print results as JSON on stdout; logs move to stderr. Exits 2 when tests fail, 1 on CLI errors.',
+  )
+  .option(
+    '--json-file',
+    'Write results as JSON to a file (default: <appId>_testingbot.json). Exits 0 even when tests fail, 1 on CLI errors.',
+  )
+  .option(
+    '--json-file-name <path>',
+    'Custom path for the JSON results file (requires --json-file).',
+  )
   .action(async (appFileArg, testAppFileArg, args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
     try {
+      jsonOptions = jsonOptionsFrom(args);
       // Positional arguments take precedence, fall back to options
       const app = appFileArg || args.app;
       const testApp = testAppFileArg || args.testApp;
@@ -683,7 +788,7 @@ program
         throttleNetwork: args.throttleNetwork,
         tunnel: args.tunnel,
         tunnelIdentifier: args.tunnelIdentifier,
-        quiet: args.quiet,
+        quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
         async: args.async,
         dryRun: args.dryRun,
         report: args.report,
@@ -696,14 +801,9 @@ program
       }
       const xcuitest = new XCUITest(credentials, options);
       const result = await xcuitest.run();
-      if (!result.success) {
-        process.exitCode = 1;
-      }
+      await finishCommand(xcuitest.toJsonOutput(result), jsonOptions);
     } catch (err) {
-      logger.error(
-        `XCUITest error: ${err instanceof Error ? err.message : err}`,
-      );
-      process.exitCode = 1;
+      await failCommand('xcuitest', 'XCUITest', err, jsonOptions);
     }
   })
   .showHelpAfterError(true);

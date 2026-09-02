@@ -1331,6 +1331,7 @@ describe('Maestro', () => {
       const result = await asyncMaestro.run();
 
       expect(result.success).toBe(true);
+      expect(result.outcome).toBe('started');
       expect(axios.get).not.toHaveBeenCalled();
     });
 
@@ -6634,6 +6635,196 @@ onFlowStart:
 
       const result = await m.run();
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('JSON output', () => {
+    it('renders runs and flows with attempts, verdicts and dashboard urls', () => {
+      maestro['appId'] = 1234;
+      const runs = [
+        {
+          id: 5678,
+          status: 'DONE',
+          capabilities: {
+            deviceName: 'Pixel 6',
+            platformName: 'Android',
+            version: '14',
+          },
+          success: 0,
+          flows: [
+            {
+              id: 3,
+              name: 'checkout',
+              status: 'DONE',
+              success: 0,
+              error_messages: ['Element not found'],
+            },
+            {
+              id: 1,
+              name: 'login',
+              status: 'FAILED',
+              success: 0,
+              requested_at: '2026-01-01T00:00:00Z',
+              completed_at: '2026-01-01T00:00:30Z',
+              error_messages: ['timeout'],
+            },
+            {
+              id: 2,
+              name: 'login',
+              status: 'DONE',
+              success: 1,
+              requested_at: '2026-01-01T00:01:00Z',
+              completed_at: '2026-01-01T00:01:12Z',
+            },
+          ],
+        },
+      ] as unknown as import('../../src/providers/maestro').MaestroRunInfo[];
+
+      const json = maestro.toJsonOutput({
+        success: false,
+        outcome: 'failed',
+        runs,
+      });
+
+      expect(json).toMatchObject({
+        provider: 'maestro',
+        outcome: 'failed',
+        success: false,
+        appId: 1234,
+        url: 'https://testingbot.com/members/maestro/1234',
+      });
+      expect(json.error).toBeUndefined();
+      expect(json.runs).toHaveLength(1);
+
+      const run = json.runs[0];
+      expect(run).toMatchObject({
+        id: 5678,
+        status: 'DONE',
+        passed: false,
+        device: { name: 'Pixel 6', platform: 'Android', version: '14' },
+        url: 'https://testingbot.com/members/maestro/1234/runs/5678',
+      });
+
+      // Sorted by id; retries carry attempt > 1 and only the last attempt
+      // per flow is `latest`.
+      expect(run.flows?.map((f) => f.id)).toEqual([1, 2, 3]);
+      expect(run.flows?.[0]).toEqual({
+        id: 1,
+        runId: 5678,
+        name: 'login',
+        status: 'FAILED',
+        passed: false,
+        attempt: 1,
+        latest: false,
+        startedAt: '2026-01-01T00:00:00Z',
+        completedAt: '2026-01-01T00:00:30Z',
+        durationSeconds: 30,
+        errors: ['timeout'],
+      });
+      expect(run.flows?.[1]).toMatchObject({
+        id: 2,
+        name: 'login',
+        passed: true,
+        attempt: 2,
+        latest: true,
+        durationSeconds: 12,
+        errors: [],
+      });
+      expect(run.flows?.[2]).toMatchObject({
+        id: 3,
+        name: 'checkout',
+        passed: false,
+        attempt: 1,
+        latest: true,
+        errors: ['Element not found'],
+      });
+      expect(run.flows?.[2]).not.toHaveProperty('durationSeconds');
+    });
+
+    it('marks a run as passed when every latest attempt passed', () => {
+      maestro['appId'] = 1234;
+      const runs = [
+        {
+          id: 1,
+          status: 'DONE',
+          capabilities: { deviceName: 'iPhone 16', platformName: 'iOS' },
+          success: 0,
+          flows: [
+            { id: 1, name: 'a', status: 'FAILED', success: 0 },
+            { id: 2, name: 'a', status: 'DONE', success: 1 },
+          ],
+        },
+      ] as unknown as import('../../src/providers/maestro').MaestroRunInfo[];
+      const json = maestro.toJsonOutput({
+        success: true,
+        outcome: 'passed',
+        runs,
+      });
+      expect(json.runs[0].passed).toBe(true);
+      expect(json.runs[0].device).toEqual({
+        name: 'iPhone 16',
+        platform: 'iOS',
+      });
+    });
+
+    it('includes shard indexes when flows were sharded', () => {
+      const runs = [
+        {
+          id: 1,
+          status: 'DONE',
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: 1,
+          flows: [
+            { id: 1, name: 'a, b', status: 'DONE', success: 1, shard_index: 0 },
+          ],
+        },
+      ] as unknown as import('../../src/providers/maestro').MaestroRunInfo[];
+      const json = maestro.toJsonOutput({
+        success: true,
+        outcome: 'passed',
+        runs,
+      });
+      expect(json.runs[0].flows?.[0].shardIndex).toBe(0);
+    });
+
+    it('omits appId and url and carries the error before an app exists', () => {
+      const json = maestro.toJsonOutput({
+        success: false,
+        outcome: 'error',
+        error: 'Upload failed',
+        runs: [],
+      });
+      expect(json).toEqual({
+        provider: 'maestro',
+        outcome: 'error',
+        success: false,
+        error: 'Upload failed',
+        runs: [],
+      });
+    });
+
+    it('run() reports outcome error when validation fails', async () => {
+      maestro['validate'] = jest.fn().mockResolvedValue(false);
+      const result = await maestro.run();
+      expect(result).toEqual({
+        success: false,
+        outcome: 'error',
+        error: 'Validation failed',
+        runs: [],
+      });
+    });
+
+    it('run() reports outcome error with the message when a step throws', async () => {
+      maestro['validate'] = jest.fn().mockResolvedValue(true);
+      maestro['ensureConnectivity'] = jest.fn().mockResolvedValue(undefined);
+      maestro['detectPlatform'] = jest.fn().mockResolvedValue('Android');
+      maestro['uploadApp'] = jest
+        .fn()
+        .mockRejectedValue(new TestingBotError('Upload failed'));
+      const result = await maestro.run();
+      expect(result.success).toBe(false);
+      expect(result.outcome).toBe('error');
+      expect(result.error).toBe('Upload failed');
     });
   });
 });
