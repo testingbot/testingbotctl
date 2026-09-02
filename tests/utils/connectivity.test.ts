@@ -22,7 +22,10 @@ describe('checkInternetConnectivity', () => {
   it('reports connected when any endpoint succeeds', async () => {
     fetchMock.mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : (input as URL).toString();
-      if (url.includes('cloudflare.com')) {
+      // Match on the parsed hostname, not a substring: 'cloudflare.com' can
+      // appear anywhere in a URL, so a substring test would also accept hosts
+      // like evil-cloudflare.com.example.
+      if (new URL(url).hostname === 'www.cloudflare.com') {
         return { status: 204 } as unknown as Response;
       }
       throw new Error('fetch failed');
