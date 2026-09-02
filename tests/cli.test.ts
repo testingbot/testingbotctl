@@ -4,6 +4,8 @@ import Auth from './../src/auth';
 import Espresso from './../src/providers/espresso';
 import XCUITest from './../src/providers/xcuitest';
 import Maestro from './../src/providers/maestro';
+import fs from 'node:fs';
+import { JsonOutput } from './../src/utils/json_output';
 
 jest.mock('./../src/logger');
 jest.mock('./../src/auth');
@@ -33,6 +35,21 @@ describe('TestingBotCTL CLI', () => {
     mockXCUITestRun = jest.fn();
     XCUITest.prototype.run = mockXCUITestRun;
 
+    // The providers are automocked, so give toJsonOutput a realistic shape:
+    // the CLI derives the exit code from `outcome`, not from `success` alone.
+    const fakeJson =
+      (provider: JsonOutput['provider']) =>
+      (result: { success: boolean; outcome: JsonOutput['outcome'] }) => ({
+        provider,
+        outcome: result.outcome,
+        success: result.success,
+        appId: 1234,
+        runs: [],
+      });
+    Espresso.prototype.toJsonOutput = jest.fn(fakeJson('espresso'));
+    Maestro.prototype.toJsonOutput = jest.fn(fakeJson('maestro'));
+    XCUITest.prototype.toJsonOutput = jest.fn(fakeJson('xcuitest'));
+
     jest
       .spyOn(process, 'exit')
       .mockImplementation((code?: string | number | null) => {
@@ -42,6 +59,7 @@ describe('TestingBotCTL CLI', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    process.exitCode = 0;
   });
 
   test('espresso command should call espresso.run() with valid options', async () => {
@@ -847,6 +865,221 @@ describe('TestingBotCTL CLI', () => {
     // Preflight: run() must not fire if credentials are unresolved,
     // even though all required args are present.
     expect(Espresso.prototype.run).not.toHaveBeenCalled();
+  });
+
+  describe('exit codes and JSON output', () => {
+    let stdoutSpy: jest.SpyInstance;
+    let writeFileSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
+      writeFileSpy = jest
+        .spyOn(fs.promises, 'writeFile')
+        .mockResolvedValue(undefined);
+      jest.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    const parseStdoutJson = () => {
+      expect(stdoutSpy).toHaveBeenCalledTimes(1);
+      return JSON.parse(String(stdoutSpy.mock.calls[0][0])) as JsonOutput;
+    };
+
+    test.each([
+      ['espresso', ['espresso', 'app.apk', 'test.apk']],
+      ['maestro', ['maestro', 'app.apk', './flows']],
+      ['xcuitest', ['xcuitest', 'app.ipa', 'test.ipa']],
+    ])('%s exits 0 when tests pass', async (name, argv) => {
+      const run = {
+        espresso: mockEspressoRun,
+        maestro: mockMaestroRun,
+        xcuitest: mockXCUITestRun,
+      }[name]!;
+      run.mockResolvedValue({ success: true, outcome: 'passed', runs: [] });
+      await program.parseAsync(['node', 'cli', ...argv]);
+      expect(process.exitCode).toBe(0);
+    });
+
+    test.each([
+      ['espresso', ['espresso', 'app.apk', 'test.apk']],
+      ['maestro', ['maestro', 'app.apk', './flows']],
+      ['xcuitest', ['xcuitest', 'app.ipa', 'test.ipa']],
+    ])('%s exits 2 when tests fail', async (name, argv) => {
+      const run = {
+        espresso: mockEspressoRun,
+        maestro: mockMaestroRun,
+        xcuitest: mockXCUITestRun,
+      }[name]!;
+      run.mockResolvedValue({ success: false, outcome: 'failed', runs: [] });
+      await program.parseAsync(['node', 'cli', ...argv]);
+      expect(process.exitCode).toBe(2);
+      expect(stdoutSpy).not.toHaveBeenCalled();
+    });
+
+    test('exits 1 when the provider reports a CLI/infrastructure error', async () => {
+      mockMaestroRun.mockResolvedValue({
+        success: false,
+        outcome: 'error',
+        error: 'Upload failed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+      ]);
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('exits 1 when run() throws', async () => {
+      mockMaestroRun.mockRejectedValue(new Error('network down'));
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+      ]);
+      expect(process.exitCode).toBe(1);
+      expect(logger.error).toHaveBeenCalledWith('Maestro error: network down');
+    });
+
+    test('--json prints one JSON document on stdout, forces quiet and exits 2 on failure', async () => {
+      mockMaestroRun.mockResolvedValue({
+        success: false,
+        outcome: 'failed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--json',
+      ]);
+      const output = parseStdoutJson();
+      expect(output).toMatchObject({
+        provider: 'maestro',
+        outcome: 'failed',
+        success: false,
+        appId: 1234,
+      });
+      expect(lastConstructorOptions<{ quiet: boolean }>(Maestro).quiet).toBe(
+        true,
+      );
+      expect(process.exitCode).toBe(2);
+      expect(writeFileSpy).not.toHaveBeenCalled();
+    });
+
+    test('--json still emits a JSON document when run() throws', async () => {
+      mockMaestroRun.mockRejectedValue(new Error('network down'));
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--json',
+      ]);
+      expect(parseStdoutJson()).toEqual({
+        provider: 'maestro',
+        outcome: 'error',
+        success: false,
+        error: 'network down',
+        runs: [],
+      });
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('--json-file writes <appId>_testingbot.json and exits 0 on test failure', async () => {
+      mockMaestroRun.mockResolvedValue({
+        success: false,
+        outcome: 'failed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--json-file',
+      ]);
+      expect(writeFileSpy).toHaveBeenCalledTimes(1);
+      expect(String(writeFileSpy.mock.calls[0][0])).toMatch(
+        /1234_testingbot\.json$/,
+      );
+      expect(JSON.parse(String(writeFileSpy.mock.calls[0][1]))).toMatchObject({
+        outcome: 'failed',
+      });
+      expect(stdoutSpy).not.toHaveBeenCalled();
+      expect(lastConstructorOptions<{ quiet: boolean }>(Maestro).quiet).toBe(
+        true,
+      );
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('--json-file still exits 1 on CLI errors', async () => {
+      mockMaestroRun.mockRejectedValue(new Error('network down'));
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--json-file',
+      ]);
+      expect(writeFileSpy).toHaveBeenCalledTimes(1);
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('--json-file-name sets the output path', async () => {
+      mockEspressoRun.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'espresso',
+        'app.apk',
+        'test.apk',
+        '--json-file',
+        '--json-file-name',
+        'out/results.json',
+      ]);
+      expect(String(writeFileSpy.mock.calls[0][0])).toMatch(
+        /out[\\/]results\.json$/,
+      );
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('--json-file-name without --json-file is rejected before running', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'xcuitest',
+        'app.ipa',
+        'test.ipa',
+        '--json-file-name',
+        'out.json',
+      ]);
+      expect(mockXCUITestRun).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('--json-file-name requires --json-file'),
+      );
+      expect(process.exitCode).toBe(1);
+    });
   });
 
   test('unknown command should show help', async () => {

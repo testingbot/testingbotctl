@@ -8,7 +8,7 @@ import pc from 'picocolors';
 import { io, Socket } from 'socket.io-client';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
-import BaseProvider from './base_provider';
+import BaseProvider, { ProviderResult } from './base_provider';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
@@ -39,10 +39,7 @@ export interface EspressoStatusResponse {
   completed: boolean;
 }
 
-export interface EspressoResult {
-  success: boolean;
-  runs: EspressoRunInfo[];
-}
+export type EspressoResult = ProviderResult<EspressoRunInfo>;
 
 export interface EspressoSocketMessage {
   id: number;
@@ -52,6 +49,7 @@ export interface EspressoSocketMessage {
 export default class Espresso extends BaseProvider<EspressoOptions> {
   protected readonly URL =
     'https://api.testingbot.com/v1/app-automate/espresso';
+  protected readonly jsonProvider = 'espresso' as const;
 
   private socket: Socket | null = null;
   private updateServer: string | null = null;
@@ -103,7 +101,12 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
 
   public async run(): Promise<EspressoResult> {
     if (!(await this.validate())) {
-      return { success: false, runs: [] };
+      return {
+        success: false,
+        outcome: 'error',
+        error: 'Validation failed',
+        runs: [],
+      };
     }
 
     if (this.options.dryRun) {
@@ -133,7 +136,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         },
       });
 
-      return { success: true, runs: [] };
+      return { success: true, outcome: 'dry-run', runs: [] };
     }
 
     try {
@@ -171,7 +174,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         if (!this.options.quiet) {
           logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
         }
-        return { success: true, runs: [] };
+        return { success: true, outcome: 'started', runs: [] };
       }
 
       // Set up signal handlers before waiting for completion
@@ -206,7 +209,12 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           logger.error(`  Reason: ${causeMessage}`);
         }
       }
-      return { success: false, runs: [] };
+      return {
+        success: false,
+        outcome: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        runs: [],
+      };
     }
   }
 
@@ -399,6 +407,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
 
         return {
           success: status.success,
+          outcome: status.success ? 'passed' : 'failed',
           runs: status.runs,
         };
       }

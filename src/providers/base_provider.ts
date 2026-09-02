@@ -22,6 +22,11 @@ import {
   formatConnectivityResults,
 } from '../utils/connectivity';
 import { POLLING } from '../config/constants';
+import type {
+  JsonOutput,
+  JsonRunResult,
+  RunOutcome,
+} from '../utils/json_output';
 
 /**
  * Common interface for run information shared by all providers
@@ -35,6 +40,32 @@ export interface BaseRunInfo {
     version?: string;
   };
   success: number;
+  report?: string;
+}
+
+/**
+ * Result of a provider's run(). `outcome` tells the CLI whether a `success`
+ * of false means the tests failed (exit 2) or the command itself failed
+ * (exit 1); `success` alone cannot distinguish the two.
+ */
+export interface ProviderResult<TRun> {
+  success: boolean;
+  outcome: RunOutcome;
+  runs: TRun[];
+  /** Message of the error that ended the command, when outcome is `error`. */
+  error?: string;
+}
+
+/** The subset of run info needed to render a run as JSON. */
+export interface JsonRunSource {
+  id: number;
+  status: string;
+  capabilities: {
+    deviceName: string;
+    platformName: string;
+    version?: string;
+  };
+  success: number | boolean;
   report?: string;
 }
 
@@ -90,6 +121,54 @@ export default abstract class BaseProvider<
       Math.round(currentIntervalMs * this.POLL_BACKOFF_MULTIPLIER),
       this.MAX_POLL_INTERVAL_MS,
     );
+  }
+
+  /** Identifier used in the `provider` field of --json output. */
+  protected abstract readonly jsonProvider: JsonOutput['provider'];
+
+  /**
+   * Dashboard URL for the current app, or for one of its runs. Providers that
+   * expose a members page override this; the default omits the field.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected dashboardUrl(runId?: number): string | undefined {
+    return undefined;
+  }
+
+  /**
+   * Renders one run as it appears in --json output. Subclasses extend the
+   * base shape (e.g. Maestro adds per-flow rows).
+   */
+  protected runToJson(run: JsonRunSource): JsonRunResult {
+    return {
+      id: run.id,
+      status: run.status,
+      passed: this.isRunSuccessful(run.success),
+      device: {
+        name: run.capabilities.deviceName,
+        platform: run.capabilities.platformName,
+        ...(run.capabilities.version && { version: run.capabilities.version }),
+      },
+      ...(this.dashboardUrl(run.id) && { url: this.dashboardUrl(run.id) }),
+      ...(run.report && { report: run.report }),
+    };
+  }
+
+  /**
+   * Builds the machine-readable document emitted by --json / --json-file.
+   * Safe to call for every outcome, including errors raised before an app id
+   * was assigned.
+   */
+  public toJsonOutput(result: ProviderResult<JsonRunSource>): JsonOutput {
+    return {
+      provider: this.jsonProvider,
+      outcome: result.outcome,
+      success: result.success,
+      ...(this.appId && { appId: this.appId }),
+      ...(this.dashboardUrl() && { url: this.dashboardUrl() }),
+      ...(result.error && { error: result.error }),
+      runs: result.runs.map((run) => this.runToJson(run)),
+    };
   }
 
   protected credentials: Credentials;
