@@ -12,6 +12,10 @@ on:
 jobs:
   generate-demo:
     runs-on: ubuntu-latest
+    # Needs write access because the final step can push the regenerated demo
+    # back to the branch; nothing else is granted.
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
