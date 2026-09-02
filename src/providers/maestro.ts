@@ -843,6 +843,28 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       finalFlowFileSet.has(path.resolve(f)),
     );
 
+    // Every flow the user asked for was dropped by tag filtering and only its
+    // runFlow dependencies are left. filterFlowsByTags cannot catch this: it
+    // sees those dependencies as flows (subflows carry no tags, so they always
+    // survive an excludeTags filter) and stays quiet. Uploading the zip anyway
+    // ships a bundle of helpers, and the run executes nothing.
+    if (survivingTopLevel.length === 0) {
+      // topLevelFlowFiles is empty from the start when the paths held no
+      // runnable flow at all (e.g. only a config.yaml), which the tag filters
+      // are not to blame for.
+      if (topLevelFlowFiles.length === 0) {
+        throw new TestingBotError(
+          `No flows to run: the paths you passed contain no runnable flow files, only a Maestro config file.`,
+        );
+      }
+      const dropped = topLevelFlowFiles
+        .map((f) => path.relative(baseDir ?? process.cwd(), f))
+        .join(', ');
+      throw new TestingBotError(
+        `No flows left to run: every flow you passed was excluded by the tag filters (--include-tags / --exclude-tags, or includeTags / excludeTags in config.yaml). Excluded: ${dropped}`,
+      );
+    }
+
     return { allFlowFiles, topLevelFlowFiles: survivingTopLevel, baseDir };
   }
 

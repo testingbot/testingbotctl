@@ -4020,6 +4020,157 @@ flows:
     });
   });
 
+  describe('collectFlows when tag filters drop every requested flow', () => {
+    // The September 2026 case: a single tagged flow is passed, config.yaml
+    // excludes that tag, and the flow's untagged runFlow helpers survive. The
+    // CLI used to upload a zip of helpers only, and the run executed nothing.
+    const projectDir = path.resolve(path.sep, 'project');
+    const claimFlow = path.join(projectDir, 'flows', 'claims', 'import.yaml');
+    const loginFlow = path.join(projectDir, 'flows', 'shared', 'login.yaml');
+    const configFile = path.join(projectDir, 'config.yaml');
+
+    const yamlByPath: Record<string, string> = {
+      [claimFlow]: `appId: com.example\ntags:\n  - data-blocked\n---\n- runFlow: ../shared/login.yaml`,
+      [loginFlow]: `appId: com.example\n---\n- tapOn: Login`,
+      [configFile]: `flows:\n  - "flows/claims/*.yaml"\nexcludeTags:\n  - data-blocked`,
+    };
+
+    // Only `passedPaths` stat as files; everything else in `files` exists but
+    // is reachable only through config lookups and runFlow references.
+    const mockProjectFs = (
+      files: Record<string, string>,
+      passedPaths: string[],
+    ) => {
+      fs.promises.stat = jest.fn().mockImplementation((p: string) =>
+        passedPaths.includes(p)
+          ? Promise.resolve({
+              isFile: () => true,
+              isDirectory: () => false,
+            })
+          : Promise.reject(new Error(`ENOENT: ${p}`)),
+      );
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          files[p] !== undefined
+            ? Promise.resolve(files[p])
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+      fs.promises.access = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          files[p] !== undefined
+            ? Promise.resolve(undefined)
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+    };
+
+    it('throws instead of uploading a bundle with no runnable flow', async () => {
+      mockProjectFs(yamlByPath, [claimFlow]);
+
+      const opts = new MaestroOptions('app.apk', claimFlow, 'Pixel 6', {
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+
+      await expect(m.collectFlows()).rejects.toThrow(/No flows left to run/);
+    });
+
+    it('names the excluded flows relative to the project root', async () => {
+      mockProjectFs(yamlByPath, [claimFlow]);
+
+      const opts = new MaestroOptions('app.apk', claimFlow, 'Pixel 6', {
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+
+      await expect(m.collectFlows()).rejects.toThrow(
+        new RegExp(
+          `Excluded: ${['flows', 'claims', 'import.yaml'].join('\\' + path.sep)}`,
+        ),
+      );
+    });
+
+    it('throws when --include-tags matches only a runFlow dependency', async () => {
+      // The mirror image of the excludeTags case: the passed flow carries no
+      // matching tag, its helper does, so the helper alone would be uploaded.
+      const includeYaml: Record<string, string> = {
+        [claimFlow]: `appId: com.example\n---\n- runFlow: ../shared/login.yaml`,
+        [loginFlow]: `appId: com.example\ntags:\n  - smoke\n---\n- tapOn: Login`,
+        [configFile]: `flows:\n  - "flows/claims/*.yaml"`,
+      };
+      mockProjectFs(includeYaml, [claimFlow]);
+
+      const opts = new MaestroOptions('app.apk', claimFlow, 'Pixel 6', {
+        quiet: true,
+        includeTags: ['smoke'],
+      });
+      const m = new Maestro(mockCredentials, opts);
+
+      await expect(m.collectFlows()).rejects.toThrow(/No flows left to run/);
+    });
+
+    it('does not throw when at least one requested flow survives', async () => {
+      const smokeFlow = path.join(projectDir, 'flows', 'smoke', 'launch.yaml');
+      const mixedYaml: Record<string, string> = {
+        ...yamlByPath,
+        [smokeFlow]: `appId: com.example\n---\n- launchApp`,
+      };
+      mockProjectFs(mixedYaml, [claimFlow, smokeFlow]);
+
+      const opts = new MaestroOptions(
+        'app.apk',
+        [claimFlow, smokeFlow],
+        'Pixel 6',
+        { quiet: true },
+      );
+      const m = new Maestro(mockCredentials, opts);
+      const result = await m.collectFlows();
+
+      expect(result).not.toBeNull();
+      expect(result!.topLevelFlowFiles).toEqual([smokeFlow]);
+      expect(result!.allFlowFiles).not.toContain(claimFlow);
+    });
+
+    it('keeps an excluded-tag helper in the bundle when its parent survives', async () => {
+      // A runFlow target is a dependency, not a flow of its own: dropping it
+      // for carrying an excluded tag would break the parent that still runs.
+      const taggedHelperYaml: Record<string, string> = {
+        [claimFlow]: `appId: com.example\n---\n- runFlow: ../shared/login.yaml`,
+        [loginFlow]: `appId: com.example\ntags:\n  - data-blocked\n---\n- tapOn: Login`,
+        [configFile]: `flows:\n  - "flows/claims/*.yaml"\nexcludeTags:\n  - data-blocked`,
+      };
+      mockProjectFs(taggedHelperYaml, [claimFlow]);
+
+      const opts = new MaestroOptions('app.apk', claimFlow, 'Pixel 6', {
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+      const result = await m.collectFlows();
+
+      expect(result).not.toBeNull();
+      expect(result!.topLevelFlowFiles).toEqual([claimFlow]);
+      expect(result!.allFlowFiles).toContain(loginFlow);
+    });
+
+    it('blames the paths, not the tag filters, when no flow was passed at all', async () => {
+      // No tag filters anywhere: topLevelFlowFiles is empty because a config
+      // file is all that was passed, so the tag-filter message would mislead.
+      mockProjectFs({ [configFile]: `flows:\n  - "flows/claims/*.yaml"` }, [
+        configFile,
+      ]);
+
+      const opts = new MaestroOptions('app.apk', configFile, 'Pixel 6', {
+        quiet: true,
+      });
+      const m = new Maestro(mockCredentials, opts);
+
+      await expect(m.collectFlows()).rejects.toThrow(
+        /no runnable flow files, only a Maestro config file/,
+      );
+    });
+  });
+
   describe('Flow Status Display', () => {
     describe('getFlowStatusDisplay', () => {
       it('should return yellow WAITING for WAITING status', () => {
