@@ -2515,8 +2515,18 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         };
       });
 
+    const base = super.runToJson(run);
     return {
-      ...super.runToJson(run),
+      ...base,
+      // Prefer the device that actually ran over the requested capability:
+      // a wildcard or partial name like "*" is meaningless in a report.
+      device: {
+        name: run.environment?.device || base.device.name,
+        platform: base.device.platform,
+        ...((run.environment?.version || base.device.version) && {
+          version: run.environment?.version || base.device.version,
+        }),
+      },
       passed: this.runPassed(run),
       flows: jsonFlows,
     };
