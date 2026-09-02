@@ -7150,4 +7150,117 @@ onFlowStart:
       }
     });
   });
+
+  describe('--exclude-flows', () => {
+    const files = () => [
+      '/proj/flows/login.yaml',
+      '/proj/flows/checkout.yaml',
+      '/proj/flows/wip/draft.yaml',
+      '/proj/flows/slow-sync.yaml',
+    ];
+
+    const withExclusions = (excludeFlows: string[]) =>
+      new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', '/proj/flows', undefined, {
+          excludeFlows,
+        }),
+      );
+
+    it('is a no-op without patterns', async () => {
+      const list = files();
+      await expect(maestro['applyFlowExclusions'](list)).resolves.toBe(0);
+      expect(list).toHaveLength(4);
+    });
+
+    it('drops exact files and everything under a directory', async () => {
+      fs.promises.stat = jest.fn().mockImplementation(async (p: string) => ({
+        isDirectory: () => String(p).endsWith('/wip'),
+        isFile: () => !String(p).endsWith('/wip'),
+      }));
+      const m = withExclusions(['/proj/flows/login.yaml', '/proj/flows/wip']);
+      const list = files();
+      await expect(m['applyFlowExclusions'](list)).resolves.toBe(2);
+      expect(list).toEqual([
+        '/proj/flows/checkout.yaml',
+        '/proj/flows/slow-sync.yaml',
+      ]);
+    });
+
+    it('expands glob patterns', async () => {
+      const { glob } = jest.requireMock('glob') as { glob: jest.Mock };
+      glob.mockResolvedValueOnce(['/proj/flows/slow-sync.yaml']);
+      const m = withExclusions(['/proj/flows/slow-*.yaml']);
+      const list = files();
+      await expect(m['applyFlowExclusions'](list)).resolves.toBe(1);
+      expect(glob).toHaveBeenCalledWith('/proj/flows/slow-*.yaml');
+      expect(list).not.toContain('/proj/flows/slow-sync.yaml');
+    });
+
+    it('ignores patterns that match nothing', async () => {
+      fs.promises.stat = jest.fn().mockRejectedValue(new Error('ENOENT'));
+      const m = withExclusions(['/proj/flows/missing.yaml']);
+      const list = files();
+      await expect(m['applyFlowExclusions'](list)).resolves.toBe(0);
+      expect(list).toHaveLength(4);
+    });
+  });
+
+  describe('--report allure', () => {
+    it('converts the junit report into allure-results', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        MaestroOptions.forExistingProject({
+          report: 'allure',
+          reportOutputDir: '/tmp/reports',
+        }),
+      );
+      m['appId'] = 1234;
+      axios.get = jest.fn().mockResolvedValue({
+        data: {
+          junit_report:
+            '<testsuite name="s"><testcase name="login" time="1"/></testsuite>',
+        },
+        headers: {},
+      });
+      fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+
+      await m['fetchReports']([
+        {
+          id: 5678,
+          status: 'DONE',
+          capabilities: {
+            deviceName: 'Pixel 6',
+            platformName: 'Android',
+            version: '14',
+          },
+          success: 1,
+        } as never,
+      ]);
+
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro/1234/5678/junit_report',
+        expect.anything(),
+      );
+      expect(fs.promises.mkdir).toHaveBeenCalledWith(
+        path.join('/tmp/reports', 'allure-results'),
+        { recursive: true },
+      );
+      expect(fs.promises.writeFile).toHaveBeenCalledTimes(1);
+      const [file, body] = (fs.promises.writeFile as jest.Mock).mock.calls[0];
+      expect(String(file)).toMatch(
+        /allure-results[\\/][0-9a-f-]{36}-result\.json$/,
+      );
+      expect(JSON.parse(String(body))).toMatchObject({
+        name: 'login',
+        status: 'passed',
+        labels: expect.arrayContaining([
+          { name: 'device', value: 'Pixel 6' },
+          { name: 'platform', value: 'Android' },
+          { name: 'osVersion', value: '14' },
+        ]),
+      });
+    });
+  });
 });

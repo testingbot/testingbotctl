@@ -1,4 +1,4 @@
-import { Command, InvalidArgumentError } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
 import logger, { enableDebugLogging } from './logger';
 import Auth from './auth';
 import Espresso from './providers/espresso';
@@ -23,6 +23,8 @@ import MaestroOptions, {
 import Maestro from './providers/maestro';
 import Login from './providers/login';
 import Credentials from './models/credentials';
+import path from 'node:path';
+import type { RunMetadata } from './models/maestro_options';
 import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
 import {
@@ -86,6 +88,147 @@ function parseProjectId(value: string): number {
     );
   }
   return id;
+}
+
+/**
+ * Commander accumulator for repeatable flags. Returns a new array each time
+ * and takes no default, so nothing is shared between parses (a default `[]`
+ * would be mutated in place and leak values across invocations).
+ */
+function collectRepeatable(value: string, acc: string[] | undefined): string[] {
+  return [...(acc ?? []), value];
+}
+
+/** Like collectRepeatable, but each value may also be comma-separated. */
+function collectCommaSeparated(
+  value: string,
+  acc: string[] | undefined,
+): string[] {
+  const parts = value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return [...(acc ?? []), ...parts];
+}
+
+/** Parses `KEY=VALUE` entries; empty keys or a missing `=` are rejected. */
+function parseKeyValues(
+  entries: string[] | undefined,
+  flag: string,
+): Record<string, string> | undefined {
+  if (!entries || entries.length === 0) return undefined;
+  const result: Record<string, string> = {};
+  for (const entry of entries) {
+    const eq = entry.indexOf('=');
+    if (eq <= 0) {
+      throw new TestingBotError(
+        `Invalid ${flag} entry "${entry}": expected KEY=VALUE.`,
+      );
+    }
+    result[entry.slice(0, eq).trim()] = entry.slice(eq + 1);
+  }
+  return result;
+}
+
+/** Drops unset fields; returns undefined when nothing is set. */
+function buildRunMetadata(fields: RunMetadata): RunMetadata | undefined {
+  const metadata: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined && value !== '') metadata[key] = value;
+  }
+  return Object.keys(metadata).length > 0
+    ? (metadata as RunMetadata)
+    : undefined;
+}
+
+/** Android API level → OS version, for `--device-os android-34`. */
+const ANDROID_API_TO_VERSION: Record<string, string> = {
+  '26': '8.0',
+  '27': '8.1',
+  '28': '9',
+  '29': '10',
+  '30': '11',
+  '31': '12',
+  '32': '12',
+  '33': '13',
+  '34': '14',
+  '35': '15',
+  '36': '16',
+};
+
+interface MaestroCloudAliasArgs {
+  appFile?: string;
+  flows?: string;
+  deviceModel?: string;
+  deviceOs?: string;
+  format?: string;
+  output?: string;
+  testSuiteName?: string;
+  app?: string;
+  device?: string;
+  platform?: 'Android' | 'iOS';
+  deviceVersion?: string;
+  report?: ReportFormat;
+  reportOutputDir?: string;
+  name?: string;
+}
+
+/**
+ * Maestro Cloud spells several flags differently (`maestro cloud --app-file
+ * app.zip --flows ./flows --device-os iOS-18-2 --format JUNIT`). These hidden
+ * aliases let such a command line run unchanged. Canonical flags win when
+ * both are given. Returns extra flow paths from `--flows`.
+ */
+function applyMaestroCloudAliases(args: MaestroCloudAliasArgs): string[] {
+  if (args.appFile && !args.app) args.app = args.appFile;
+
+  const extraFlows = (args.flows ?? '')
+    .split(',')
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+  if (args.deviceModel && !args.device) {
+    // Maestro Cloud model ids are dash/underscore-joined: iPhone-17-Pro, pixel_7
+    args.device = args.deviceModel.replace(/[-_]+/g, ' ');
+  }
+
+  if (args.deviceOs) {
+    const match = /^(ios|android)[-_]?(.*)$/i.exec(args.deviceOs.trim());
+    if (!match) {
+      throw new TestingBotError(
+        `Invalid --device-os "${args.deviceOs}": expected iOS-<major>[-<minor>] or android-<api level>.`,
+      );
+    }
+    const isIos = match[1].toLowerCase() === 'ios';
+    if (!args.platform) args.platform = isIos ? 'iOS' : 'Android';
+    if (!args.deviceVersion && match[2]) {
+      const raw = match[2].replace(/-/g, '.');
+      args.deviceVersion = isIos ? raw : (ANDROID_API_TO_VERSION[raw] ?? raw);
+    }
+  }
+
+  if (args.format && !args.report) {
+    const format = args.format.toLowerCase();
+    if (format === 'junit' || format === 'html') {
+      args.report = format;
+    } else if (format !== 'noop') {
+      throw new TestingBotError(
+        `Invalid --format "${args.format}": expected JUNIT, HTML or NOOP.`,
+      );
+    }
+  }
+
+  if (args.output && !args.reportOutputDir) {
+    args.reportOutputDir = path.dirname(path.resolve(args.output));
+    if (args.report) {
+      logger.warn(
+        `--output is mapped to --report-output-dir ${args.reportOutputDir}; reports are named report_run_<id>.<ext>`,
+      );
+    }
+  }
+
+  if (args.testSuiteName && !args.name) args.name = args.testSuiteName;
+  return extraFlows;
 }
 
 /** Emits JSON output (if requested) and sets the exit code for a finished run. */
@@ -445,6 +588,11 @@ program
     'Exclude flows with these tags (comma-separated).',
     (val) => val.split(',').map((t) => t.trim()),
   )
+  .option(
+    '--exclude-flows <paths>',
+    'Flow files, directories or globs to leave out (comma-separated, repeatable).',
+    collectCommaSeparated,
+  )
   // Environment variables
   .option(
     '-e, --env <KEY=VALUE>',
@@ -489,7 +637,7 @@ program
   // Report options
   .option(
     '--report <format>',
-    'Download test report after completion: html, html-detailed, or junit.',
+    'Download test report after completion: html, html-detailed, junit, or allure.',
     (val) => val.toLowerCase() as ReportFormat,
   )
   .option(
@@ -516,7 +664,17 @@ program
     (val) => parseInt(val, 10),
   )
   // CI/CD metadata
+  .option('--branch <name>', 'Git branch this upload was built from.')
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
+  .option(
+    '--pr-url <url>',
+    'URL of the pull request this upload originated from.',
+  )
+  .option(
+    '-m, --metadata <KEY=VALUE>',
+    'Arbitrary metadata to attach to the run, shown in the dashboard (repeatable).',
+    collectRepeatable,
+  )
   .option(
     '--pull-request-id <id>',
     'The ID of the pull request this upload originated from.',
@@ -543,10 +701,59 @@ program
     '--json-file-name <path>',
     'Custom path for the JSON results file (requires --json-file).',
   )
+  .addOption(
+    new Option(
+      '--app-file <path>',
+      'Alias of --app (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--flows <paths>',
+      'Comma-separated flow paths (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--apiKey <key>',
+      'Alias of --api-key (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--device-model <model>',
+      'Alias of --device, e.g. iPhone-17-Pro (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--device-os <os>',
+      'Platform and OS version, e.g. iOS-18-2 or android-34 (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--format <format>',
+      'Alias of --report: JUNIT or HTML (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--output <path>',
+      'Report file path; its directory becomes --report-output-dir (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
+  .addOption(
+    new Option(
+      '--test-suite-name <name>',
+      'Alias of --name (Maestro Cloud compatibility).',
+    ).hideHelp(),
+  )
   .action(async (appFileArg, flowsArgs, args) => {
     let jsonOptions: JsonOutputOptions | undefined;
     try {
       jsonOptions = jsonOptionsFrom(args);
+      const aliasFlows = applyMaestroCloudAliases(args);
       let app: string;
       let flows: string[];
 
@@ -561,6 +768,7 @@ program
         app = appFileArg;
         flows = flowsArgs || [];
       }
+      flows = [...flows, ...aliasFlows];
 
       const missing: string[] = [];
       if (!app && args.appBinaryId == null)
@@ -612,19 +820,20 @@ program
         }
       }
 
-      const metadata =
-        args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
-          ? {
-              commitSha: args.commitSha,
-              pullRequestId: args.pullRequestId,
-              repoName: args.repoName,
-              repoOwner: args.repoOwner,
-            }
-          : undefined;
+      const metadata = buildRunMetadata({
+        commitSha: args.commitSha,
+        pullRequestId: args.pullRequestId,
+        pullRequestUrl: args.prUrl,
+        repoName: args.repoName,
+        repoOwner: args.repoOwner,
+        branch: args.branch,
+        custom: parseKeyValues(args.metadata, '--metadata'),
+      });
 
       const options = new MaestroOptions(app, flows, args.device, {
         includeTags: args.includeTags,
         excludeTags: args.excludeTags,
+        excludeFlows: args.excludeFlows,
         platformName: args.platform,
         version: args.deviceVersion,
         name: args.name,
@@ -1003,7 +1212,7 @@ withFlags(
       )
       .option(
         '--report <format>',
-        'Download test report: html, html-detailed, or junit.',
+        'Download test report: html, html-detailed, junit, or allure.',
         (val) => val.toLowerCase() as ReportFormat,
       )
       .option(

@@ -15,6 +15,7 @@ import { detectPlatformFromFile } from '../utils/file-type-detector';
 import pc from 'picocolors';
 import BaseProvider, { ProviderResult } from './base_provider';
 import type { JsonFlowResult, JsonRunResult } from '../utils/json_output';
+import { junitToAllureResults, writeAllureResults } from '../utils/allure';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
@@ -862,9 +863,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
+    const excluded = await this.applyFlowExclusions(allFlowFiles);
+
     if (allFlowFiles.length === 0) {
       throw new TestingBotError(
-        `No flow files (.yaml, .yml) found in the provided paths`,
+        excluded > 0
+          ? `--exclude-flows removed every flow (${excluded} excluded); nothing left to run`
+          : `No flow files (.yaml, .yml) found in the provided paths`,
       );
     }
 
@@ -1053,6 +1058,49 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    * (config.yaml or config.yml). This identifies the project root so the zip
    * preserves the directory structure needed for relative paths like ../../screens/.
    */
+  /**
+   * Drops flows matched by --exclude-flows from `files` in place. Entries may
+   * be files, directories (everything beneath is excluded) or glob patterns.
+   * Returns how many files were removed. Runs before dependency discovery, so
+   * an excluded flow that another flow still runFlow's is bundled as a
+   * subflow but never executes on its own.
+   */
+  private async applyFlowExclusions(files: string[]): Promise<number> {
+    const patterns = this.options.excludeFlows ?? [];
+    if (patterns.length === 0) return 0;
+
+    const excludedFiles = new Set<string>();
+    const excludedDirs: string[] = [];
+    for (const pattern of patterns) {
+      if (/[*?[\]{}]/.test(pattern)) {
+        for (const match of await glob(pattern)) {
+          excludedFiles.add(path.resolve(match));
+        }
+        continue;
+      }
+      const resolved = path.resolve(pattern);
+      const stat = await fs.promises.stat(resolved).catch(() => null);
+      if (stat?.isDirectory()) excludedDirs.push(resolved + path.sep);
+      else excludedFiles.add(resolved);
+    }
+
+    const before = files.length;
+    const kept = files.filter((file) => {
+      const resolved = path.resolve(file);
+      return (
+        !excludedFiles.has(resolved) &&
+        !excludedDirs.some((dir) => resolved.startsWith(dir))
+      );
+    });
+    files.splice(0, files.length, ...kept);
+
+    const removed = before - kept.length;
+    if (removed > 0 && !this.options.quiet) {
+      logger.info(`Excluded ${removed} flow file(s) via --exclude-flows`);
+    }
+    return removed;
+  }
+
   private async findMaestroProjectRoot(
     flowFiles: string[],
   ): Promise<{ dir: string; configPath: string } | null> {
@@ -3394,6 +3442,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         let reportKey: string;
         switch (reportFormat) {
           case 'junit':
+          case 'allure':
+            // Allure results are derived client-side from the JUnit XML.
             reportEndpoint = 'junit_report';
             reportKey = 'junit_report';
             break;
@@ -3434,6 +3484,23 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           continue;
         }
 
+        if (reportFormat === 'allure') {
+          const results = junitToAllureResults(reportContent, {
+            runId: run.id,
+            device: this.getRunDisplayName(run),
+            platform: run.capabilities.platformName,
+            osVersion: run.environment?.version ?? run.capabilities.version,
+            startedAt: run.flows?.[0]?.requested_at,
+          });
+          const dir = await writeAllureResults(outputDir, results);
+          if (!this.options.quiet) {
+            logger.info(
+              `  Saved ${results.length} Allure result(s) for run ${run.id} to ${dir}`,
+            );
+          }
+          continue;
+        }
+
         const fileExtension = reportFormat === 'junit' ? 'xml' : 'html';
         const fileName = `report_run_${run.id}.${fileExtension}`;
         const filePath = path.join(outputDir, fileName);
@@ -3448,6 +3515,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           `Failed to fetch report for run ${run.id}: ${error instanceof Error ? error.message : error}`,
         );
       }
+    }
+
+    if (reportFormat === 'allure' && !this.options.quiet) {
+      logger.info(
+        `  Render the report with: allure serve ${path.join(outputDir, 'allure-results')}`,
+      );
     }
   }
 

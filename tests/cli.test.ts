@@ -1494,6 +1494,225 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  describe('drop-in flags: metadata, exclude-flows, Maestro Cloud aliases', () => {
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      mockMaestroRun.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+    });
+
+    type Opts = {
+      metadata?: Record<string, unknown>;
+      excludeFlows?: string[];
+      app: string;
+      flows: string[];
+      device?: string;
+      platformName?: string;
+      version?: string;
+      report?: string;
+      reportOutputDir?: string;
+      name?: string;
+    };
+
+    test('--branch, --pr-url and --metadata land in run metadata', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--branch',
+        'main',
+        '--pr-url',
+        'https://github.com/o/r/pull/7',
+        '--commit-sha',
+        'abc',
+        '-m',
+        'team=mobile',
+        '--metadata',
+        'env=staging=eu',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toEqual({
+        commitSha: 'abc',
+        pullRequestUrl: 'https://github.com/o/r/pull/7',
+        branch: 'main',
+        custom: { team: 'mobile', env: 'staging=eu' },
+      });
+    });
+
+    test('metadata is omitted entirely when no CI flag is given', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toBeUndefined();
+    });
+
+    test('--metadata without KEY=VALUE is rejected', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '-m',
+        'novalue',
+      ]);
+      expect(mockMaestroRun).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid --metadata entry "novalue"'),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('--exclude-flows accepts comma-separated and repeated values', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--exclude-flows',
+        'a.yaml, ./wip',
+        '--exclude-flows',
+        '**/slow-*.yaml',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).excludeFlows).toEqual([
+        'a.yaml',
+        './wip',
+        '**/slow-*.yaml',
+      ]);
+    });
+
+    test('--report allure is accepted', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--report',
+        'ALLURE',
+        '--report-output-dir',
+        './reports',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).report).toBe('allure');
+    });
+
+    test('a maestro cloud command line runs unchanged via hidden aliases', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        '--apiKey',
+        'k',
+        '--app-file',
+        'app.zip',
+        '--flows',
+        './flows,./smoke',
+        '--device-model',
+        'iPhone-17-Pro',
+        '--device-os',
+        'iOS-18-2',
+        '--format',
+        'JUNIT',
+        '--output',
+        'out/report.xml',
+        '--test-suite-name',
+        'nightly',
+      ]);
+      expect(mockGetCredentials).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: 'k' }),
+      );
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.app).toBe('app.zip');
+      expect(opts.flows).toEqual(['./flows', './smoke']);
+      expect(opts.device).toBe('iPhone 17 Pro');
+      expect(opts.platformName).toBe('iOS');
+      expect(opts.version).toBe('18.2');
+      expect(opts.report).toBe('junit');
+      expect(opts.reportOutputDir).toMatch(/[\\/]out$/);
+      expect(opts.name).toBe('nightly');
+    });
+
+    test('--device-os android-34 maps the API level to Android 14', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--device-os',
+        'android-34',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.platformName).toBe('Android');
+      expect(opts.version).toBe('14');
+    });
+
+    test('canonical flags win over aliases', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        '--app',
+        'real.apk',
+        '--app-file',
+        'alias.apk',
+        './flows',
+        '--device',
+        'Pixel 9',
+        '--device-model',
+        'pixel_7',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.app).toBe('real.apk');
+      expect(opts.device).toBe('Pixel 9');
+    });
+
+    test('--format NOOP means no report; other values are rejected', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--format',
+        'NOOP',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).report).toBeUndefined();
+
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--format',
+        'PDF',
+      ]);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid --format "PDF"'),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('aliases are hidden from help', () => {
+      const maestroCmd = program.commands.find((c) => c.name() === 'maestro')!;
+      const help = maestroCmd.helpInformation();
+      expect(help).not.toContain('--app-file');
+      expect(help).not.toContain('--device-os');
+      expect(help).toContain('--exclude-flows');
+      expect(help).toContain('--metadata');
+    });
+  });
+
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')

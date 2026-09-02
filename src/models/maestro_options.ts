@@ -9,14 +9,18 @@ export interface MaestroConfig {
 
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane' | 'disable';
-export type ReportFormat = 'html' | 'html-detailed' | 'junit';
+export type ReportFormat = 'html' | 'html-detailed' | 'junit' | 'allure';
 export type ArtifactDownloadMode = 'all' | 'failed';
 
 export interface RunMetadata {
   commitSha?: string;
   pullRequestId?: string;
+  pullRequestUrl?: string;
   repoName?: string;
   repoOwner?: string;
+  branch?: string;
+  /** Free-form key/value pairs from --metadata, shown on the dashboard. */
+  custom?: Record<string, string>;
 }
 
 export interface MaestroCapabilities {
@@ -75,6 +79,7 @@ export default class MaestroOptions {
   private _device?: string;
   private _includeTags?: string[];
   private _excludeTags?: string[];
+  private _excludeFlows?: string[];
   private _platformName?: 'Android' | 'iOS';
   private _version?: string;
   private _name?: string;
@@ -113,6 +118,7 @@ export default class MaestroOptions {
     options?: {
       includeTags?: string[];
       excludeTags?: string[];
+      excludeFlows?: string[];
       platformName?: 'Android' | 'iOS';
       version?: string;
       name?: string;
@@ -157,6 +163,7 @@ export default class MaestroOptions {
     this._device = device;
     this._includeTags = options?.includeTags;
     this._excludeTags = options?.excludeTags;
+    this._excludeFlows = options?.excludeFlows;
     this._platformName = options?.platformName;
     this._version = options?.version;
     this._name = options?.name;
@@ -228,6 +235,11 @@ export default class MaestroOptions {
 
   public get includeTags(): string[] | undefined {
     return this._includeTags;
+  }
+
+  /** Flow files, directories or globs to leave out of the bundle (--exclude-flows). */
+  public get excludeFlows(): string[] | undefined {
+    return this._excludeFlows;
   }
 
   public get excludeTags(): string[] | undefined {
