@@ -6741,6 +6741,34 @@ onFlowStart:
       expect(run.flows?.[2]).not.toHaveProperty('durationSeconds');
     });
 
+    it('reports the device that actually ran instead of a wildcard request', () => {
+      maestro['appId'] = 1234;
+      const runs = [
+        {
+          id: 1,
+          status: 'DONE',
+          capabilities: { deviceName: '*', platformName: 'iOS' },
+          environment: {
+            device: 'iPhone 13',
+            name: 'iOS 18.5',
+            version: '18.5',
+          },
+          success: 1,
+          flows: [],
+        },
+      ] as unknown as import('../../src/providers/maestro').MaestroRunInfo[];
+      const json = maestro.toJsonOutput({
+        success: true,
+        outcome: 'passed',
+        runs,
+      });
+      expect(json.runs[0].device).toEqual({
+        name: 'iPhone 13',
+        platform: 'iOS',
+        version: '18.5',
+      });
+    });
+
     it('marks a run as passed when every latest attempt passed', () => {
       maestro['appId'] = 1234;
       const runs = [
