@@ -7227,9 +7227,11 @@ onFlowStart:
     });
 
     it('drops exact files and everything under a directory', async () => {
+      // Compare on the basename: the provider resolves paths with the OS
+      // separator, so a '/wip' suffix check breaks on Windows.
       fs.promises.stat = jest.fn().mockImplementation(async (p: string) => ({
-        isDirectory: () => String(p).endsWith('/wip'),
-        isFile: () => !String(p).endsWith('/wip'),
+        isDirectory: () => path.basename(String(p)) === 'wip',
+        isFile: () => path.basename(String(p)) !== 'wip',
       }));
       const m = withExclusions(['/proj/flows/login.yaml', '/proj/flows/wip']);
       const list = files();
