@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import logger, { enableDebugLogging } from './logger';
 import Auth from './auth';
 import Espresso from './providers/espresso';
@@ -22,6 +22,7 @@ import MaestroOptions, {
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 import Login from './providers/login';
+import Credentials from './models/credentials';
 import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
 import {
@@ -54,6 +55,37 @@ function jsonOptionsFrom(args: JsonCliArgs): JsonOutputOptions {
     redirectLogsToStderr();
   }
   return options;
+}
+
+/** Resolves credentials from flags, env or ~/.testingbot, or fails with guidance. */
+async function requireCredentials(args: {
+  apiKey?: string;
+  apiSecret?: string;
+}): Promise<Credentials> {
+  const credentials = await Auth.getCredentials({
+    apiKey: args.apiKey,
+    apiSecret: args.apiSecret,
+  });
+  if (credentials === null) {
+    throw new TestingBotError(
+      'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+        '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
+        '  2. Use --api-key and --api-secret options\n' +
+        '  3. Set TB_KEY and TB_SECRET environment variables\n' +
+        '  4. Create ~/.testingbot file with content: key:secret',
+    );
+  }
+  return credentials;
+}
+
+function parseProjectId(value: string): number {
+  const id = Number.parseInt(value, 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new InvalidArgumentError(
+      `expected a positive integer (the "Project ID" printed when a run starts), got "${value}".`,
+    );
+  }
+  return id;
 }
 
 /** Emits JSON output (if requested) and sets the exit code for a finished run. */
@@ -807,6 +839,245 @@ program
     }
   })
   .showHelpAfterError(true);
+
+const JSON_FLAGS = [
+  ['--json', 'Print results as JSON on stdout; logs move to stderr.'],
+  [
+    '--json-file',
+    'Write results as JSON to a file (default: <appId>_testingbot.json).',
+  ],
+  [
+    '--json-file-name <path>',
+    'Custom path for the JSON results file (requires --json-file).',
+  ],
+] as const;
+
+const AUTH_FLAGS = [
+  ['--api-key <key>', 'TestingBot API key.'],
+  ['--api-secret <secret>', 'TestingBot API secret.'],
+  ['--debug', 'Enable debug logging of API responses.'],
+] as const;
+
+function withFlags(
+  command: Command,
+  flags: ReadonlyArray<readonly [string, string]>,
+): Command {
+  for (const [flag, description] of flags) {
+    command.option(flag, description);
+  }
+  return command;
+}
+
+withFlags(
+  withFlags(
+    program
+      .command('status')
+      .description(
+        'Show the current state of a Maestro project started earlier (e.g. with --async).',
+      )
+      .requiredOption(
+        '--id <projectId>',
+        'Project ID printed when the run started.',
+        parseProjectId,
+      )
+      .option(
+        '-w, --wait',
+        'Block until every run has finished, showing live progress. Exits 2 if any flow failed.',
+      )
+      .option(
+        '-q, --quiet',
+        'Quieter console output without progress updates.',
+      ),
+    JSON_FLAGS,
+  ),
+  AUTH_FLAGS,
+)
+  .action(async (args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
+    try {
+      jsonOptions = jsonOptionsFrom(args);
+      const credentials = await requireCredentials(args);
+      if (args.debug) enableDebugLogging();
+      const maestro = new Maestro(
+        credentials,
+        MaestroOptions.forExistingProject({
+          quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
+          debug: args.debug,
+        }),
+      );
+      const result = await maestro.status(args.id, { wait: args.wait });
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+    } catch (err) {
+      await failCommand('maestro', 'Status', err, jsonOptions);
+    }
+  })
+  .showHelpAfterError(true);
+
+withFlags(
+  withFlags(
+    program
+      .command('artifacts')
+      .description(
+        'Download reports and/or artifacts (logs, screenshots, video) for a finished Maestro project.',
+      )
+      .requiredOption(
+        '--id <projectId>',
+        'Project ID printed when the run started.',
+        parseProjectId,
+      )
+      .option(
+        '--report <format>',
+        'Download test report: html, html-detailed, or junit.',
+        (val) => val.toLowerCase() as ReportFormat,
+      )
+      .option(
+        '--report-output-dir <path>',
+        'Directory to save test reports (required when --report is used).',
+      )
+      .option(
+        '--download-artifacts [mode]',
+        'Download test artifacts. Mode: all (default) or failed.',
+        (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
+      )
+      .option(
+        '--artifacts-output-dir <path>',
+        'Directory to save artifacts zip (defaults to current directory).',
+      )
+      .option(
+        '-q, --quiet',
+        'Quieter console output without progress updates.',
+      ),
+    JSON_FLAGS,
+  ),
+  AUTH_FLAGS,
+)
+  .action(async (args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
+    try {
+      jsonOptions = jsonOptionsFrom(args);
+      const credentials = await requireCredentials(args);
+      if (args.debug) enableDebugLogging();
+      const maestro = new Maestro(
+        credentials,
+        MaestroOptions.forExistingProject({
+          quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
+          report: args.report,
+          reportOutputDir: args.reportOutputDir,
+          downloadArtifacts:
+            args.downloadArtifacts === true
+              ? 'all'
+              : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
+          artifactsOutputDir: args.artifactsOutputDir,
+          debug: args.debug,
+        }),
+      );
+      const result = await maestro.artifacts(args.id);
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+    } catch (err) {
+      await failCommand('maestro', 'Artifacts', err, jsonOptions);
+    }
+  })
+  .showHelpAfterError(true);
+
+withFlags(
+  withFlags(
+    program
+      .command('list')
+      .description(
+        'List recent Maestro projects on your account, newest first.',
+      )
+      .option(
+        '--count <number>',
+        'Maximum number of projects to return (default 10).',
+        (val) => parseInt(val, 10),
+      )
+      .option(
+        '--offset <number>',
+        'Number of projects to skip, for pagination (default 0).',
+        (val) => parseInt(val, 10),
+      ),
+    JSON_FLAGS,
+  ),
+  AUTH_FLAGS,
+)
+  .action(async (args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
+    try {
+      jsonOptions = jsonOptionsFrom(args);
+      const credentials = await requireCredentials(args);
+      if (args.debug) enableDebugLogging();
+      const maestro = new Maestro(
+        credentials,
+        MaestroOptions.forExistingProject({ quiet: true, debug: args.debug }),
+      );
+      const page = await maestro.listProjects({
+        count: args.count,
+        offset: args.offset,
+      });
+      const projects = page.data.map((project) => ({
+        id: project.id,
+        name: project.name,
+        completed: project.completed,
+        createdAt: project.created_at,
+        runs: project.runs,
+        flows: (project.flows ?? []).map((flow) => flow.name),
+        bundleId: project.app?.bundle_id ?? undefined,
+        appVersion: project.app?.app_version ?? undefined,
+        url: `https://testingbot.com/members/maestro/${project.id}`,
+      }));
+      const output = {
+        provider: 'maestro' as const,
+        meta: page.meta,
+        projects,
+      };
+      const written = await writeJsonOutput(output, jsonOptions);
+      if (!jsonOptions.json) {
+        printProjectList(projects, page.meta);
+        if (written) logger.info(`JSON results written to ${written}`);
+      }
+      process.exitCode = 0;
+    } catch (err) {
+      await failCommand('maestro', 'List', err, jsonOptions);
+    }
+  })
+  .showHelpAfterError(true);
+
+function printProjectList(
+  projects: Array<{
+    id: number;
+    name: string;
+    completed: boolean;
+    createdAt: string;
+    runs: number[];
+    flows: string[];
+    url: string;
+  }>,
+  meta: { offset: number; count: number; total: number },
+): void {
+  if (projects.length === 0) {
+    console.log('No Maestro projects found.');
+    return;
+  }
+  const idWidth = Math.max(2, ...projects.map((p) => String(p.id).length));
+  const nameWidth = Math.min(
+    40,
+    Math.max(4, ...projects.map((p) => p.name.length)),
+  );
+  const header = `${'ID'.padEnd(idWidth)}  ${'NAME'.padEnd(nameWidth)}  ${'STATE'.padEnd(9)}  ${'RUNS'.padEnd(4)}  ${'FLOWS'.padEnd(5)}  CREATED`;
+  console.log(header);
+  console.log('-'.repeat(header.length));
+  for (const p of projects) {
+    const name =
+      p.name.length > nameWidth ? `${p.name.slice(0, nameWidth - 1)}…` : p.name;
+    console.log(
+      `${String(p.id).padEnd(idWidth)}  ${name.padEnd(nameWidth)}  ${(p.completed ? 'completed' : 'running').padEnd(9)}  ${String(p.runs.length).padEnd(4)}  ${String(p.flows.length).padEnd(5)}  ${p.createdAt}`,
+    );
+  }
+  const shownTo = meta.offset + projects.length;
+  console.log(
+    `\nShowing ${meta.offset + 1}-${shownTo} of ${meta.total}. Use --offset ${shownTo} for the next page.`,
+  );
+}
 
 program
   .command('login')

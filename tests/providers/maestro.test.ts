@@ -6827,4 +6827,206 @@ onFlowStart:
       expect(result.error).toBe('Upload failed');
     });
   });
+
+  describe('status(), artifacts() and listProjects()', () => {
+    const run = (overrides: Record<string, unknown> = {}) => ({
+      id: 5678,
+      status: 'DONE',
+      capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+      success: 1,
+      flows: [{ id: 1, name: 'login', status: 'DONE', success: 1 }],
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    it('status() reports passed for a completed, green project', async () => {
+      maestro['getStatus'] = jest
+        .fn()
+        .mockResolvedValue({ runs: [run()], success: true, completed: true });
+      const result = await maestro.status(1234);
+      expect(maestro['appId']).toBe(1234);
+      expect(result.outcome).toBe('passed');
+      expect(result.success).toBe(true);
+      expect(result.runs).toHaveLength(1);
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('Project 1234: completed'),
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('login'),
+      );
+    });
+
+    it('status() reports failed using last-attempt-wins', async () => {
+      const flows = [
+        { id: 1, name: 'login', status: 'DONE', success: 1 },
+        {
+          id: 2,
+          name: 'login',
+          status: 'FAILED',
+          success: 0,
+          error_messages: ['x'],
+        },
+      ];
+      maestro['getStatus'] = jest.fn().mockResolvedValue({
+        runs: [run({ success: 0, flows })],
+        success: false,
+        completed: true,
+      });
+      const result = await maestro.status(1234);
+      expect(result.outcome).toBe('failed');
+      expect(result.success).toBe(false);
+    });
+
+    it('status() reports running while the project is incomplete', async () => {
+      maestro['getStatus'] = jest.fn().mockResolvedValue({
+        runs: [run({ status: 'READY', success: 0 })],
+        success: false,
+        completed: false,
+      });
+      const result = await maestro.status(1234);
+      expect(result.outcome).toBe('running');
+      expect(result.success).toBe(false);
+    });
+
+    it('status() stays silent in quiet mode', async () => {
+      const quiet = new Maestro(
+        mockCredentials,
+        MaestroOptions.forExistingProject({ quiet: true }),
+      );
+      quiet['getStatus'] = jest
+        .fn()
+        .mockResolvedValue({ runs: [run()], success: true, completed: true });
+      await quiet.status(1234);
+      expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('status({ wait: true }) polls to completion via waitForCompletion', async () => {
+      maestro['waitForCompletion'] = jest.fn().mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [run()],
+      });
+      maestro['getStatus'] = jest.fn();
+      const result = await maestro.status(1234, { wait: true });
+      expect(maestro['waitForCompletion']).toHaveBeenCalledTimes(1);
+      expect(maestro['getStatus']).not.toHaveBeenCalled();
+      expect(result.outcome).toBe('passed');
+    });
+
+    it('status() returns an error result when the API call fails', async () => {
+      maestro['getStatus'] = jest
+        .fn()
+        .mockRejectedValue(new TestingBotError('Nothing found for 1234'));
+      const result = await maestro.status(1234);
+      expect(result).toEqual({
+        success: false,
+        outcome: 'error',
+        error: 'Nothing found for 1234',
+        runs: [],
+      });
+    });
+
+    it('artifacts() rejects when nothing was requested', async () => {
+      const result = await maestro.artifacts(1234);
+      expect(result.outcome).toBe('error');
+      expect(result.error).toContain('Nothing to download');
+    });
+
+    it('artifacts() requires --report-output-dir with --report', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        MaestroOptions.forExistingProject({ report: 'junit' }),
+      );
+      const result = await m.artifacts(1234);
+      expect(result.outcome).toBe('error');
+      expect(result.error).toContain('--report-output-dir is required');
+    });
+
+    it('artifacts() refuses a project that is still running', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        MaestroOptions.forExistingProject({ downloadArtifacts: 'all' }),
+      );
+      m['getStatus'] = jest.fn().mockResolvedValue({
+        runs: [run({ status: 'READY' })],
+        success: false,
+        completed: false,
+      });
+      m['downloadArtifacts'] = jest.fn();
+      const result = await m.artifacts(1234);
+      expect(result.outcome).toBe('error');
+      expect(result.error).toContain('testingbot status --id 1234 --wait');
+      expect(m['downloadArtifacts']).not.toHaveBeenCalled();
+    });
+
+    it('artifacts() downloads reports and artifacts for a finished project', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        MaestroOptions.forExistingProject({
+          report: 'junit',
+          reportOutputDir: './reports',
+          downloadArtifacts: 'failed',
+          artifactsOutputDir: './out',
+        }),
+      );
+      m['ensureOutputDirectory'] = jest.fn().mockResolvedValue(undefined);
+      const runs = [
+        run({
+          success: 0,
+          flows: [{ id: 1, name: 'login', status: 'FAILED', success: 0 }],
+        }),
+      ];
+      m['getStatus'] = jest
+        .fn()
+        .mockResolvedValue({ runs, success: false, completed: true });
+      m['fetchReports'] = jest.fn().mockResolvedValue(undefined);
+      m['downloadArtifacts'] = jest.fn().mockResolvedValue(undefined);
+
+      const result = await m.artifacts(1234);
+
+      expect(m['ensureOutputDirectory']).toHaveBeenCalledWith('./reports');
+      expect(m['ensureOutputDirectory']).toHaveBeenCalledWith('./out');
+      expect(m['fetchReports']).toHaveBeenCalledWith(runs);
+      expect(m['downloadArtifacts']).toHaveBeenCalledWith(runs);
+      expect(result.outcome).toBe('failed');
+      expect(result.runs).toBe(runs);
+    });
+
+    it('listProjects() calls the project list endpoint with pagination', async () => {
+      const page = {
+        data: [
+          {
+            id: 1,
+            name: 'p',
+            created_at: '',
+            updated_at: '',
+            completed: true,
+            runs: [],
+          },
+        ],
+        meta: { offset: 5, count: 2, total: 9 },
+      };
+      axios.get = jest.fn().mockResolvedValue({ data: page });
+      const result = await maestro.listProjects({ count: 2, offset: 5 });
+      expect(axios.get).toHaveBeenCalledWith(
+        'https://api.testingbot.com/v1/app-automate/maestro',
+        expect.objectContaining({
+          params: { count: 2, offset: 5 },
+          auth: { username: 'testUser', password: 'testKey' },
+        }),
+      );
+      expect(result).toBe(page);
+    });
+
+    it('listProjects() omits unset pagination params', async () => {
+      axios.get = jest.fn().mockResolvedValue({
+        data: { data: [], meta: { offset: 0, count: 10, total: 0 } },
+      });
+      await maestro.listProjects();
+      expect((axios.get as jest.Mock).mock.calls[0][1].params).toEqual({});
+    });
+  });
 });

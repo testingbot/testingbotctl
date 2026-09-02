@@ -92,6 +92,33 @@ export interface MaestroStatusResponse {
 
 export type MaestroResult = ProviderResult<MaestroRunInfo>;
 
+/** One entry of GET /app-automate/maestro (project list). */
+export interface MaestroProjectSummary {
+  id: number;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  completed: boolean;
+  app?: {
+    app_url?: string;
+    icon_url?: string | null;
+    app_version?: string | null;
+    bundle_id?: string | null;
+  };
+  flows?: { id: number; name: string }[];
+  runs: number[];
+}
+
+export interface MaestroProjectListResponse {
+  data: MaestroProjectSummary[];
+  meta: { offset: number; count: number; total: number };
+}
+
+export interface ListProjectsParams {
+  count?: number;
+  offset?: number;
+}
+
 export interface MaestroSocketMessage {
   id: number;
   payload: string;
@@ -2630,6 +2657,172 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       outcome: allSucceeded ? 'passed' : 'failed',
       runs: status.runs,
     };
+  }
+
+  /**
+   * `testingbot status`: reports the current state of an existing project.
+   * With `wait`, blocks until every run has finished and prints the same live
+   * table and summary as a foreground `maestro` run.
+   */
+  public async status(
+    appId: number,
+    options: { wait?: boolean } = {},
+  ): Promise<MaestroResult> {
+    this.appId = appId;
+    try {
+      if (options.wait) {
+        this.setupSignalHandlers();
+        try {
+          if (!this.options.quiet) {
+            logger.info(`Waiting for project ${appId} to complete...`);
+          }
+          return await this.waitForCompletion();
+        } finally {
+          this.removeSignalHandlers();
+        }
+      }
+
+      const status = await this.getStatus();
+      if (!this.options.quiet) {
+        this.printStatusSummary(status);
+      }
+      const outcome = !status.completed
+        ? 'running'
+        : this.computeOverallSuccess(status.runs)
+          ? 'passed'
+          : 'failed';
+      return { success: outcome === 'passed', outcome, runs: status.runs };
+    } catch (error) {
+      this.spinner.stop();
+      this.stopFlowAnimation();
+      return this.errorResult(error);
+    }
+  }
+
+  /**
+   * `testingbot artifacts`: downloads reports and/or artifact bundles for a
+   * finished project, reusing the same code path as `--report` and
+   * `--download-artifacts` on a foreground run.
+   */
+  public async artifacts(appId: number): Promise<MaestroResult> {
+    this.appId = appId;
+    try {
+      if (!this.options.report && !this.options.downloadArtifacts) {
+        throw new TestingBotError(
+          'Nothing to download: pass --report <format> and/or --download-artifacts.',
+        );
+      }
+      if (this.options.report && !this.options.reportOutputDir) {
+        throw new TestingBotError(
+          '--report-output-dir is required when --report is specified',
+        );
+      }
+      if (this.options.reportOutputDir) {
+        await this.ensureOutputDirectory(this.options.reportOutputDir);
+      }
+      if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+        await this.ensureOutputDirectory(this.options.artifactsOutputDir);
+      }
+
+      const status = await this.getStatus();
+      if (!status.completed) {
+        throw new TestingBotError(
+          `Project ${appId} is still running. Wait for it with "testingbot status --id ${appId} --wait" and try again.`,
+        );
+      }
+
+      await this.fetchReports(status.runs);
+      await this.downloadArtifacts(status.runs);
+
+      const allSucceeded = this.computeOverallSuccess(status.runs);
+      return {
+        success: allSucceeded,
+        outcome: allSucceeded ? 'passed' : 'failed',
+        runs: status.runs,
+      };
+    } catch (error) {
+      this.spinner.stop();
+      return this.errorResult(error);
+    }
+  }
+
+  /** `testingbot list`: newest-first page of the account's Maestro projects. */
+  public async listProjects(
+    params: ListProjectsParams = {},
+  ): Promise<MaestroProjectListResponse> {
+    try {
+      return await this.withRetry('Listing Maestro projects', async () => {
+        const response = await axios.get<MaestroProjectListResponse>(this.URL, {
+          params: {
+            ...(params.count != null && { count: params.count }),
+            ...(params.offset != null && { offset: params.offset }),
+          },
+          headers: { 'User-Agent': utils.getUserAgent() },
+          auth: {
+            username: this.credentials.userName,
+            password: this.credentials.accessKey,
+          },
+        });
+        if (this.options.debug) {
+          logger.debug(`Project list: ${JSON.stringify(response.data)}`);
+        }
+        return response.data;
+      });
+    } catch (error) {
+      throw await this.handleErrorWithDiagnostics(
+        error,
+        'Failed to list Maestro projects',
+      );
+    }
+  }
+
+  /** Logs the error the way run() does and returns an `error` result. */
+  private errorResult(error: unknown): MaestroResult {
+    logger.error(error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.cause) {
+      const causeMessage = this.extractErrorMessage(error.cause);
+      if (causeMessage) {
+        logger.error(`  Reason: ${causeMessage}`);
+      }
+    }
+    return {
+      success: false,
+      outcome: 'error',
+      error: error instanceof Error ? error.message : String(error),
+      runs: [],
+    };
+  }
+
+  /** One-shot, non-animated snapshot of a project for `testingbot status`. */
+  private printStatusSummary(status: MaestroStatusResponse): void {
+    const url = this.dashboardUrl();
+    console.log(
+      `  Project ${this.appId}: ${status.completed ? 'completed' : pc.cyan('running')}${url ? pc.dim(`  ${url}`) : ''}`,
+    );
+    for (const run of status.runs) {
+      const info = this.getStatusInfo(run.status);
+      const verdict =
+        run.status === 'DONE' || run.status === 'FAILED'
+          ? this.runPassed(run)
+            ? pc.green('passed')
+            : pc.red('failed')
+          : info.text;
+      console.log(
+        `  ${info.symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${verdict}`,
+      );
+      const flows = run.flows ?? [];
+      this.flowAttempts = this.computeFlowAttempts(flows);
+      for (const flow of flows.slice().sort((a, b) => a.id - b.id)) {
+        const display = this.getFlowStatusDisplay(flow);
+        const errors =
+          flow.error_messages && flow.error_messages.length > 0
+            ? pc.red(`  ${flow.error_messages[0]}`)
+            : '';
+        console.log(
+          `      ${display.colored}  ${this.colorizeRetryIcon(this.flowRowName(flow))}${errors}`,
+        );
+      }
+    }
   }
 
   private displayRunStatus(

@@ -1082,6 +1082,281 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  describe('status, artifacts and list commands', () => {
+    let mockStatus: jest.Mock;
+    let mockArtifacts: jest.Mock;
+    let mockListProjects: jest.Mock;
+    let stdoutSpy: jest.SpyInstance;
+    let consoleSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      mockStatus = jest.fn();
+      mockArtifacts = jest.fn();
+      mockListProjects = jest.fn();
+      Maestro.prototype.status = mockStatus;
+      Maestro.prototype.artifacts = mockArtifacts;
+      Maestro.prototype.listProjects = mockListProjects;
+      stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
+      consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    test('status queries the project and exits 0 when it passed', async () => {
+      mockStatus.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      await program.parseAsync(['node', 'cli', 'status', '--id', '1234']);
+      expect(mockStatus).toHaveBeenCalledWith(1234, { wait: undefined });
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('status exits 2 when the project failed and 0 while still running', async () => {
+      mockStatus.mockResolvedValue({
+        success: false,
+        outcome: 'failed',
+        runs: [],
+      });
+      await program.parseAsync(['node', 'cli', 'status', '--id', '1234']);
+      expect(process.exitCode).toBe(2);
+
+      process.exitCode = 0;
+      mockStatus.mockResolvedValue({
+        success: false,
+        outcome: 'running',
+        runs: [],
+      });
+      await program.parseAsync(['node', 'cli', 'status', '--id', '1234']);
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('status --wait passes wait and forwards quiet', async () => {
+      mockStatus.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'status',
+        '--id',
+        '1234',
+        '--wait',
+        '--quiet',
+      ]);
+      expect(mockStatus).toHaveBeenCalledWith(1234, { wait: true });
+      expect(lastConstructorOptions<{ quiet: boolean }>(Maestro).quiet).toBe(
+        true,
+      );
+    });
+
+    test('status --json prints the document and moves logs off stdout', async () => {
+      mockStatus.mockResolvedValue({
+        success: false,
+        outcome: 'running',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'status',
+        '--id',
+        '1234',
+        '--json',
+      ]);
+      expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toMatchObject({
+        provider: 'maestro',
+        outcome: 'running',
+      });
+      expect(lastConstructorOptions<{ quiet: boolean }>(Maestro).quiet).toBe(
+        true,
+      );
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('status rejects a non-numeric project id with usage help', async () => {
+      const stderrSpy = jest
+        .spyOn(process.stderr, 'write')
+        .mockImplementation(() => true);
+      await expect(
+        program.parseAsync(['node', 'cli', 'status', '--id', 'abc']),
+      ).rejects.toThrow('process.exit called with code: 1');
+      expect(mockStatus).not.toHaveBeenCalled();
+      expect(stderrSpy.mock.calls.map((c) => String(c[0])).join('')).toContain(
+        'expected a positive integer',
+      );
+    });
+
+    test('status requires --id', async () => {
+      await expect(
+        program.parseAsync(['node', 'cli', 'status']),
+      ).rejects.toThrow('process.exit called with code: 1');
+      expect(mockStatus).not.toHaveBeenCalled();
+    });
+
+    test('status exits 1 without credentials', async () => {
+      mockGetCredentials.mockResolvedValue(null);
+      await program.parseAsync(['node', 'cli', 'status', '--id', '1234']);
+      expect(mockStatus).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('No TestingBot credentials found'),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('artifacts forwards report and artifact options', async () => {
+      mockArtifacts.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'artifacts',
+        '--id',
+        '1234',
+        '--report',
+        'JUNIT',
+        '--report-output-dir',
+        './reports',
+        '--download-artifacts',
+        'failed',
+        '--artifacts-output-dir',
+        './out',
+      ]);
+      expect(mockArtifacts).toHaveBeenCalledWith(1234);
+      const opts = lastConstructorOptions<{
+        report?: string;
+        reportOutputDir?: string;
+        downloadArtifacts?: string;
+        artifactsOutputDir?: string;
+      }>(Maestro);
+      expect(opts.report).toBe('junit');
+      expect(opts.reportOutputDir).toBe('./reports');
+      expect(opts.downloadArtifacts).toBe('failed');
+      expect(opts.artifactsOutputDir).toBe('./out');
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('artifacts defaults --download-artifacts to all and exits 1 on error', async () => {
+      mockArtifacts.mockResolvedValue({
+        success: false,
+        outcome: 'error',
+        error: 'still running',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'artifacts',
+        '--id',
+        '1234',
+        '--download-artifacts',
+      ]);
+      expect(
+        lastConstructorOptions<{ downloadArtifacts?: string }>(Maestro)
+          .downloadArtifacts,
+      ).toBe('all');
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('list prints a table and passes pagination through', async () => {
+      mockListProjects.mockResolvedValue({
+        data: [
+          {
+            id: 42,
+            name: 'nightly',
+            created_at: '2026-09-01T10:00:00Z',
+            updated_at: '2026-09-01T10:05:00Z',
+            completed: true,
+            app: { bundle_id: 'com.example', app_version: '1.0' },
+            flows: [{ id: 1, name: 'login' }],
+            runs: [7, 8],
+          },
+        ],
+        meta: { offset: 5, count: 1, total: 20 },
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'list',
+        '--count',
+        '1',
+        '--offset',
+        '5',
+      ]);
+      expect(mockListProjects).toHaveBeenCalledWith({ count: 1, offset: 5 });
+      const printed = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(printed).toContain('42');
+      expect(printed).toContain('nightly');
+      expect(printed).toContain('completed');
+      expect(printed).toContain('Showing 6-6 of 20');
+      expect(lastConstructorOptions<{ quiet: boolean }>(Maestro).quiet).toBe(
+        true,
+      );
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('list --json emits projects with dashboard urls', async () => {
+      mockListProjects.mockResolvedValue({
+        data: [
+          {
+            id: 42,
+            name: 'nightly',
+            created_at: '2026-09-01T10:00:00Z',
+            updated_at: '2026-09-01T10:05:00Z',
+            completed: false,
+            flows: [],
+            runs: [],
+          },
+        ],
+        meta: { offset: 0, count: 10, total: 1 },
+      });
+      await program.parseAsync(['node', 'cli', 'list', '--json']);
+      expect(mockListProjects).toHaveBeenCalledWith({
+        count: undefined,
+        offset: undefined,
+      });
+      const output = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+      expect(output).toEqual({
+        provider: 'maestro',
+        meta: { offset: 0, count: 10, total: 1 },
+        projects: [
+          {
+            id: 42,
+            name: 'nightly',
+            completed: false,
+            createdAt: '2026-09-01T10:00:00Z',
+            runs: [],
+            flows: [],
+            url: 'https://testingbot.com/members/maestro/42',
+          },
+        ],
+      });
+      expect(consoleSpy).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('list exits 1 and emits an error document when the API fails', async () => {
+      mockListProjects.mockRejectedValue(new Error('boom'));
+      await program.parseAsync(['node', 'cli', 'list', '--json']);
+      expect(JSON.parse(String(stdoutSpy.mock.calls[0][0]))).toMatchObject({
+        outcome: 'error',
+        error: 'boom',
+      });
+      expect(process.exitCode).toBe(1);
+    });
+  });
+
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')

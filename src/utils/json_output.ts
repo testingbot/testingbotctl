@@ -17,10 +17,17 @@ export const EXIT_TEST_FAILURE = 2;
  * How a command ended.
  * - `passed`/`failed`: tests ran to completion.
  * - `started`: --async, tests were submitted but not awaited.
+ * - `running`: `status` was queried while the project is still executing.
  * - `dry-run`: nothing was sent to the API.
  * - `error`: the CLI or the infrastructure failed before a verdict.
  */
-export type RunOutcome = 'passed' | 'failed' | 'started' | 'dry-run' | 'error';
+export type RunOutcome =
+  | 'passed'
+  | 'failed'
+  | 'started'
+  | 'running'
+  | 'dry-run'
+  | 'error';
 
 export interface JsonFlowResult {
   id: number;
@@ -82,7 +89,7 @@ export function resolveExitCode(
   options: JsonOutputOptions,
 ): number {
   if (output.outcome === 'error') return EXIT_ERROR;
-  if (output.success) return EXIT_SUCCESS;
+  if (output.outcome !== 'failed') return EXIT_SUCCESS;
   return options.jsonFile ? EXIT_SUCCESS : EXIT_TEST_FAILURE;
 }
 
@@ -97,7 +104,10 @@ export function validateJsonOptions(options: JsonOutputOptions): void {
  * Default file name for --json-file: `<appId>_testingbot.json`, or a stable
  * name when the command failed before an app id was assigned.
  */
-export function defaultJsonFileName(output: JsonOutput): string {
+export function defaultJsonFileName(output: {
+  appId?: number;
+  provider: string;
+}): string {
   return output.appId
     ? `${output.appId}_testingbot.json`
     : `${output.provider}_testingbot.json`;
@@ -107,10 +117,9 @@ export function defaultJsonFileName(output: JsonOutput): string {
  * Writes the JSON document to stdout (--json) and/or a file (--json-file).
  * Returns the path written, if any.
  */
-export async function writeJsonOutput(
-  output: JsonOutput,
-  options: JsonOutputOptions,
-): Promise<string | undefined> {
+export async function writeJsonOutput<
+  T extends { provider: string; appId?: number },
+>(output: T, options: JsonOutputOptions): Promise<string | undefined> {
   const serialized = JSON.stringify(output, null, 2);
 
   if (options.json) {
