@@ -2245,6 +2245,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         this.updateKey = result.update_key;
       }
 
+      // The server registers a GitHub check when the run carries repo + commit
+      // metadata and the TestingBot GitHub App is installed for that repo.
+      if (result.ci_check?.repo && !this.options.quiet) {
+        logger.info(
+          `GitHub check registered for ${result.ci_check.repo}@${String(result.ci_check.commit_sha).slice(0, 7)}; the PR status updates when the run completes.`,
+        );
+      }
+
       if (result.success === false) {
         // API returns errors as an array
         const errorMessage =

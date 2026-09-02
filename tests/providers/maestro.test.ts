@@ -814,6 +814,28 @@ describe('Maestro', () => {
       );
     });
 
+    it('logs when the server registered a GitHub check for the run', async () => {
+      maestro['appId'] = 1234;
+      axios.post = jest.fn().mockResolvedValueOnce({
+        data: {
+          success: true,
+          runs: [],
+          ci_check: {
+            provider: 'github',
+            repo: 'acme/app',
+            commit_sha: 'abcdef0123456789',
+          },
+        },
+        headers: {},
+      });
+      const logSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+      await maestro['runTests']();
+      expect(logSpy).toHaveBeenCalledWith(
+        expect.stringContaining('GitHub check registered for acme/app@abcdef0'),
+      );
+      logSpy.mockRestore();
+    });
+
     it('should not include maestroOptions when none are set', async () => {
       maestro['appId'] = 1234;
 
