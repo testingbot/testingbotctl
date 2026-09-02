@@ -297,6 +297,56 @@ once because another top-level flow calls it via `runFlow`.
 
 ---
 
+### Status, artifacts and list
+
+Commands for working with Maestro projects after they were started, typically together with `--async`. Every command accepts `--api-key` / `--api-secret`, `--debug`, and the `--json`, `--json-file`, `--json-file-name` output flags described under [JSON Output](#json-output).
+
+```sh
+# Start tests without waiting and capture the project id
+testingbot maestro app.apk ./flows --async --json | jq -r .appId
+
+# Check on it later; --wait blocks with live progress and exits 2 on failure
+testingbot status --id 1234
+testingbot status --id 1234 --wait
+
+# Fetch reports and artifacts once it finished
+testingbot artifacts --id 1234 --report junit --report-output-dir ./reports
+testingbot artifacts --id 1234 --download-artifacts failed --artifacts-output-dir ./artifacts
+
+# Browse recent projects
+testingbot list
+testingbot list --count 25 --offset 25 --json
+```
+
+**`status --id <projectId>`**
+
+| Option | Description |
+|--------|-------------|
+| `-w, --wait` | Block until every run has finished, showing the same live flow table as a foreground run |
+| `-q, --quiet` | Suppress progress output |
+
+Exit code is `0` while the project is still running (JSON `outcome: "running"`), `0`/`2` once it completed, `1` on errors.
+
+**`artifacts --id <projectId>`**
+
+| Option | Description |
+|--------|-------------|
+| `--report <format>` | Download report: `html`, `html-detailed` or `junit` |
+| `--report-output-dir <path>` | Directory to save reports (required with `--report`) |
+| `--download-artifacts [mode]` | Download logs, screenshots and video. Mode: `all` (default) or `failed` |
+| `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory) |
+
+Fails with exit code `1` if the project is still running; use `status --wait` first.
+
+**`list`**
+
+| Option | Description |
+|--------|-------------|
+| `--count <number>` | Maximum number of projects to return (default 10) |
+| `--offset <number>` | Number of projects to skip, for pagination |
+
+Projects are listed newest first with id, name, state, run and flow counts. `--json` returns `{ provider, meta: { offset, count, total }, projects: [...] }` with a dashboard `url` per project.
+
 ### Espresso
 
 Run Android Espresso tests on real devices and emulators.

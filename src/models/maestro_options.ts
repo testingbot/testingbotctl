@@ -52,6 +52,22 @@ export default class MaestroOptions {
     return app?.toLowerCase().endsWith('.ipa') ?? false;
   }
 
+  /**
+   * Options for commands that act on an already-created project (`status`,
+   * `artifacts`): no app or flows are uploaded, so only output-related
+   * settings apply.
+   */
+  public static forExistingProject(options: {
+    quiet?: boolean;
+    report?: ReportFormat;
+    reportOutputDir?: string;
+    downloadArtifacts?: ArtifactDownloadMode;
+    artifactsOutputDir?: string;
+    debug?: boolean;
+  }): MaestroOptions {
+    return new MaestroOptions('', [], undefined, options);
+  }
+
   private _app: string;
   private _flows: string[];
   private _otherApps: string[];
