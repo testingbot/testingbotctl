@@ -6910,9 +6910,12 @@ onFlowStart:
         runs: [run()],
       });
       maestro['getStatus'] = jest.fn();
+      maestro['setupSignalHandlers'] = jest.fn();
       const result = await maestro.status(1234, { wait: true });
       expect(maestro['waitForCompletion']).toHaveBeenCalledTimes(1);
       expect(maestro['getStatus']).not.toHaveBeenCalled();
+      // Watching must never install the cancel-on-interrupt handler.
+      expect(maestro['setupSignalHandlers']).not.toHaveBeenCalled();
       expect(result.outcome).toBe('passed');
     });
 
@@ -7261,6 +7264,137 @@ onFlowStart:
           { name: 'osVersion', value: '14' },
         ]),
       });
+    });
+  });
+
+  describe('device matrix', () => {
+    const matrixOptions = (extra: Record<string, unknown> = {}) =>
+      new MaestroOptions('app.apk', 'path/to/flows', undefined, {
+        deviceMatrix: [
+          { device: 'Pixel 9', version: '14' },
+          { device: 'Samsung Galaxy S24', version: '14', realDevice: true },
+        ],
+        locale: 'de_DE',
+        ...extra,
+      });
+
+    it('getCapabilitiesList returns one capability per cell, sharing the common settings', () => {
+      const caps = matrixOptions().getCapabilitiesList('Android');
+      expect(caps).toEqual([
+        expect.objectContaining({
+          deviceName: 'Pixel 9',
+          platformName: 'Android',
+          version: '14',
+          locale: 'de_DE',
+        }),
+        expect.objectContaining({
+          deviceName: 'Samsung Galaxy S24',
+          version: '14',
+          realDevice: 'true',
+          locale: 'de_DE',
+        }),
+      ]);
+      expect(caps[0]).not.toHaveProperty('realDevice');
+    });
+
+    it('getCapabilitiesList falls back to the single device without a matrix', () => {
+      const single = new MaestroOptions('app.apk', 'flows', 'Pixel 6', {
+        version: '13',
+        realDevice: true,
+      });
+      expect(single.getCapabilitiesList('Android')).toEqual([
+        expect.objectContaining({
+          deviceName: 'Pixel 6',
+          version: '13',
+          realDevice: 'true',
+        }),
+      ]);
+    });
+
+    it('validate() rejects a matrix combined with --device', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', 'flows', 'Pixel 6', {
+          deviceMatrix: [{ device: 'Pixel 9' }],
+        }),
+      );
+      await expect(m['validate']()).rejects.toThrow(
+        '--device-matrix cannot be combined with --device',
+      );
+    });
+
+    it('--real-device (or an .ipa app) applies to every cell', () => {
+      const ipa = new MaestroOptions('app.ipa', 'flows', undefined, {
+        deviceMatrix: [{ device: 'iPhone 16' }, { device: 'iPhone 15' }],
+      });
+      expect(ipa.getCapabilitiesList('iOS').map((c) => c.realDevice)).toEqual([
+        'true',
+        'true',
+      ]);
+      const explicit = new MaestroOptions('app.apk', 'flows', undefined, {
+        realDevice: true,
+        deviceMatrix: [{ device: 'Pixel 9' }],
+      });
+      expect(explicit.getCapabilitiesList('Android')[0].realDevice).toBe(
+        'true',
+      );
+    });
+
+    it('validate() rejects duplicate cells', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', 'flows', undefined, {
+          deviceMatrix: [
+            { device: 'Pixel 9', version: '14' },
+            { device: 'Pixel 9', version: '14' },
+          ],
+        }),
+      );
+      await expect(m['validate']()).rejects.toThrow('more than once');
+    });
+
+    it('runTests() submits every cell in one request and logs the summary', async () => {
+      const m = new Maestro(mockCredentials, matrixOptions());
+      m['appId'] = 1234;
+      m['detectedPlatform'] = 'Android';
+      m['uploadedFlowCount'] = 3;
+      axios.post = jest
+        .fn()
+        .mockResolvedValue({ data: { success: true, runs: [] }, headers: {} });
+      const logSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+
+      await m['runTests']();
+
+      const payload = (axios.post as jest.Mock).mock.calls[0][1];
+      expect(payload.capabilities).toHaveLength(2);
+      expect(
+        payload.capabilities.map((c: { deviceName: string }) => c.deviceName),
+      ).toEqual(['Pixel 9', 'Samsung Galaxy S24']);
+      const logged = logSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).toContain(
+        'Device matrix: 2 devices × 3 flows = 6 flow runs',
+      );
+      expect(logged).toContain('Pixel 9 (OS 14)');
+      expect(logged).toContain('Samsung Galaxy S24 (OS 14, real device)');
+      logSpy.mockRestore();
+    });
+
+    it('runTests() surfaces server-side capability rejection without partial success', async () => {
+      const m = new Maestro(mockCredentials, matrixOptions());
+      m['appId'] = 1234;
+      axios.post = jest.fn().mockResolvedValue({
+        data: {
+          success: false,
+          runs: [],
+          errors: [
+            'Invalid combination: {"deviceName":"Pixel 9","version":"14"}',
+          ],
+        },
+        headers: {},
+      });
+      await expect(m['runTests']()).rejects.toThrow(
+        'Running Maestro test failed',
+      );
     });
   });
 });

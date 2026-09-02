@@ -149,6 +149,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private updateKey: string | null = null;
   private socketFallbackWarned = false;
   private otherAppUrls: string[] = [];
+  // Top-level flows in the uploaded bundle, for the device-matrix summary.
+  private uploadedFlowCount: number | undefined = undefined;
 
   private flowAnimationFrame = 0;
   private flowAnimationTimer: NodeJS.Timeout | null = null;
@@ -211,6 +213,27 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     if (this.options.flows === undefined || this.options.flows.length === 0) {
       throw new TestingBotError(`flows option is required`);
+    }
+
+    const matrix = this.options.deviceMatrix;
+    if (matrix && matrix.length > 0) {
+      // --real-device is allowed: it (or an .ipa app, which implies it)
+      // applies to every cell. Device and version must live in the cells.
+      if (this.options.device || this.options.version) {
+        throw new TestingBotError(
+          '--device-matrix cannot be combined with --device or --deviceVersion: list every device as a matrix cell instead.',
+        );
+      }
+      const seen = new Set<string>();
+      for (const cell of matrix) {
+        const key = `${cell.device}|${cell.version ?? ''}|${cell.realDevice ? 'real' : ''}`;
+        if (seen.has(key)) {
+          throw new TestingBotError(
+            `--device-matrix lists "${cell.device}${cell.version ? `:${cell.version}` : ''}" more than once.`,
+          );
+        }
+        seen.add(key);
+      }
     }
 
     if (this.options.report && !this.options.reportOutputDir) {
@@ -324,7 +347,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         this.detectedPlatform = await this.detectPlatform();
       }
 
-      const capabilities = this.options.getCapabilities(this.detectedPlatform);
+      const capabilities = this.options.getCapabilitiesList(
+        this.detectedPlatform,
+      );
       const maestroOptions = this.options.getMaestroOptions();
       const metadata = this.options.metadata;
 
@@ -367,7 +392,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           },
         ],
         runPayload: {
-          capabilities: [capabilities],
+          capabilities,
           ...(maestroOptions && { maestroOptions }),
           ...(this.options.shardSplit && {
             shardSplit: this.options.shardSplit,
@@ -1026,7 +1051,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       return true;
     }
 
-    const { allFlowFiles, baseDir } = result;
+    const { allFlowFiles, baseDir, topLevelFlowFiles } = result;
+    this.uploadedFlowCount = topLevelFlowFiles.length;
     const { zipPath, tmpDir } = await this.createFlowsZip(
       allFlowFiles,
       baseDir,
@@ -2144,15 +2170,47 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return parts.slice(0, commonLength).join(path.sep) || path.sep;
   }
 
+  /**
+   * Before submitting a device matrix, spell out what is about to run: every
+   * flow executes once per device, so the cost is devices × flows.
+   */
+  private logDeviceMatrixSummary(
+    capabilities: {
+      deviceName: string;
+      version?: string;
+      realDevice?: string;
+    }[],
+  ): void {
+    if (this.options.quiet || capabilities.length < 2) return;
+    const flows = this.uploadedFlowCount;
+    const total =
+      flows != null ? ` = ${flows * capabilities.length} flow runs` : '';
+    logger.info(
+      `Device matrix: ${capabilities.length} devices${flows != null ? ` × ${flows} flows` : ''}${total}`,
+    );
+    for (const cap of capabilities) {
+      const details = [
+        cap.version ? `OS ${cap.version}` : null,
+        cap.realDevice === 'true' ? 'real device' : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      logger.info(`  • ${cap.deviceName}${details ? ` (${details})` : ''}`);
+    }
+  }
+
   private async runTests() {
     try {
-      const capabilities = this.options.getCapabilities(this.detectedPlatform);
+      const capabilities = this.options.getCapabilitiesList(
+        this.detectedPlatform,
+      );
       const maestroOptions = this.options.getMaestroOptions();
       const metadata = this.options.metadata;
+      this.logDeviceMatrixSummary(capabilities);
       const response = await axios.post(
         `${this.URL}/${this.appId}/run`,
         {
-          capabilities: [capabilities],
+          capabilities,
           ...(maestroOptions && { maestroOptions }),
           ...(this.options.shardSplit && {
             shardSplit: this.options.shardSplit,
@@ -2819,15 +2877,16 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     this.appId = appId;
     try {
       if (options.wait) {
-        this.setupSignalHandlers();
-        try {
-          if (!this.options.quiet) {
-            logger.info(`Waiting for project ${appId} to complete...`);
-          }
-          return await this.waitForCompletion();
-        } finally {
-          this.removeSignalHandlers();
+        // Deliberately no signal handlers: the foreground `maestro` command
+        // cancels its runs on Ctrl-C, but `status --wait` only watches a
+        // project it did not start. Interrupting the watcher must not stop
+        // the tests.
+        if (!this.options.quiet) {
+          logger.info(
+            `Waiting for project ${appId} to complete (Ctrl-C detaches; the runs keep going)...`,
+          );
         }
+        return await this.waitForCompletion();
       }
 
       const status = await this.getStatus();

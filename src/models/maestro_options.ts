@@ -46,6 +46,13 @@ export interface MaestroRunOptions {
   version?: string;
 }
 
+/** One device of a --device-matrix run. */
+export interface DeviceMatrixCell {
+  device: string;
+  version?: string;
+  realDevice?: boolean;
+}
+
 export const MAX_OTHER_APPS = 4;
 
 // Mirror devicecloud.dev: retries are capped at 2 (max 3 total runs per flow).
@@ -77,6 +84,7 @@ export default class MaestroOptions {
   private _flows: string[];
   private _otherApps: string[];
   private _device?: string;
+  private _deviceMatrix?: DeviceMatrixCell[];
   private _includeTags?: string[];
   private _excludeTags?: string[];
   private _excludeFlows?: string[];
@@ -121,6 +129,7 @@ export default class MaestroOptions {
       excludeFlows?: string[];
       platformName?: 'Android' | 'iOS';
       version?: string;
+      deviceMatrix?: DeviceMatrixCell[];
       name?: string;
       orientation?: Orientation;
       locale?: string;
@@ -161,6 +170,7 @@ export default class MaestroOptions {
       );
     }
     this._device = device;
+    this._deviceMatrix = options?.deviceMatrix;
     this._includeTags = options?.includeTags;
     this._excludeTags = options?.excludeTags;
     this._excludeFlows = options?.excludeFlows;
@@ -231,6 +241,11 @@ export default class MaestroOptions {
 
   public get device(): string | undefined {
     return this._device;
+  }
+
+  /** Devices of a --device-matrix run; undefined for a single-device run. */
+  public get deviceMatrix(): DeviceMatrixCell[] | undefined {
+    return this._deviceMatrix;
   }
 
   public get includeTags(): string[] | undefined {
@@ -377,12 +392,32 @@ export default class MaestroOptions {
     return Object.keys(opts).length > 0 ? opts : undefined;
   }
 
+  /**
+   * One capability set per device: the matrix cells when --device-matrix was
+   * given, otherwise the single device from --device/--deviceVersion.
+   */
+  public getCapabilitiesList(
+    detectedPlatform?: 'Android' | 'iOS',
+  ): MaestroCapabilities[] {
+    if (this._deviceMatrix && this._deviceMatrix.length > 0) {
+      return this._deviceMatrix.map((cell) =>
+        this.getCapabilities(detectedPlatform, cell),
+      );
+    }
+    return [this.getCapabilities(detectedPlatform)];
+  }
+
   public getCapabilities(
     detectedPlatform?: 'Android' | 'iOS',
+    cell?: DeviceMatrixCell,
   ): MaestroCapabilities {
     // Use provided platform, or detected platform, or default based on extension
     let platformName = this._platformName ?? detectedPlatform;
-    let deviceName = this._device;
+    let deviceName = cell?.device ?? this._device;
+    const version = cell ? cell.version : this._version;
+    // A cell's :real suffix adds to --real-device (or an .ipa app), which
+    // applies to the whole matrix.
+    const realDevice = this._realDevice || Boolean(cell?.realDevice);
 
     // Fallback to extension-based detection if no platform determined
     if (!platformName) {
@@ -401,7 +436,7 @@ export default class MaestroOptions {
       platformName,
     };
 
-    if (this._version) caps.version = this._version;
+    if (version) caps.version = version;
     if (this._name) caps.name = this._name;
     if (this._orientation) caps.orientation = this._orientation;
     if (this._locale) caps.locale = this._locale;
@@ -410,7 +445,7 @@ export default class MaestroOptions {
     if (this._geoCountryCode)
       caps['testingbot.geoCountryCode'] = this._geoCountryCode;
     if (this._tunnelIdentifier) caps.tunnelIdentifier = this._tunnelIdentifier;
-    if (this._realDevice) caps.realDevice = 'true';
+    if (realDevice) caps.realDevice = 'true';
     if (this._groups && this._groups.length > 0) caps.groups = this._groups;
     if (this._googlePlayStore) caps.googlePlayStore = true;
 
