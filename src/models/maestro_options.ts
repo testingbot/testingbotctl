@@ -81,6 +81,7 @@ export default class MaestroOptions {
 
   private _app: string;
   private _appBinaryId?: number;
+  private _appUrl?: string;
   private _flows: string[];
   private _otherApps: string[];
   private _device?: string;
@@ -158,10 +159,12 @@ export default class MaestroOptions {
       metadata?: RunMetadata;
       otherApps?: string[];
       appBinaryId?: number;
+      appUrl?: string;
     },
   ) {
     this._app = app;
     this._appBinaryId = options?.appBinaryId;
+    this._appUrl = options?.appUrl;
     this._flows = flows ? (Array.isArray(flows) ? flows : [flows]) : [];
     this._otherApps = options?.otherApps ?? [];
     if (this._otherApps.length > MAX_OTHER_APPS) {
@@ -229,6 +232,11 @@ export default class MaestroOptions {
    */
   public get appBinaryId(): number | undefined {
     return this._appBinaryId;
+  }
+
+  /** Download URL for the app under test (--app-url), used instead of `app`. */
+  public get appUrl(): string | undefined {
+    return this._appUrl;
   }
 
   public get flows(): string[] {

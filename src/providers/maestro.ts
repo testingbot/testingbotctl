@@ -16,6 +16,14 @@ import pc from 'picocolors';
 import BaseProvider, { ProviderResult } from './base_provider';
 import type { JsonFlowResult, JsonRunResult } from '../utils/json_output';
 import { junitToAllureResults, writeAllureResults } from '../utils/allure';
+import {
+  APP_EXTENSIONS,
+  appExtension,
+  downloadApp,
+  extractAppBundle,
+  isAppUrl,
+  isSupportedAppExtension,
+} from '../utils/app_source';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
 
@@ -171,22 +179,39 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     super(credentials, options);
   }
 
-  private static readonly SUPPORTED_APP_EXTENSIONS = [
-    '.apk',
-    '.apks',
-    '.ipa',
-    '.app',
-    '.zip',
-  ];
+  private static readonly SUPPORTED_APP_EXTENSIONS = APP_EXTENSIONS;
 
-  /** Rejects an app path that is missing, has an unsupported extension, or is unreadable. */
+  // Local path of the app once a URL was downloaded or a .tar.gz extracted;
+  // the upload pipeline reads this instead of options.app.
+  private resolvedAppPath: string | undefined = undefined;
+  private appTempDirs: string[] = [];
+
+  /** The app path to upload: the materialized download/extraction, else the option. */
+  private get appPath(): string {
+    return this.resolvedAppPath ?? this.options.app;
+  }
+
+  /**
+   * Rejects an app path that is missing, has an unsupported extension, or is
+   * unreadable. With --app-url only the URL syntax is checked here; the file
+   * is validated after download.
+   */
   private async validateAppFile(): Promise<void> {
+    if (this.options.appUrl) {
+      if (!isAppUrl(this.options.appUrl)) {
+        throw new TestingBotError(
+          `Invalid --app-url: "${this.options.appUrl}" is not an http(s) URL.`,
+        );
+      }
+      return;
+    }
+
     if (!this.options.app) {
       throw new TestingBotError(`app option is required`);
     }
 
-    const appExt = path.extname(this.options.app).toLowerCase();
-    if (!Maestro.SUPPORTED_APP_EXTENSIONS.includes(appExt)) {
+    if (!isSupportedAppExtension(this.options.app)) {
+      const appExt = appExtension(this.options.app);
       throw new TestingBotError(
         `Unsupported app file format: ${appExt || '(no extension)'}. ` +
           `Supported formats: ${Maestro.SUPPORTED_APP_EXTENSIONS.join(', ')}`,
@@ -200,11 +225,68 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     });
   }
 
+  /**
+   * Turns --app-url and .tar.gz inputs into a local app the upload pipeline
+   * understands: downloads the URL, then extracts a .tar.gz to its .app
+   * bundle. No-op for plain local files. Temp directories are removed by
+   * cleanupAppTemp() once the upload is done.
+   */
+  private async materializeApp(): Promise<void> {
+    if (this.options.appBinaryId != null) return;
+
+    let current = this.options.app;
+    if (this.options.appUrl) {
+      const downloaded = await downloadApp(this.options.appUrl, {
+        quiet: this.options.quiet,
+        log: (message) => logger.info(message),
+      });
+      this.appTempDirs.push(downloaded.tmpDir);
+      current = downloaded.filePath;
+      if (!isSupportedAppExtension(current)) {
+        throw new TestingBotError(
+          `Downloaded file ${path.basename(current)} is not a supported app format (${APP_EXTENSIONS.join(', ')}).`,
+        );
+      }
+    }
+
+    if (appExtension(current) === '.tar.gz') {
+      if (!this.options.quiet) {
+        logger.info(`Extracting ${path.basename(current)}`);
+      }
+      const extracted = await extractAppBundle(current);
+      this.appTempDirs.push(extracted.tmpDir);
+      current = extracted.appPath;
+      if (!this.options.quiet) {
+        logger.info(`Found app bundle ${path.basename(current)}`);
+      }
+    }
+
+    this.resolvedAppPath = current === this.options.app ? undefined : current;
+  }
+
+  private async cleanupAppTemp(): Promise<void> {
+    const dirs = this.appTempDirs.splice(0);
+    await Promise.all(
+      dirs.map((dir) =>
+        fs.promises.rm(dir, { recursive: true, force: true }).catch((err) => {
+          logger.warn(
+            `Failed to clean up temporary app dir ${dir}: ${err instanceof Error ? err.message : err}`,
+          );
+        }),
+      ),
+    );
+  }
+
   private async validate(): Promise<boolean> {
     const reusingApp = this.options.appBinaryId != null;
-    if (reusingApp && this.options.app) {
+    const sources = [
+      this.options.app ? 'an app file' : null,
+      this.options.appUrl ? '--app-url' : null,
+      reusingApp ? '--app-binary-id' : null,
+    ].filter(Boolean);
+    if (sources.length > 1) {
       throw new TestingBotError(
-        'Pass either an app file or --app-binary-id, not both.',
+        `Pass only one app source, not ${sources.join(' and ')}.`,
       );
     }
     if (!reusingApp) {
@@ -325,7 +407,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    * Detect platform from app file content using magic bytes
    */
   private async detectPlatform(): Promise<'Android' | 'iOS' | undefined> {
-    const appPath = this.options.app;
+    const appPath = this.appPath;
     if (!appPath) return undefined;
 
     return detectPlatformFromFile(appPath);
@@ -377,7 +459,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
               }
             : {
                 label: 'App',
-                filePath: this.options.app,
+                filePath: this.options.appUrl
+                  ? `${this.options.appUrl} (downloaded at run time)`
+                  : this.options.app,
                 endpoint: `${this.URL}/app`,
               },
           ...otherAppPaths.map((p, i) => ({
@@ -443,13 +527,22 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       // Quick connectivity check before starting uploads
       await this.ensureConnectivity();
 
+      // Download --app-url / extract .tar.gz so detection and upload see a
+      // plain local app.
+      setTitle('maestro · preparing app');
+      await this.materializeApp();
+
       // Detect platform from file content if not explicitly provided
       if (!this.options.platformName) {
         this.detectedPlatform = await this.detectPlatform();
       }
 
       setTitle('maestro · uploading app');
-      await this.uploadApp();
+      try {
+        await this.uploadApp();
+      } finally {
+        await this.cleanupAppTemp();
+      }
       if (!this.options.quiet) {
         logger.info(
           `App ready. Project ID: ${this.appId} (reuse this app later with --app-binary-id ${this.appId})`,
@@ -520,6 +613,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       this.disconnectFromUpdateServer();
       this.removeSignalHandlers();
       await this.stopTunnel();
+      await this.cleanupAppTemp();
       setTitle('maestro · ✘ error');
 
       logger.error(error instanceof Error ? error.message : error);
@@ -549,6 +643,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     try {
       await this.validateAppFile();
       await this.ensureConnectivity();
+      await this.materializeApp();
       await this.uploadApp();
       if (this.appId == null) {
         throw new TestingBotError('Upload did not return a project id');
@@ -558,6 +653,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       this.spinner.stop();
       const result = this.errorResult(error);
       return { success: false, error: result.error ?? 'Upload failed' };
+    } finally {
+      await this.cleanupAppTemp();
     }
   }
 
@@ -617,8 +714,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       return true;
     }
 
-    let appPath = this.options.app;
-    const ext = path.extname(appPath).toLowerCase();
+    let appPath = this.appPath;
+    const ext = appExtension(appPath);
     let tempZipDir: string | null = null;
 
     // If .app bundle (directory), zip it first

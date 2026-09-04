@@ -1781,6 +1781,132 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  describe('--app-url and EAS metadata', () => {
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      mockMaestroRun.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      delete process.env.EAS_BUILD;
+      delete process.env.EAS_BUILD_ID;
+      delete process.env.EAS_BUILD_PROFILE;
+      delete process.env.EAS_BUILD_PLATFORM;
+      delete process.env.EAS_BUILD_GIT_COMMIT_HASH;
+    });
+
+    type Opts = {
+      app: string;
+      appUrl?: string;
+      flows: string[];
+      metadata?: Record<string, unknown>;
+    };
+
+    test('maestro --app-url treats every positional as a flow', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        '--app-url',
+        'https://expo.dev/artifacts/build.tar.gz',
+        './flows',
+        './more',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.appUrl).toBe('https://expo.dev/artifacts/build.tar.gz');
+      expect(opts.app).toBe('');
+      expect(opts.flows).toEqual(['./flows', './more']);
+      expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+    });
+
+    test('maestro --app-url still requires flows', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        '--app-url',
+        'https://x.test/app.apk',
+      ]);
+      expect(mockMaestroRun).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('<flows...>'),
+      );
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('upload accepts a URL argument', async () => {
+      const mockUploadOnly = jest
+        .fn()
+        .mockResolvedValue({ success: true, appId: 9 });
+      Maestro.prototype.uploadOnly = mockUploadOnly;
+      await program.parseAsync([
+        'node',
+        'cli',
+        'upload',
+        'https://testingbot.com/appium/sample.apk',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.app).toBe('');
+      expect(opts.appUrl).toBe('https://testingbot.com/appium/sample.apk');
+      expect(mockUploadOnly).toHaveBeenCalledTimes(1);
+    });
+
+    test('EAS Build env fills in the commit and build metadata', async () => {
+      process.env.EAS_BUILD = 'true';
+      process.env.EAS_BUILD_ID = 'b-123';
+      process.env.EAS_BUILD_PROFILE = 'preview';
+      process.env.EAS_BUILD_PLATFORM = 'ios';
+      process.env.EAS_BUILD_GIT_COMMIT_HASH = 'a'.repeat(40);
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '-m',
+        'team=mobile',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toEqual({
+        commitSha: 'a'.repeat(40),
+        custom: {
+          easBuildId: 'b-123',
+          easBuildProfile: 'preview',
+          easBuildPlatform: 'ios',
+          team: 'mobile',
+        },
+      });
+    });
+
+    test('explicit --commit-sha wins over the EAS commit', async () => {
+      process.env.EAS_BUILD = 'true';
+      process.env.EAS_BUILD_GIT_COMMIT_HASH = 'a'.repeat(40);
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--commit-sha',
+        'b'.repeat(40),
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata?.commitSha).toBe(
+        'b'.repeat(40),
+      );
+    });
+
+    test('no EAS metadata outside EAS Build', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toBeUndefined();
+    });
+  });
+
   test('unknown command should show help', async () => {
     const exitSpy = jest
       .spyOn(process, 'exit')

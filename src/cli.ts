@@ -24,6 +24,7 @@ import Maestro from './providers/maestro';
 import Login from './providers/login';
 import Credentials from './models/credentials';
 import path from 'node:path';
+import { isAppUrl } from './utils/app_source';
 import type { DeviceMatrixCell, RunMetadata } from './models/maestro_options';
 import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
@@ -158,6 +159,26 @@ function parseDeviceMatrix(
       ...(realDevice && { realDevice: true }),
     };
   });
+}
+
+/**
+ * CI metadata available inside an EAS Build job (Expo). Only the commit hash
+ * is exposed as a first-class field; the build id, profile and platform go
+ * into the free-form metadata so the run can be traced back to the build.
+ */
+function easBuildMetadata(env: NodeJS.ProcessEnv): {
+  commitSha?: string;
+  custom: Record<string, string>;
+} {
+  if (env.EAS_BUILD !== 'true' && !env.EAS_BUILD_ID) return { custom: {} };
+  const custom: Record<string, string> = {};
+  if (env.EAS_BUILD_ID) custom.easBuildId = env.EAS_BUILD_ID;
+  if (env.EAS_BUILD_PROFILE) custom.easBuildProfile = env.EAS_BUILD_PROFILE;
+  if (env.EAS_BUILD_PLATFORM) custom.easBuildPlatform = env.EAS_BUILD_PLATFORM;
+  return {
+    commitSha: env.EAS_BUILD_GIT_COMMIT_HASH || undefined,
+    custom,
+  };
 }
 
 /** Drops unset fields; returns undefined when nothing is set. */
@@ -544,6 +565,10 @@ program
     'Path to application under test (.apk, .ipa, .app, or .zip).',
   )
   .option(
+    '--app-url <url>',
+    'Download the app from a URL instead of a local file (.apk, .ipa, .zip or an EAS iOS .tar.gz). All positional arguments are then flows.',
+  )
+  .option(
     '--app-binary-id <projectId>',
     'Reuse the app of a project uploaded earlier (see "testingbot upload") instead of uploading one. All positional arguments are then flows.',
     parseProjectId,
@@ -792,8 +817,8 @@ program
       let app: string;
       let flows: string[];
 
-      if (args.app || args.appBinaryId != null) {
-        // With --app or --app-binary-id, every positional argument is a flow
+      if (args.app || args.appBinaryId != null || args.appUrl) {
+        // With --app, --app-url or --app-binary-id, every positional is a flow
         app = args.app ?? '';
         flows = appFileArg
           ? [appFileArg, ...(flowsArgs || [])]
@@ -806,8 +831,8 @@ program
       flows = [...flows, ...aliasFlows];
 
       const missing: string[] = [];
-      if (!app && args.appBinaryId == null)
-        missing.push('<appFile>, --app or --app-binary-id');
+      if (!app && args.appBinaryId == null && !args.appUrl)
+        missing.push('<appFile>, --app, --app-url or --app-binary-id');
       if (flows.length === 0)
         missing.push(
           '<flows...> (one or more flow files, directories, or globs)',
@@ -855,14 +880,19 @@ program
         }
       }
 
+      const eas = easBuildMetadata(process.env);
+      const custom = {
+        ...eas.custom,
+        ...(parseKeyValues(args.metadata, '--metadata') ?? {}),
+      };
       const metadata = buildRunMetadata({
-        commitSha: args.commitSha,
+        commitSha: args.commitSha ?? eas.commitSha,
         pullRequestId: args.pullRequestId,
         pullRequestUrl: args.prUrl,
         repoName: args.repoName,
         repoOwner: args.repoOwner,
         branch: args.branch,
-        custom: parseKeyValues(args.metadata, '--metadata'),
+        custom: Object.keys(custom).length > 0 ? custom : undefined,
       });
 
       const options = new MaestroOptions(app, flows, args.device, {
@@ -903,6 +933,7 @@ program
         metadata,
         otherApps,
         appBinaryId: args.appBinaryId,
+        appUrl: args.appUrl,
       });
       if (args.debug) {
         enableDebugLogging();
@@ -1127,7 +1158,10 @@ withFlags(
       .description(
         'Upload a Maestro app once and get a project ID to reuse with "testingbot maestro --app-binary-id".',
       )
-      .argument('<appFile>', 'Path to the app (.apk, .ipa, .app or .zip)')
+      .argument(
+        '<appFile>',
+        'Path or http(s) URL of the app (.apk, .ipa, .app, .zip or an EAS iOS .tar.gz)',
+      )
       .option(
         '--ignore-checksum-check',
         'Skip checksum verification and always upload the app.',
@@ -1148,7 +1182,8 @@ withFlags(
       if (args.debug) enableDebugLogging();
       const maestro = new Maestro(
         credentials,
-        new MaestroOptions(appFile, [], undefined, {
+        new MaestroOptions(isAppUrl(appFile) ? '' : appFile, [], undefined, {
+          appUrl: isAppUrl(appFile) ? appFile : undefined,
           quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
           ignoreChecksumCheck: args.ignoreChecksumCheck,
           debug: args.debug,
