@@ -89,92 +89,94 @@ testingbot maestro <app> <flows...> [options]
 ```
 
 **Arguments:**
-- `app` - Path to your app file (.apk, .ipa, .app, or .zip)
+
+- `app` - Path to your app file (.apk, .ipa, .app, .zip, or an EAS iOS simulator .tar.gz)
 - `flows` - One or more paths to flow files (.yaml/.yml), directories, .zip files, or glob patterns
 
 **App Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--app <path>` | Path to the application under test (alternative to the positional `app` argument) |
-| `--other-app <path-or-url>` | Additional companion app to install on the device alongside `--app`. Accepts a local file path (`.apk`, `.ipa`, `.app`, `.zip`) **or** a `tb://<appkey>` / `http(s)://...` URL — local paths are uploaded; URLs are passed through to the run as-is. Repeatable, **max 4** entries. |
-| `--app-binary-id <projectId>` | Reuse the app of a project uploaded earlier (`testingbot upload`, or any previous run's Project ID) instead of uploading one. Every positional argument is then a flow. The platform is taken from the stored app unless `--platform` is given |
+| Option                        | Description                                                                                                                                                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--app <path>`                | Path to the application under test (alternative to the positional `app` argument)                                                                                                                                                                                                          |
+| `--other-app <path-or-url>`   | Additional companion app to install on the device alongside `--app`. Accepts a local file path (`.apk`, `.ipa`, `.app`, `.zip`) **or** a `tb://<appkey>` / `http(s)://...` URL — local paths are uploaded; URLs are passed through to the run as-is. Repeatable, **max 4** entries.        |
+| `--app-url <url>`             | Download the app from an http(s) URL instead of a local file: `.apk`, `.ipa`, `.zip` or an EAS Build iOS `.tar.gz` (the `.app` inside is extracted automatically). Every positional argument is then a flow. Signed URLs such as EAS links expire after about an hour, so pass a fresh one |
+| `--app-binary-id <projectId>` | Reuse the app of a project uploaded earlier (`testingbot upload`, or any previous run's Project ID) instead of uploading one. Every positional argument is then a flow. The platform is taken from the stored app unless `--platform` is given                                             |
 
 **Device Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--device <name>` | Device name (e.g., "Pixel 9", "iPhone 16") |
-| `--platform <name>` | Platform: Android or iOS |
-| `--deviceVersion <version>` | OS version (e.g., "14", "17.2") |
-| `--real-device` | Use a real device instead of emulator/simulator |
-| `--device-matrix <cells>` | Run every flow on each listed device in one go. Cells are `<device>[:<version>][:real]`, comma-separated or repeatable. Cannot be combined with `--device` or `--deviceVersion`; `--real-device` (or an `.ipa` app) applies to every cell |
-| `--orientation <orientation>` | Screen orientation: PORTRAIT or LANDSCAPE |
-| `--device-locale <locale>` | Device locale (e.g., "en_US", "de_DE") |
-| `--timezone <timezone>` | Timezone (e.g., "America/New_York", "Europe/London") |
+| Option                        | Description                                                                                                                                                                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--device <name>`             | Device name (e.g., "Pixel 9", "iPhone 16")                                                                                                                                                                                                |
+| `--platform <name>`           | Platform: Android or iOS                                                                                                                                                                                                                  |
+| `--deviceVersion <version>`   | OS version (e.g., "14", "17.2")                                                                                                                                                                                                           |
+| `--real-device`               | Use a real device instead of emulator/simulator                                                                                                                                                                                           |
+| `--device-matrix <cells>`     | Run every flow on each listed device in one go. Cells are `<device>[:<version>][:real]`, comma-separated or repeatable. Cannot be combined with `--device` or `--deviceVersion`; `--real-device` (or an `.ipa` app) applies to every cell |
+| `--orientation <orientation>` | Screen orientation: PORTRAIT or LANDSCAPE                                                                                                                                                                                                 |
+| `--device-locale <locale>`    | Device locale (e.g., "en_US", "de_DE")                                                                                                                                                                                                    |
+| `--timezone <timezone>`       | Timezone (e.g., "America/New_York", "Europe/London")                                                                                                                                                                                      |
 
 **Test Configuration:**
 
-| Option | Description |
-|--------|-------------|
-| `--name <name>` | Test name for dashboard identification |
-| `--build <build>` | Build identifier for grouping test runs |
-| `--groups <names>` | Tag the test session with one or more groups (comma-separated). Groups appear on the test in the TestingBot dashboard |
-| `--include-tags <tags>` | Only run flows with these tags (comma-separated) |
-| `--exclude-tags <tags>` | Exclude flows with these tags (comma-separated) |
-| `--exclude-flows <paths>` | Flow files, directories or glob patterns to leave out of the run (comma-separated, repeatable). An excluded flow that another flow still invokes via `runFlow` is bundled as a subflow but never runs on its own |
-| `-e, --env <KEY=VALUE>` | Environment variable for flows (can be repeated) |
-| `--config <path>` | Path to a custom Maestro config file (default: config.yaml in project root) |
-| `--maestro-version <version>` | Maestro version to use (e.g., "2.0.10") |
+| Option                        | Description                                                                                                                                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--name <name>`               | Test name for dashboard identification                                                                                                                                                                           |
+| `--build <build>`             | Build identifier for grouping test runs                                                                                                                                                                          |
+| `--groups <names>`            | Tag the test session with one or more groups (comma-separated). Groups appear on the test in the TestingBot dashboard                                                                                            |
+| `--include-tags <tags>`       | Only run flows with these tags (comma-separated)                                                                                                                                                                 |
+| `--exclude-tags <tags>`       | Exclude flows with these tags (comma-separated)                                                                                                                                                                  |
+| `--exclude-flows <paths>`     | Flow files, directories or glob patterns to leave out of the run (comma-separated, repeatable). An excluded flow that another flow still invokes via `runFlow` is bundled as a subflow but never runs on its own |
+| `-e, --env <KEY=VALUE>`       | Environment variable for flows (can be repeated)                                                                                                                                                                 |
+| `--config <path>`             | Path to a custom Maestro config file (default: config.yaml in project root)                                                                                                                                      |
+| `--maestro-version <version>` | Maestro version to use (e.g., "2.0.10")                                                                                                                                                                          |
 
 **Network & Location:**
 
-| Option | Description |
-|--------|-------------|
-| `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, airplane, or disable |
-| `--geo-country-code <code>` | Geographic IP location (ISO country code, e.g., "US", "DE") |
+| Option                       | Description                                                 |
+| ---------------------------- | ----------------------------------------------------------- |
+| `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, airplane, or disable      |
+| `--geo-country-code <code>`  | Geographic IP location (ISO country code, e.g., "US", "DE") |
 
 **Tunnel:**
 
-| Option | Description |
-|--------|-------------|
-| `-t, --tunnel` | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
-| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel |
+| Option                     | Description                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `-t, --tunnel`             | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
+| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel                |
 
 **Output Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--async` | Start tests and exit without waiting for results |
-| `-q, --quiet` | Suppress progress output |
-| `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
-| `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
-| `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
-| `--report <format>` | Download report after completion: `html`, `html-detailed`, `junit` or `allure` |
-| `--report-output-dir <path>` | Directory to save reports (required with --report) |
-| `--download-artifacts [mode]` | Download test artifacts (logs, screenshots, video). Mode: `all` (default) or `failed` |
-| `--artifacts-output-dir <path>` | Directory to save artifacts zip (defaults to current directory) |
+| Option                          | Description                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--async`                       | Start tests and exit without waiting for results                                                                                                                                         |
+| `-q, --quiet`                   | Suppress progress output                                                                                                                                                                 |
+| `--json`                        | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
+| `--json-file`                   | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>`       | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
+| `--report <format>`             | Download report after completion: `html`, `html-detailed`, `junit` or `allure`                                                                                                           |
+| `--report-output-dir <path>`    | Directory to save reports (required with --report)                                                                                                                                       |
+| `--download-artifacts [mode]`   | Download test artifacts (logs, screenshots, video). Mode: `all` (default) or `failed`                                                                                                    |
+| `--artifacts-output-dir <path>` | Directory to save artifacts zip (defaults to current directory)                                                                                                                          |
 
 **Advanced Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--shard-split <number>` | Split flows into N parallel sessions for faster execution |
-| `--retry <count>` | Retry failed flows up to N times (0-2, default 0). Re-runs only the flows (or shards) that failed, the moment they fail, while the rest of the run continues. Cannot be combined with `--async`. |
-| `--ignore-checksum-check` | Skip checksum verification and always upload the app |
+| Option                    | Description                                                                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--shard-split <number>`  | Split flows into N parallel sessions for faster execution                                                                                                                                        |
+| `--retry <count>`         | Retry failed flows up to N times (0-2, default 0). Re-runs only the flows (or shards) that failed, the moment they fail, while the rest of the run continues. Cannot be combined with `--async`. |
+| `--ignore-checksum-check` | Skip checksum verification and always upload the app                                                                                                                                             |
 
 > **Note on `--retry`:** a failed flow/shard is retried immediately — as soon as it fails — without waiting for the other flows in the run to finish. Retry attempts appear live in the flow table marked with a `↻` icon. Each flow is retried independently up to N times, stopping as soon as that flow passes. Pass/fail uses the result of the **last** attempt per flow (last-attempt-wins), consistently across the CLI exit code, the TestingBot dashboard, and reports downloaded via `--report`.
 
 **CI/CD Integration:**
 
-| Option | Description |
-|--------|-------------|
-| `--branch <name>` | Git branch this test run was built from |
-| `--commit-sha <sha>` | Git commit SHA associated with this test run |
-| `--pull-request-id <id>` | Pull request ID this test run originated from |
-| `--pr-url <url>` | Pull request URL this test run originated from |
-| `--repo-name <name>` | Repository name (e.g., GitHub repo slug) |
-| `--repo-owner <owner>` | Repository owner (e.g., GitHub organization or username) |
+| Option                       | Description                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `--branch <name>`            | Git branch this test run was built from                                                                              |
+| `--commit-sha <sha>`         | Git commit SHA associated with this test run                                                                         |
+| `--pull-request-id <id>`     | Pull request ID this test run originated from                                                                        |
+| `--pr-url <url>`             | Pull request URL this test run originated from                                                                       |
+| `--repo-name <name>`         | Repository name (e.g., GitHub repo slug)                                                                             |
+| `--repo-owner <owner>`       | Repository owner (e.g., GitHub organization or username)                                                             |
 | `-m, --metadata <KEY=VALUE>` | Free-form metadata attached to the run and shown in the dashboard (repeatable, e.g. `-m team=mobile -m env=staging`) |
 
 **Allure reports:** `--report allure` converts each run's results into Allure result files under `<report-output-dir>/allure-results/`, one JSON per flow with its steps, status and failure details. Render them with `allure serve <report-output-dir>/allure-results` (requires the [Allure CLI](https://allurereport.org/docs/install/)). Results from several runs or shards accumulate in the same directory.
@@ -338,12 +340,31 @@ Every `maestro` run also prints its Project ID after the app upload, so any prev
 
 **`upload <appFile>`**
 
-| Option | Description |
-|--------|-------------|
+| Option                    | Description                                          |
+| ------------------------- | ---------------------------------------------------- |
 | `--ignore-checksum-check` | Skip checksum verification and always upload the app |
-| `-q, --quiet` | Suppress upload progress |
+| `-q, --quiet`             | Suppress upload progress                             |
 
 `--json` returns `{ provider, appId, file, url }`. Fails with exit code `1` if the upload was rejected.
+
+### Expo / EAS Build
+
+`eas build` produces a download URL rather than a local file, and for iOS simulator builds the artifact is a `.tar.gz` containing the `.app`. Both are handled directly:
+
+```sh
+# iOS simulator build from EAS (tar.gz with the .app inside)
+URL=$(eas build --platform ios --profile preview --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+testingbot maestro --app-url "$URL" ./flows --device "iPhone 16"
+
+# Android build from EAS
+URL=$(eas build --platform android --profile preview --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+testingbot maestro --app-url "$URL" ./flows --device "Pixel 9"
+
+# A local tar.gz works too
+testingbot maestro build.tar.gz ./flows
+```
+
+Inside an EAS Build or EAS Workflows job, the run is tagged automatically with the EAS build id, profile and platform, and `EAS_BUILD_GIT_COMMIT_HASH` is used as the commit SHA unless `--commit-sha` is given. `testingbot upload <url>` accepts URLs as well.
 
 ### Status, artifacts and list
 
@@ -368,30 +389,30 @@ testingbot list --count 25 --offset 25 --json
 
 **`status --id <projectId>`**
 
-| Option | Description |
-|--------|-------------|
-| `-w, --wait` | Block until every run has finished, showing the same live flow table as a foreground run. Ctrl-C detaches without cancelling the runs |
-| `-q, --quiet` | Suppress progress output |
+| Option        | Description                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `-w, --wait`  | Block until every run has finished, showing the same live flow table as a foreground run. Ctrl-C detaches without cancelling the runs |
+| `-q, --quiet` | Suppress progress output                                                                                                              |
 
 Exit code is `0` while the project is still running (JSON `outcome: "running"`), `0`/`2` once it completed, `1` on errors.
 
 **`artifacts --id <projectId>`**
 
-| Option | Description |
-|--------|-------------|
-| `--report <format>` | Download report: `html`, `html-detailed`, `junit` or `allure` |
-| `--report-output-dir <path>` | Directory to save reports (required with `--report`) |
-| `--download-artifacts [mode]` | Download logs, screenshots and video. Mode: `all` (default) or `failed` |
-| `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory) |
+| Option                          | Description                                                             |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `--report <format>`             | Download report: `html`, `html-detailed`, `junit` or `allure`           |
+| `--report-output-dir <path>`    | Directory to save reports (required with `--report`)                    |
+| `--download-artifacts [mode]`   | Download logs, screenshots and video. Mode: `all` (default) or `failed` |
+| `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory)     |
 
 Fails with exit code `1` if the project is still running; use `status --wait` first.
 
 **`list`**
 
-| Option | Description |
-|--------|-------------|
-| `--count <number>` | Maximum number of projects to return (default 10) |
-| `--offset <number>` | Number of projects to skip, for pagination |
+| Option              | Description                                       |
+| ------------------- | ------------------------------------------------- |
+| `--count <number>`  | Maximum number of projects to return (default 10) |
+| `--offset <number>` | Number of projects to skip, for pagination        |
 
 Projects are listed newest first with id, name, state, run and flow counts. `--json` returns `{ provider, meta: { offset, count, total }, projects: [...] }` with a dashboard `url` per project.
 
@@ -404,69 +425,70 @@ testingbot espresso [appFile] [testAppFile] [options]
 ```
 
 **Arguments:**
+
 - `appFile` - Path to application APK file
 - `testAppFile` - Path to test APK file containing Espresso tests
 
 **Device Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--app <path>` | Path to application APK file |
-| `--test-app <path>` | Path to test APK file |
-| `--device <name>` | Device name (e.g., "Pixel 6", "Samsung.*") |
-| `--platform-version <version>` | Android OS version (e.g., "12", "13", "14") |
-| `--real-device` | Use a real device instead of an emulator |
-| `--tablet-only` | Only allocate tablet devices |
-| `--phone-only` | Only allocate phone devices |
-| `--locale <locale>` | Device locale (e.g., "en_US", "de_DE") |
-| `--timezone <timezone>` | Timezone (e.g., "America/New_York", "Europe/London") |
+| Option                         | Description                                          |
+| ------------------------------ | ---------------------------------------------------- |
+| `--app <path>`                 | Path to application APK file                         |
+| `--test-app <path>`            | Path to test APK file                                |
+| `--device <name>`              | Device name (e.g., "Pixel 6", "Samsung.\*")          |
+| `--platform-version <version>` | Android OS version (e.g., "12", "13", "14")          |
+| `--real-device`                | Use a real device instead of an emulator             |
+| `--tablet-only`                | Only allocate tablet devices                         |
+| `--phone-only`                 | Only allocate phone devices                          |
+| `--locale <locale>`            | Device locale (e.g., "en_US", "de_DE")               |
+| `--timezone <timezone>`        | Timezone (e.g., "America/New_York", "Europe/London") |
 
 **Test Configuration:**
 
-| Option | Description |
-|--------|-------------|
-| `--name <name>` | Test name for dashboard identification |
-| `--build <build>` | Build identifier for grouping test runs |
-| `--test-runner <runner>` | Custom test instrumentation runner |
-| `--language <lang>` | App language (ISO 639-1 code, e.g., "en", "fr", "de") |
+| Option                   | Description                                           |
+| ------------------------ | ----------------------------------------------------- |
+| `--name <name>`          | Test name for dashboard identification                |
+| `--build <build>`        | Build identifier for grouping test runs               |
+| `--test-runner <runner>` | Custom test instrumentation runner                    |
+| `--language <lang>`      | App language (ISO 639-1 code, e.g., "en", "fr", "de") |
 
 **Test Filtering:**
 
-| Option | Description |
-|--------|-------------|
-| `--class <classes>` | Run tests in specific classes (comma-separated fully qualified names) |
-| `--not-class <classes>` | Exclude tests in specific classes |
-| `--package <packages>` | Run tests in specific packages (comma-separated) |
-| `--not-package <packages>` | Exclude tests in specific packages |
-| `--annotation <annotations>` | Run tests with specific annotations (comma-separated) |
-| `--not-annotation <annotations>` | Exclude tests with specific annotations |
-| `--size <sizes>` | Run tests by size: small, medium, large (comma-separated) |
+| Option                           | Description                                                           |
+| -------------------------------- | --------------------------------------------------------------------- |
+| `--class <classes>`              | Run tests in specific classes (comma-separated fully qualified names) |
+| `--not-class <classes>`          | Exclude tests in specific classes                                     |
+| `--package <packages>`           | Run tests in specific packages (comma-separated)                      |
+| `--not-package <packages>`       | Exclude tests in specific packages                                    |
+| `--annotation <annotations>`     | Run tests with specific annotations (comma-separated)                 |
+| `--not-annotation <annotations>` | Exclude tests with specific annotations                               |
+| `--size <sizes>`                 | Run tests by size: small, medium, large (comma-separated)             |
 
 **Network & Location:**
 
-| Option | Description |
-|--------|-------------|
-| `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, or airplane |
-| `--geo-location <code>` | Geographic IP location (ISO country code, e.g., "US", "DE") |
+| Option                       | Description                                                 |
+| ---------------------------- | ----------------------------------------------------------- |
+| `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, or airplane               |
+| `--geo-location <code>`      | Geographic IP location (ISO country code, e.g., "US", "DE") |
 
 **Tunnel:**
 
-| Option | Description |
-|--------|-------------|
-| `-t, --tunnel` | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
-| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel |
+| Option                     | Description                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `-t, --tunnel`             | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
+| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel                |
 
 **Output Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--async` | Start tests and exit without waiting for results |
-| `-q, --quiet` | Suppress progress output |
-| `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
-| `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
-| `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
-| `--report <format>` | Download report after completion: html or junit |
-| `--report-output-dir <path>` | Directory to save reports (required with --report) |
+| Option                       | Description                                                                                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--async`                    | Start tests and exit without waiting for results                                                                                                                                         |
+| `-q, --quiet`                | Suppress progress output                                                                                                                                                                 |
+| `--json`                     | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
+| `--json-file`                | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>`    | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
+| `--report <format>`          | Download report after completion: html or junit                                                                                                                                          |
+| `--report-output-dir <path>` | Directory to save reports (required with --report)                                                                                                                                       |
 
 **Examples:**
 
@@ -519,57 +541,58 @@ testingbot xcuitest [appFile] [testAppFile] [options]
 ```
 
 **Arguments:**
+
 - `appFile` - Path to application IPA file
 - `testAppFile` - Path to test ZIP file containing XCUITests
 
 **Device Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--app <path>` | Path to application IPA file |
-| `--test-app <path>` | Path to test ZIP file |
-| `--device <name>` | Device name (e.g., "iPhone 15", "iPad.*") |
-| `--platform-version <version>` | iOS version (e.g., "17.0", "18.2") |
-| `--real-device` | Use a real device instead of a simulator |
-| `--tablet-only` | Only allocate tablet devices |
-| `--phone-only` | Only allocate phone devices |
-| `--orientation <orientation>` | Screen orientation: PORTRAIT or LANDSCAPE |
-| `--locale <locale>` | Device locale (e.g., "DE", "US") |
-| `--timezone <timezone>` | Timezone (e.g., "America/New_York", "Europe/London") |
+| Option                         | Description                                          |
+| ------------------------------ | ---------------------------------------------------- |
+| `--app <path>`                 | Path to application IPA file                         |
+| `--test-app <path>`            | Path to test ZIP file                                |
+| `--device <name>`              | Device name (e.g., "iPhone 15", "iPad.\*")           |
+| `--platform-version <version>` | iOS version (e.g., "17.0", "18.2")                   |
+| `--real-device`                | Use a real device instead of a simulator             |
+| `--tablet-only`                | Only allocate tablet devices                         |
+| `--phone-only`                 | Only allocate phone devices                          |
+| `--orientation <orientation>`  | Screen orientation: PORTRAIT or LANDSCAPE            |
+| `--locale <locale>`            | Device locale (e.g., "DE", "US")                     |
+| `--timezone <timezone>`        | Timezone (e.g., "America/New_York", "Europe/London") |
 
 **Test Configuration:**
 
-| Option | Description |
-|--------|-------------|
-| `--name <name>` | Test name for dashboard identification |
-| `--build <build>` | Build identifier for grouping test runs |
+| Option              | Description                                           |
+| ------------------- | ----------------------------------------------------- |
+| `--name <name>`     | Test name for dashboard identification                |
+| `--build <build>`   | Build identifier for grouping test runs               |
 | `--language <lang>` | App language (ISO 639-1 code, e.g., "en", "fr", "de") |
 
 **Network & Location:**
 
-| Option | Description |
-|--------|-------------|
-| `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, or airplane |
-| `--geo-location <code>` | Geographic IP location (ISO country code, e.g., "US", "DE") |
+| Option                       | Description                                                 |
+| ---------------------------- | ----------------------------------------------------------- |
+| `--throttle-network <speed>` | Network throttling: 4G, 3G, Edge, or airplane               |
+| `--geo-location <code>`      | Geographic IP location (ISO country code, e.g., "US", "DE") |
 
 **Tunnel:**
 
-| Option | Description |
-|--------|-------------|
-| `-t, --tunnel` | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
-| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel |
+| Option                     | Description                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `-t, --tunnel`             | Start a TestingBot tunnel for this test run (cannot be combined with `--async`) |
+| `--tunnel-identifier <id>` | Identifier for the tunnel, allowing multiple tunnels in parallel                |
 
 **Output Options:**
 
-| Option | Description |
-|--------|-------------|
-| `--async` | Start tests and exit without waiting for results |
-| `-q, --quiet` | Suppress progress output |
-| `--json` | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail |
-| `--json-file` | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
-| `--json-file-name <path>` | Custom path for the JSON results file (requires `--json-file`) |
-| `--report <format>` | Download report after completion: html or junit |
-| `--report-output-dir <path>` | Directory to save reports (required with --report) |
+| Option                       | Description                                                                                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--async`                    | Start tests and exit without waiting for results                                                                                                                                         |
+| `-q, --quiet`                | Suppress progress output                                                                                                                                                                 |
+| `--json`                     | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
+| `--json-file`                | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>`    | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
+| `--report <format>`          | Download report after completion: html or junit                                                                                                                                          |
+| `--report-output-dir <path>` | Directory to save reports (required with --report)                                                                                                                                       |
 
 **Examples:**
 
@@ -624,6 +647,7 @@ testingbot xcuitest app.ipa app-test.zip \
 ### Real-time Progress
 
 By default, the CLI shows real-time progress updates including:
+
 - Test status updates with actual device names (even when using wildcards)
 - Device allocation status
 - Live output from Maestro flows
@@ -633,6 +657,7 @@ Use `--quiet` to suppress progress output.
 ### Graceful Shutdown
 
 Press `Ctrl+C` to gracefully stop running tests. The CLI will:
+
 1. Stop all active test runs on TestingBot
 2. Clean up resources
 3. Exit with appropriate status code
@@ -663,11 +688,11 @@ Artifacts are saved as a zip file named after the `--build` value (or with a tim
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | All tests passed (also for `--async`, `--dry-run`, and failed tests with `--json-file`) |
-| `1` | CLI or infrastructure error: invalid arguments, missing credentials, upload failure, timeout |
-| `2` | One or more tests failed |
+| Code | Meaning                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------- |
+| `0`  | All tests passed (also for `--async`, `--dry-run`, and failed tests with `--json-file`)      |
+| `1`  | CLI or infrastructure error: invalid arguments, missing credentials, upload failure, timeout |
+| `2`  | One or more tests failed                                                                     |
 
 Distinguishing `1` from `2` lets CI decide whether to retry the job or fail the build.
 

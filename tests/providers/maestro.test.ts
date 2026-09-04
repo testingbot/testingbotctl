@@ -29,6 +29,11 @@ jest.mock('socket.io-client', () => ({
   io: jest.fn(() => mockSocket),
 }));
 jest.mock('../../src/utils/file-type-detector');
+jest.mock('../../src/utils/app_source', () => ({
+  ...jest.requireActual('../../src/utils/app_source'),
+  downloadApp: jest.fn(),
+  extractAppBundle: jest.fn(),
+}));
 jest.mock('../../src/utils', () => ({
   __esModule: true,
   default: {
@@ -7112,7 +7117,7 @@ onFlowStart:
         }),
       );
       await expect(m['validate']()).rejects.toThrow(
-        'Pass either an app file or --app-binary-id, not both.',
+        'Pass only one app source, not an app file and --app-binary-id.',
       );
     });
 
@@ -7447,6 +7452,171 @@ onFlowStart:
       await expect(m['runTests']()).rejects.toThrow(
         'Running Maestro test failed',
       );
+    });
+  });
+
+  describe('--app-url and .tar.gz apps', () => {
+    const appSource = jest.requireMock('../../src/utils/app_source') as {
+      downloadApp: jest.Mock;
+      extractAppBundle: jest.Mock;
+    };
+
+    beforeEach(() => {
+      appSource.downloadApp.mockReset();
+      appSource.extractAppBundle.mockReset();
+      fs.promises.rm = jest.fn().mockResolvedValue(undefined);
+    });
+
+    it('validate() accepts --app-url without a local file and rejects a bad URL', async () => {
+      const ok = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, {
+          appUrl: 'https://x.test/app.apk',
+        }),
+      );
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      fs.promises.stat = jest
+        .fn()
+        .mockResolvedValue({ isFile: () => false, isDirectory: () => true });
+      await expect(ok['validate']()).resolves.toBe(true);
+
+      const bad = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, {
+          appUrl: 'ftp://x.test/app.apk',
+        }),
+      );
+      await expect(bad['validate']()).rejects.toThrow('not an http(s) URL');
+    });
+
+    it('validate() rejects --app-url combined with a file or --app-binary-id', async () => {
+      const both = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', 'flows', undefined, {
+          appUrl: 'https://x.test/app.apk',
+        }),
+      );
+      await expect(both['validate']()).rejects.toThrow(
+        'Pass only one app source, not an app file and --app-url.',
+      );
+      const three = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, {
+          appUrl: 'https://x.test/app.apk',
+          appBinaryId: 1,
+        }),
+      );
+      await expect(three['validate']()).rejects.toThrow(
+        '--app-url and --app-binary-id',
+      );
+    });
+
+    it('materializeApp() downloads a URL and uses the file for detection and upload', async () => {
+      appSource.downloadApp.mockResolvedValue({
+        filePath: '/tmp/dl/app.apk',
+        tmpDir: '/tmp/dl',
+      });
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, {
+          appUrl: 'https://x.test/app.apk',
+          quiet: true,
+        }),
+      );
+      await m['materializeApp']();
+      expect(appSource.downloadApp).toHaveBeenCalledWith(
+        'https://x.test/app.apk',
+        expect.objectContaining({ quiet: true }),
+      );
+      expect(m['appPath']).toBe('/tmp/dl/app.apk');
+      expect(appSource.extractAppBundle).not.toHaveBeenCalled();
+      await m['cleanupAppTemp']();
+      expect(fs.promises.rm).toHaveBeenCalledWith('/tmp/dl', {
+        recursive: true,
+        force: true,
+      });
+    });
+
+    it('materializeApp() extracts a downloaded .tar.gz to its .app bundle', async () => {
+      appSource.downloadApp.mockResolvedValue({
+        filePath: '/tmp/dl/build.tar.gz',
+        tmpDir: '/tmp/dl',
+      });
+      appSource.extractAppBundle.mockResolvedValue({
+        appPath: '/tmp/x/MyApp.app',
+        tmpDir: '/tmp/x',
+      });
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, {
+          appUrl: 'https://expo.dev/artifacts/build.tar.gz',
+          quiet: true,
+        }),
+      );
+      await m['materializeApp']();
+      expect(appSource.extractAppBundle).toHaveBeenCalledWith(
+        '/tmp/dl/build.tar.gz',
+      );
+      expect(m['appPath']).toBe('/tmp/x/MyApp.app');
+      await m['cleanupAppTemp']();
+      expect(fs.promises.rm).toHaveBeenCalledTimes(2);
+    });
+
+    it('materializeApp() extracts a local .tar.gz and leaves plain files alone', async () => {
+      appSource.extractAppBundle.mockResolvedValue({
+        appPath: '/tmp/x/MyApp.app',
+        tmpDir: '/tmp/x',
+      });
+      const tar = new Maestro(
+        mockCredentials,
+        new MaestroOptions('build.tar.gz', 'flows', undefined, { quiet: true }),
+      );
+      await tar['materializeApp']();
+      expect(tar['appPath']).toBe('/tmp/x/MyApp.app');
+
+      const plain = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', 'flows', undefined, { quiet: true }),
+      );
+      await plain['materializeApp']();
+      expect(plain['appPath']).toBe('app.apk');
+      expect(appSource.downloadApp).not.toHaveBeenCalled();
+    });
+
+    it('materializeApp() is a no-op with --app-binary-id', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, { appBinaryId: 5 }),
+      );
+      await m['materializeApp']();
+      expect(appSource.downloadApp).not.toHaveBeenCalled();
+      expect(appSource.extractAppBundle).not.toHaveBeenCalled();
+    });
+
+    it('run() cleans temp dirs up when the upload fails', async () => {
+      appSource.downloadApp.mockResolvedValue({
+        filePath: '/tmp/dl/app.apk',
+        tmpDir: '/tmp/dl',
+      });
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('', 'flows', undefined, {
+          appUrl: 'https://x.test/app.apk',
+          quiet: true,
+        }),
+      );
+      m['validate'] = jest.fn().mockResolvedValue(true);
+      m['ensureConnectivity'] = jest.fn().mockResolvedValue(undefined);
+      m['detectPlatform'] = jest.fn().mockResolvedValue('Android');
+      m['uploadApp'] = jest
+        .fn()
+        .mockRejectedValue(new TestingBotError('Upload failed'));
+      const result = await m.run();
+      expect(result.outcome).toBe('error');
+      expect(fs.promises.rm).toHaveBeenCalledWith('/tmp/dl', {
+        recursive: true,
+        force: true,
+      });
     });
   });
 });
