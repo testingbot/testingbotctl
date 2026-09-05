@@ -2,6 +2,12 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
+## 1.4.0 - 2026-09-05
+
+### Added
+
+- `--check-name <name>` names the GitHub pull request check `TestingBot / <name>`, so several runs on one commit (an iOS and an Android job) post separate checks that branch protection can require individually. Sent as `checkName` in the run metadata.
+
 ## 1.3.0 - 2026-09-04
 
 ### Added

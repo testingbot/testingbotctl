@@ -1543,6 +1543,21 @@ describe('TestingBotCTL CLI', () => {
       });
     });
 
+    test('--check-name lands in custom metadata', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--check-name',
+        ' iOS ',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toEqual({
+        custom: { checkName: 'iOS' },
+      });
+    });
+
     test('metadata is omitted entirely when no CI flag is given', async () => {
       await program.parseAsync([
         'node',
