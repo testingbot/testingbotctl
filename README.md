@@ -178,6 +178,7 @@ testingbot maestro <app> <flows...> [options]
 | `--repo-name <name>`         | Repository name (e.g., GitHub repo slug)                                                                             |
 | `--repo-owner <owner>`       | Repository owner (e.g., GitHub organization or username)                                                             |
 | `-m, --metadata <KEY=VALUE>` | Free-form metadata attached to the run and shown in the dashboard (repeatable, e.g. `-m team=mobile -m env=staging`) |
+| `--check-name <name>` | Name the GitHub pull request check `TestingBot / <name>` so several runs on one commit (iOS, Android) post separate checks that branch protection can require individually |
 
 **Allure reports:** `--report allure` converts each run's results into Allure result files under `<report-output-dir>/allure-results/`, one JSON per flow with its steps, status and failure details. Render them with `allure serve <report-output-dir>/allure-results` (requires the [Allure CLI](https://allurereport.org/docs/install/)). Results from several runs or shards accumulate in the same directory.
 

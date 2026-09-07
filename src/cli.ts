@@ -736,6 +736,10 @@ program
     collectRepeatable,
   )
   .option(
+    '--check-name <name>',
+    'Name the GitHub pull request check "TestingBot / <name>" so several runs on one commit (iOS, Android) post separate checks.',
+  )
+  .option(
     '--pull-request-id <id>',
     'The ID of the pull request this upload originated from.',
   )
@@ -884,6 +888,7 @@ program
       const custom = {
         ...eas.custom,
         ...(parseKeyValues(args.metadata, '--metadata') ?? {}),
+        ...(args.checkName?.trim() && { checkName: args.checkName.trim() }),
       };
       const metadata = buildRunMetadata({
         commitSha: args.commitSha ?? eas.commitSha,
