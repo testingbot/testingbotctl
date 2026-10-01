@@ -2647,11 +2647,16 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       : text;
   }
 
+  /**
+   * Decided by status and success only. error_messages also carries stderr
+   * noise from flows that passed (e.g. Maestro's log4j complaining at
+   * shutdown), so its presence alone does not mean the flow failed.
+   */
   private isFlowFailed(flow: MaestroFlowInfo): boolean {
     return (
       (flow.status === 'DONE' && flow.success !== 1) ||
       flow.status === 'FAILED' ||
-      (flow.error_messages != null && flow.error_messages.length > 0)
+      flow.status === 'CANCELLED'
     );
   }
 
@@ -2670,6 +2675,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   /** A run passes if every logical flow's latest attempt passed. */
   private runPassed(run: MaestroRunInfo): boolean {
+    // A flow can finish with success 1 after its run was cancelled.
+    if (run.status === 'CANCELLED') return false;
     const groups = this.groupLatest(run.flows ?? []);
     if (groups.length === 0) return run.success === 1;
     return groups.every((flow) => !this.isFlowFailed(flow));
@@ -3137,7 +3144,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       for (const flow of flows.slice().sort((a, b) => a.id - b.id)) {
         const display = this.getFlowStatusDisplay(flow);
         const errors =
-          flow.error_messages && flow.error_messages.length > 0
+          this.isFlowFailed(flow) &&
+          flow.error_messages &&
+          flow.error_messages.length > 0
             ? pc.red(`  ${flow.error_messages[0]}`)
             : '';
         console.log(
@@ -3247,12 +3256,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   private hasAnyFlowFailed(flows: MaestroFlowInfo[]): boolean {
-    return flows.some(
-      (flow) =>
-        (flow.status === 'DONE' && flow.success !== 1) ||
-        flow.status === 'FAILED' ||
-        (flow.error_messages && flow.error_messages.length > 0),
-    );
+    return flows.some((flow) => this.isFlowFailed(flow));
   }
 
   private calculateFlowDuration(flow: MaestroFlowInfo): string {
