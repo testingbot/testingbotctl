@@ -2,6 +2,12 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
+## 1.4.1 - 2026-10-01
+
+### Fixed
+
+- A Maestro flow that passed (`status: DONE`, `success: 1`) no longer counts as failed just because `error_messages` is non-empty. Maestro's log4j sometimes writes "Unable to write to stream ... maestro.log" to stderr at shutdown, and that turned passing runs into exit code 2. Pass/fail now comes from `status` and `success`, and cancelled flows and runs still fail.
+
 ## 1.4.0 - 2026-09-05
 
 ### Added

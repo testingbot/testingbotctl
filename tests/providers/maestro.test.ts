@@ -5277,7 +5277,7 @@ flows:
       errorSpy.mockRestore();
     });
 
-    it('should treat flows with error_messages as failed even if success is 1', async () => {
+    it('should not fail a flow with success 1 just because error_messages is set', async () => {
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
       const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
 
@@ -5288,27 +5288,30 @@ flows:
               id: 5678,
               status: 'DONE',
               capabilities: { deviceName: 'Pixel 9', platformName: 'Android' },
-              success: 0,
+              success: 1,
               flows: [
                 {
                   id: 1,
-                  name: 'flaky.yaml',
+                  name: 'login.yaml',
                   status: 'DONE',
                   success: 1,
-                  error_messages: ['Element not found'],
+                  error_messages: [
+                    '2026-10-01T07:37:29.468224744Z Thread-5 ERROR Unable to write to stream /home/testingbot/.maestro/tests/2026-10-01_072332/maestro.log for appender File\n',
+                  ],
                 },
               ],
             },
           ],
-          success: false,
+          success: true,
           completed: true,
         },
       };
       axios.get = jest.fn().mockResolvedValue(responseFlowWithErrors);
 
-      await maestro['waitForCompletion']();
+      const result = await maestro['waitForCompletion']();
 
-      expect(errorSpy).toHaveBeenCalledWith('1 flow(s) failed across 1 run(s)');
+      expect(result.success).toBe(true);
+      expect(errorSpy).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
       errorSpy.mockRestore();
@@ -5394,20 +5397,37 @@ flows:
       expect(result).toBe(true);
     });
 
-    it('should return true when a flow has error_messages', () => {
+    it('should return true when a flow was cancelled', () => {
       const flows: MaestroFlowInfo[] = [
         { id: 1, name: 'flow1.yaml', status: 'DONE', success: 1 },
         {
           id: 2,
           name: 'flow2.yaml',
-          status: 'READY',
-          error_messages: ['Error occurred'],
+          status: 'CANCELLED',
+          success: 0,
+          error_messages: ['Cancelled by user'],
         },
       ];
 
       const result = maestro['hasAnyFlowFailed'](flows);
 
       expect(result).toBe(true);
+    });
+
+    it('should return false when a passed flow has error_messages', () => {
+      const flows: MaestroFlowInfo[] = [
+        {
+          id: 1,
+          name: 'flow1.yaml',
+          status: 'DONE',
+          success: 1,
+          error_messages: ['Thread-5 ERROR Unable to write to stream'],
+        },
+      ];
+
+      const result = maestro['hasAnyFlowFailed'](flows);
+
+      expect(result).toBe(false);
     });
 
     it('should return false when all flows passed', () => {
@@ -6912,6 +6932,26 @@ onFlowStart:
       expect(console.log).toHaveBeenCalledWith(
         expect.stringContaining('login'),
       );
+    });
+
+    it('status() reports a cancelled run as failed even if its flow finished with success 1', async () => {
+      const flows = [
+        {
+          id: 1,
+          name: 'login',
+          status: 'DONE',
+          success: 1,
+          error_messages: ['Cancelled by user'],
+        },
+      ];
+      maestro['getStatus'] = jest.fn().mockResolvedValue({
+        runs: [run({ status: 'CANCELLED', success: 0, flows })],
+        success: false,
+        completed: true,
+      });
+      const result = await maestro.status(1234);
+      expect(result.outcome).toBe('failed');
+      expect(result.success).toBe(false);
     });
 
     it('status() reports failed using last-attempt-wins', async () => {
