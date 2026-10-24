@@ -43,6 +43,13 @@ export interface MaestroRunOptions {
   includeTags?: string[];
   excludeTags?: string[];
   env?: Record<string, string>;
+  /**
+   * Like `env`, but the API stores the values encrypted and returns them
+   * masked (`options.env[KEY] === '***'`, keys listed in
+   * `options.secretEnvKeys`). A key may not appear in both `env` and
+   * `secretEnv`.
+   */
+  secretEnv?: Record<string, string>;
   version?: string;
 }
 
@@ -98,6 +105,7 @@ export default class MaestroOptions {
   private _throttleNetwork?: ThrottleNetwork;
   private _geoCountryCode?: string;
   private _env?: Record<string, string>;
+  private _secretEnv?: Record<string, string>;
   private _maestroVersion?: string;
   // Tunnel
   private _tunnel: boolean;
@@ -138,6 +146,7 @@ export default class MaestroOptions {
       throttleNetwork?: ThrottleNetwork;
       geoCountryCode?: string;
       env?: Record<string, string>;
+      secretEnv?: Record<string, string>;
       maestroVersion?: string;
       tunnel?: boolean;
       tunnelIdentifier?: string;
@@ -186,6 +195,19 @@ export default class MaestroOptions {
     this._throttleNetwork = options?.throttleNetwork;
     this._geoCountryCode = options?.geoCountryCode;
     this._env = options?.env;
+    this._secretEnv = options?.secretEnv;
+    const duplicateKeys = Object.keys(this._secretEnv ?? {}).filter((key) =>
+      Object.prototype.hasOwnProperty.call(this._env ?? {}, key),
+    );
+    if (duplicateKeys.length > 0) {
+      throw new Error(
+        `Environment variable ${duplicateKeys
+          .map((key) => `"${key}"`)
+          .join(
+            ', ',
+          )} was given to both --env and --secret-env. Pass it with one flag only.`,
+      );
+    }
     this._maestroVersion = options?.maestroVersion;
     this._tunnel = options?.tunnel ?? false;
     this._tunnelIdentifier =
@@ -305,6 +327,15 @@ export default class MaestroOptions {
     return this._env;
   }
 
+  public get secretEnv(): Record<string, string> | undefined {
+    return this._secretEnv;
+  }
+
+  /** Names of the `--secret-env` variables; safe to log. */
+  public get secretEnvKeys(): string[] {
+    return Object.keys(this._secretEnv ?? {});
+  }
+
   public get maestroVersion(): string | undefined {
     return this._maestroVersion;
   }
@@ -392,6 +423,9 @@ export default class MaestroOptions {
     }
     if (this._env && Object.keys(this._env).length > 0) {
       opts.env = this._env;
+    }
+    if (this._secretEnv && Object.keys(this._secretEnv).length > 0) {
+      opts.secretEnv = this._secretEnv;
     }
     if (this._maestroVersion) {
       opts.version = this._maestroVersion;
