@@ -819,6 +819,85 @@ describe('Maestro', () => {
       );
     });
 
+    it('should send secretEnv in maestroOptions next to env', async () => {
+      const optionsWithSecrets = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          env: { API_URL: 'https://staging.example.com' },
+          secretEnv: { API_KEY: 's3cretValue123', TOKEN: 'abc==' },
+        },
+      );
+      const maestroWithSecrets = new Maestro(
+        mockCredentials,
+        optionsWithSecrets,
+      );
+      maestroWithSecrets['appId'] = 1234;
+
+      axios.post = jest.fn().mockResolvedValueOnce({ data: { success: true } });
+
+      await maestroWithSecrets['runTests']();
+
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          maestroOptions: {
+            env: { API_URL: 'https://staging.example.com' },
+            secretEnv: { API_KEY: 's3cretValue123', TOKEN: 'abc==' },
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('masks secret values in the --debug API response log', async () => {
+      const optionsWithSecrets = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        {
+          debug: true,
+          env: { API_URL: 'https://staging.example.com' },
+          secretEnv: { API_KEY: 's3cretValue123' },
+        },
+      );
+      const maestroWithSecrets = new Maestro(
+        mockCredentials,
+        optionsWithSecrets,
+      );
+      maestroWithSecrets['appId'] = 1234;
+      const debugSpy = jest.spyOn(logger, 'debug').mockImplementation();
+
+      // Simulate a server that echoes the run options unmasked; the real API
+      // masks them itself, this guards against a regression there.
+      axios.get = jest.fn().mockResolvedValueOnce({
+        data: {
+          id: 1234,
+          options: {
+            env: {
+              API_URL: 'https://staging.example.com',
+              API_KEY: 's3cretValue123',
+            },
+            secretEnv: { API_KEY: 's3cretValue123' },
+          },
+          runs: [],
+        },
+        headers: {},
+      });
+
+      await maestroWithSecrets['getStatus']();
+
+      const logged = debugSpy.mock.calls
+        .map((call) => String(call[0]))
+        .join('\n');
+      expect(logged).toContain('API response:');
+      expect(logged).toContain('https://staging.example.com');
+      expect(logged).toContain('"API_KEY": "***"');
+      expect(logged).not.toContain('s3cretValue123');
+      debugSpy.mockRestore();
+    });
+
     it('logs when the server registered a GitHub check for the run', async () => {
       maestro['appId'] = 1234;
       axios.post = jest.fn().mockResolvedValueOnce({
@@ -7205,6 +7284,30 @@ onFlowStart:
       await expect(m['uploadApp']()).rejects.toThrow(
         'Pass --platform Android|iOS',
       );
+    });
+
+    it('dry run prints the request payload with secret env values masked', async () => {
+      const m = new Maestro(
+        mockCredentials,
+        reuseOptions({
+          dryRun: true,
+          env: { API_URL: 'https://staging.example.com' },
+          secretEnv: { API_KEY: 's3cretValue123' },
+        }),
+      );
+      m['validate'] = jest.fn().mockResolvedValue(true);
+      m['collectFlows'] = jest.fn().mockResolvedValue(null);
+      m['printDryRunSummary'] = jest.fn();
+      const result = await m.run();
+      expect(result.outcome).toBe('dry-run');
+      const summary = (m['printDryRunSummary'] as jest.Mock).mock.calls[0][0];
+      expect(summary.runPayload.maestroOptions).toEqual({
+        env: { API_URL: 'https://staging.example.com' },
+        secretEnv: { API_KEY: '***' },
+      });
+      expect(JSON.stringify(summary)).not.toContain('s3cretValue123');
+      // The options object itself still carries the real value for the request.
+      expect(m['options'].secretEnv).toEqual({ API_KEY: 's3cretValue123' });
     });
 
     it('dry run reports the reuse endpoint instead of an upload', async () => {
