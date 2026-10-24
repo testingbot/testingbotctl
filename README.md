@@ -125,9 +125,12 @@ testingbot maestro <app> <flows...> [options]
 | `--include-tags <tags>`       | Only run flows with these tags (comma-separated)                                                                                                                                                                 |
 | `--exclude-tags <tags>`       | Exclude flows with these tags (comma-separated)                                                                                                                                                                  |
 | `--exclude-flows <paths>`     | Flow files, directories or glob patterns to leave out of the run (comma-separated, repeatable). An excluded flow that another flow still invokes via `runFlow` is bundled as a subflow but never runs on its own |
-| `-e, --env <KEY=VALUE>`       | Environment variable for flows (can be repeated)                                                                                                                                                                 |
+| `-e, --env <KEY=VALUE>`       | Environment variable for flows (can be repeated). The value is stored in plain text and shown in the run options, in the dashboard and in reports                                                                |
+| `--secret-env <KEY=VALUE>`    | Like `--env`, but the value is stored encrypted and shown as `***` in the run options, in the dashboard and in reports (can be repeated). A key may not be given to both flags                                   |
 | `--config <path>`             | Path to a custom Maestro config file (default: config.yaml in project root)                                                                                                                                      |
 | `--maestro-version <version>` | Maestro version to use (e.g., "2.0.10")                                                                                                                                                                          |
+
+Values passed with `-e` are stored in plain text: they are returned in the run's `options.env` by the API, shown in the dashboard and embedded in the JUnit and HTML reports. Values passed with `--secret-env` are stored encrypted and never returned; the API, the dashboard and the reports show `***` in their place. Use `--secret-env` for passwords, tokens and API keys. The CLI itself never prints `--secret-env` values, not even with `--debug` or `--dry-run`.
 
 **Network & Location:**
 
@@ -202,8 +205,8 @@ testingbot maestro app.apk ./flows --device "Samsung Galaxy S24" --real-device -
 # Tag the test session with groups (visible in the dashboard)
 testingbot maestro app.apk ./flows --groups "smoke,critical"
 
-# With environment variables
-testingbot maestro app.apk ./flows -e API_URL=https://staging.example.com -e API_KEY=secret
+# With environment variables: -e for plain values, --secret-env for credentials
+testingbot maestro app.apk ./flows -e API_URL=https://staging.example.com --secret-env API_KEY=s3cretValue123
 
 # With companion apps installed alongside the main app (up to 4)
 # Each --other-app can be a local file (uploaded) or a tb:// / http(s):// URL (passed through)

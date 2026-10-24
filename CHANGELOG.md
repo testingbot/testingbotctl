@@ -2,6 +2,16 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
+## 1.5.0 - Unreleased
+
+### Added
+
+- `--secret-env KEY=VALUE` (repeatable) for `testingbot maestro`: passes a variable to the flows like `-e`, but the value is sent as `maestroOptions.secretEnv`, stored encrypted by the API and shown as `***` in the run options, the dashboard and the reports. A key given to both `-e` and `--secret-env` is rejected before any request is made. Values passed with `-e` remain visible in the run options and reports, so use `--secret-env` for credentials.
+
+### Changed
+
+- `--dry-run` and `--debug` never print `--secret-env` values; they appear as `***` in the printed request payload and API responses.
+
 ## 1.4.1 - 2026-10-01
 
 ### Fixed
