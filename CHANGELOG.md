@@ -2,7 +2,7 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
-## 1.5.0 - Unreleased
+## 1.4.2 - 2026-10-25
 
 ### Added
 
@@ -11,6 +11,10 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 ### Changed
 
 - `--dry-run` and `--debug` never print `--secret-env` values; they appear as `***` in the printed request payload and API responses.
+
+### Dependencies
+
+- follow-redirects 1.16.1, handlebars 4.7.10 (dev).
 
 ## 1.4.1 - 2026-10-01
 
