@@ -1507,6 +1507,8 @@ describe('TestingBotCTL CLI', () => {
     type Opts = {
       metadata?: Record<string, unknown>;
       excludeFlows?: string[];
+      env?: Record<string, string>;
+      secretEnv?: Record<string, string>;
       app: string;
       flows: string[];
       device?: string;
@@ -1541,6 +1543,83 @@ describe('TestingBotCTL CLI', () => {
         branch: 'main',
         custom: { team: 'mobile', env: 'staging=eu' },
       });
+    });
+
+    test('-e lands in env and --secret-env in secretEnv', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '-e',
+        'API_URL=https://staging.example.com',
+        '--secret-env',
+        'API_KEY=s3cretValue123',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.env).toEqual({ API_URL: 'https://staging.example.com' });
+      expect(opts.secretEnv).toEqual({ API_KEY: 's3cretValue123' });
+    });
+
+    test('--secret-env is repeatable and keeps "=" inside the value', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--secret-env',
+        'API_KEY=s3cretValue123',
+        '--secret-env',
+        'TOKEN=abc==',
+        '--secret-env',
+        'CONNECTION=user=u;pass=p',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.env).toBeUndefined();
+      expect(opts.secretEnv).toEqual({
+        API_KEY: 's3cretValue123',
+        TOKEN: 'abc==',
+        CONNECTION: 'user=u;pass=p',
+      });
+    });
+
+    test('neither env nor secretEnv is set when the flags are absent', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+      ]);
+      const opts = lastConstructorOptions<Opts>(Maestro);
+      expect(opts.env).toBeUndefined();
+      expect(opts.secretEnv).toBeUndefined();
+    });
+
+    test('a key given to both -e and --secret-env is rejected before any request', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '-e',
+        'API_KEY=plain',
+        '--secret-env',
+        'API_KEY=s3cretValue123',
+      ]);
+      expect(mockMaestroRun).not.toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Environment variable "API_KEY" was given to both --env and --secret-env',
+        ),
+      );
+      expect(logger.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('s3cretValue123'),
+      );
+      expect(process.exitCode).toBe(1);
     });
 
     test('--check-name lands in custom metadata', async () => {

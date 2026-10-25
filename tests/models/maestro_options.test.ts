@@ -503,6 +503,74 @@ describe('MaestroOptions', () => {
     });
   });
 
+  describe('secretEnv', () => {
+    it('is undefined by default and omitted from getMaestroOptions', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+      expect(options.secretEnv).toBeUndefined();
+      expect(options.secretEnvKeys).toEqual([]);
+      expect(options.getMaestroOptions()).toBeUndefined();
+    });
+
+    it('is emitted as maestroOptions.secretEnv next to env', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        env: { API_URL: 'https://staging.example.com' },
+        secretEnv: { API_KEY: 's3cretValue123' },
+      });
+      expect(options.secretEnv).toEqual({ API_KEY: 's3cretValue123' });
+      expect(options.secretEnvKeys).toEqual(['API_KEY']);
+      expect(options.getMaestroOptions()).toEqual({
+        env: { API_URL: 'https://staging.example.com' },
+        secretEnv: { API_KEY: 's3cretValue123' },
+      });
+    });
+
+    it('keeps several secrets and values containing "="', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        secretEnv: {
+          API_KEY: 's3cretValue123',
+          TOKEN: 'abc==',
+          CONNECTION: 'user=u;pass=p',
+        },
+      });
+      expect(options.getMaestroOptions()).toEqual({
+        secretEnv: {
+          API_KEY: 's3cretValue123',
+          TOKEN: 'abc==',
+          CONNECTION: 'user=u;pass=p',
+        },
+      });
+    });
+
+    it('omits an empty secretEnv object', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        secretEnv: {},
+      });
+      expect(options.getMaestroOptions()).toBeUndefined();
+    });
+
+    it('rejects a key given to both env and secretEnv, naming the key', () => {
+      expect(
+        () =>
+          new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+            env: { API_KEY: 'plain', API_URL: 'https://x' },
+            secretEnv: { API_KEY: 's3cretValue123' },
+          }),
+      ).toThrow(
+        'Environment variable "API_KEY" was given to both --env and --secret-env',
+      );
+    });
+
+    it('names every duplicated key', () => {
+      expect(
+        () =>
+          new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+            env: { A: '1', B: '2', C: '3' },
+            secretEnv: { A: 'x', C: 'y' },
+          }),
+      ).toThrow('"A", "C"');
+    });
+  });
+
   describe('report options', () => {
     it('should have undefined report and reportOutputDir by default', () => {
       const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');

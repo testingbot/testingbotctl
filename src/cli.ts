@@ -132,6 +132,24 @@ function parseKeyValues(
 }
 
 /**
+ * Parses `-e` / `--secret-env` `KEY=VALUE` entries for Maestro flows. The key
+ * ends at the first `=`, so the value may itself contain `=`. Entries without
+ * a key or without `=` are skipped, as `-e` has always done.
+ */
+function parseEnvEntries(
+  entries: string[] | undefined,
+): Record<string, string> | undefined {
+  const result: Record<string, string> = {};
+  for (const entry of entries ?? []) {
+    const eqIndex = entry.indexOf('=');
+    if (eqIndex > 0) {
+      result[entry.substring(0, eqIndex)] = entry.substring(eqIndex + 1);
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
  * Parses `--device-matrix` cells of the form `<device>[:<version>][:real]`.
  * Each cell is exactly one device; there is no cross-product, because not
  * every device exists in every OS version.
@@ -663,6 +681,15 @@ program
     },
     [] as string[],
   )
+  .option(
+    '--secret-env <KEY=VALUE>',
+    'Like --env, but the value is stored encrypted and masked in run options, reports and logs (can be used multiple times).',
+    (val: string, acc: string[]) => {
+      acc.push(val);
+      return acc;
+    },
+    [] as string[],
+  )
   // Maestro configuration
   .option(
     '--config <path>',
@@ -873,16 +900,13 @@ program
         );
       }
 
-      // Parse environment variables from -e KEY=VALUE format
-      const env: Record<string, string> = {};
-      for (const envVar of args.env || []) {
-        const eqIndex = envVar.indexOf('=');
-        if (eqIndex > 0) {
-          const key = envVar.substring(0, eqIndex);
-          const value = envVar.substring(eqIndex + 1);
-          env[key] = value;
-        }
-      }
+      // Parse environment variables from -e / --secret-env KEY=VALUE format.
+      // A key given to both flags is rejected by the MaestroOptions constructor.
+      const env = parseEnvEntries(args.env);
+      const secretEnv = parseEnvEntries(args.secretEnv);
+      // Same shared-default-array reset as --other-app above.
+      if (Array.isArray(args.env)) args.env.length = 0;
+      if (Array.isArray(args.secretEnv)) args.secretEnv.length = 0;
 
       const eas = easBuildMetadata(process.env);
       const custom = {
@@ -913,7 +937,8 @@ program
         timeZone: args.timezone,
         throttleNetwork: args.throttleNetwork,
         geoCountryCode: args.geoCountryCode,
-        env: Object.keys(env).length > 0 ? env : undefined,
+        env,
+        secretEnv,
         maestroVersion: args.maestroVersion,
         tunnel: args.tunnel,
         tunnelIdentifier: args.tunnelIdentifier,

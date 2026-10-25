@@ -26,6 +26,7 @@ import {
 } from '../utils/app_source';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
+import { maskSecretEnv } from '../utils/secret_env';
 
 const FLOW_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const FLOW_ANIMATION_MS = 120;
@@ -477,7 +478,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         ],
         runPayload: {
           capabilities,
-          ...(maestroOptions && { maestroOptions }),
+          // Never print --secret-env values, not even in a dry run.
+          ...(maestroOptions && {
+            maestroOptions: maskSecretEnv(
+              maestroOptions,
+              this.options.secretEnvKeys,
+            ),
+          }),
           ...(this.options.shardSplit && {
             shardSplit: this.options.shardSplit,
           }),
@@ -2390,8 +2397,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         utils.checkForUpdate(latestVersion);
 
         if (this.options.debug) {
+          // The API already masks secret env values in `options.env`; mask
+          // again locally so a server regression cannot leak them here.
           logger.debug(
-            `API response: ${JSON.stringify(response.data, null, 2)}`,
+            `API response: ${JSON.stringify(
+              maskSecretEnv(response.data, this.options.secretEnvKeys),
+              null,
+              2,
+            )}`,
           );
         }
 
