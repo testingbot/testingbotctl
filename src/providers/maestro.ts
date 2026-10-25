@@ -3956,7 +3956,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     const downloadMode = this.options.downloadArtifacts;
     const runsToDownload =
       downloadMode === 'failed'
-        ? runs.filter((run) => run.success !== 1)
+        ? runs.filter((run) => !this.runPassed(run))
         : runs;
 
     if (runsToDownload.length === 0) {
