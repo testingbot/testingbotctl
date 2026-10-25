@@ -491,7 +491,7 @@ testingbot espresso [appFile] [testAppFile] [options]
 | `--json`                     | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
 | `--json-file`                | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
 | `--json-file-name <path>`    | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
-| `--report <format>`          | Download report after completion: html or junit                                                                                                                                          |
+| `--report <format>`          | Download report after completion: junit (Espresso has no HTML report)                                                                                                                    |
 | `--report-output-dir <path>` | Directory to save reports (required with --report)                                                                                                                                       |
 
 **Examples:**
@@ -670,7 +670,7 @@ Press `Ctrl+C` twice to force exit immediately.
 
 ### Report Downloads
 
-All test frameworks support downloading reports after completion:
+All test frameworks support downloading reports after completion. Maestro and XCUITest offer JUnit and HTML; Espresso offers JUnit only:
 
 ```sh
 # JUnit XML format (for CI integration)

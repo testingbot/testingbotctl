@@ -145,6 +145,22 @@ describe('Espresso', () => {
         ),
       );
     });
+
+    it('should reject --report html, which Espresso does not serve', async () => {
+      const optionsWithHtml = new EspressoOptions(
+        'path/to/app.apk',
+        'path/to/testApp.apk',
+        'Pixel 6',
+        { report: 'html', reportOutputDir: './reports' },
+      );
+      const espressoWithHtml = new Espresso(mockCredentials, optionsWithHtml);
+
+      await expect(espressoWithHtml['validate']()).rejects.toThrow(
+        new TestingBotError(
+          '--report html is not supported for Espresso; use --report junit',
+        ),
+      );
+    });
   });
 
   describe('Upload App', () => {

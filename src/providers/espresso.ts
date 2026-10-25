@@ -69,7 +69,13 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       throw new TestingBotError(`testApp option is required`);
     }
 
-    // Validate report options
+    // Validate report options. The Espresso API only serves a JUnit report.
+    if (this.options.report && this.options.report !== 'junit') {
+      throw new TestingBotError(
+        `--report ${this.options.report} is not supported for Espresso; use --report junit`,
+      );
+    }
+
     if (this.options.report && !this.options.reportOutputDir) {
       throw new TestingBotError(
         `--report-output-dir is required when --report is specified`,

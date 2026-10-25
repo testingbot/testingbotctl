@@ -453,7 +453,7 @@ program
   // Report options
   .option(
     '--report <format>',
-    'Download test report after completion: html or junit.',
+    'Download test report after completion: junit.',
     (val) => val.toLowerCase() as EspressoReportFormat,
   )
   .option(
