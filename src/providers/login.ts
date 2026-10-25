@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import logger from '../logger';
 
@@ -19,6 +20,9 @@ export interface LoginResult {
 export default class Login {
   private server: http.Server | null = null;
   private port: number = 0;
+  // Sent to the auth page and echoed back on the callback, so only the
+  // browser flow this process started can deliver credentials or an error.
+  private readonly state = randomBytes(32).toString('base64url');
 
   public async run(): Promise<LoginResult> {
     try {
@@ -26,7 +30,7 @@ export default class Login {
       this.port = await this.startServer();
 
       // Open browser to auth URL
-      const authUrl = `${AUTH_URL}?port=${this.port}&identifier=testingbotctl`;
+      const authUrl = `${AUTH_URL}?port=${this.port}&identifier=testingbotctl&state=${this.state}`;
       logger.info('Opening browser for authentication...');
       logger.info(
         `If the browser does not open automatically, visit:\n\n    ${authUrl}\n`,
@@ -104,6 +108,7 @@ export default class Login {
             let key = url.searchParams.get('key');
             let secret = url.searchParams.get('secret');
             let error = url.searchParams.get('error');
+            let state = url.searchParams.get('state');
 
             // If not in query params and this is a POST request, parse the body
             if (!key && !secret && !error && req.method === 'POST') {
@@ -111,6 +116,15 @@ export default class Login {
               key = body.get('key');
               secret = body.get('secret');
               error = body.get('error');
+              state = body.get('state');
+            }
+
+            // Ignore callbacks that did not come from our auth page and keep
+            // waiting for the real one.
+            if (!this.isExpectedState(state)) {
+              res.writeHead(400);
+              res.end('Invalid state');
+              return;
             }
 
             if (error) {
@@ -140,6 +154,15 @@ export default class Login {
     });
   }
 
+  private isExpectedState(state: string | null): boolean {
+    if (!state) return false;
+    const expected = Buffer.from(this.state);
+    const actual = Buffer.from(state);
+    return (
+      actual.length === expected.length && timingSafeEqual(actual, expected)
+    );
+  }
+
   private parseRequestBody(
     req: http.IncomingMessage,
   ): Promise<URLSearchParams> {
@@ -162,6 +185,7 @@ export default class Login {
             if (json.key) params.set('key', json.key);
             if (json.secret) params.set('secret', json.secret);
             if (json.error) params.set('error', json.error);
+            if (json.state) params.set('state', json.state);
             resolve(params);
           } catch {
             reject(new Error('Invalid JSON body'));
@@ -297,6 +321,8 @@ export default class Login {
   private async saveCredentials(key: string, secret: string): Promise<void> {
     const filePath = path.join(os.homedir(), '.testingbot');
     await fs.promises.writeFile(filePath, `${key}:${secret}`, { mode: 0o600 });
+    // mode only applies when the file is created; tighten an existing one.
+    await fs.promises.chmod(filePath, 0o600);
   }
 
   private async openBrowser(url: string): Promise<void> {
