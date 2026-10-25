@@ -2615,6 +2615,30 @@ describe('Maestro', () => {
       );
     });
 
+    it('should keep server-supplied log names inside the logs dir', async () => {
+      const assets = {
+        logs: {
+          '../../evil': 'https://example.com/evil.txt',
+          '..': 'https://example.com/dots.txt',
+        },
+      };
+      const targetDir = path.join(path.sep, 'tmp', 'run_42');
+
+      fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+      axios.get = jest.fn().mockResolvedValue({ data: Buffer.from('content') });
+
+      await maestro['downloadAssetBundle'](assets, targetDir);
+
+      const writtenPaths = (fs.promises.writeFile as jest.Mock).mock.calls.map(
+        (call) => call[0],
+      );
+      expect(writtenPaths).toEqual([
+        path.join(targetDir, 'logs', 'evil.txt'),
+        path.join(targetDir, 'logs', 'log_1.txt'),
+      ]);
+    });
+
     it('should download per-flow assets for flow-based runs', async () => {
       const optionsWithArtifacts = new MaestroOptions(
         'path/to/app.apk',

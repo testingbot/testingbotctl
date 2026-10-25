@@ -3892,8 +3892,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const logsDir = path.join(targetDir, 'logs');
       await fs.promises.mkdir(logsDir, { recursive: true });
 
+      let logIndex = 0;
       for (const [logName, logUrl] of Object.entries(assets.logs)) {
-        const logFileName = `${logName}.txt`;
+        // Log names come from the server; keep them inside logsDir.
+        const logFileName = `${this.sanitizeFlowDirName(logName) || `log_${logIndex}`}.txt`;
+        logIndex++;
         const logPath = path.join(logsDir, logFileName);
 
         try {
