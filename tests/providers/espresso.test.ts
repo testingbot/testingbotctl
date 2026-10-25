@@ -583,6 +583,32 @@ describe('Espresso', () => {
   });
 
   describe('Get Status', () => {
+    it('should log the API response with --debug', async () => {
+      const debugEspresso = new Espresso(
+        mockCredentials,
+        new EspressoOptions(
+          'path/to/app.apk',
+          'path/to/testApp.apk',
+          'Pixel 6',
+          {
+            debug: true,
+          },
+        ),
+      );
+      debugEspresso['appId'] = 1234;
+      axios.get = jest.fn().mockResolvedValueOnce({
+        data: { runs: [], success: true, completed: true },
+      });
+      const debugSpy = jest.spyOn(logger, 'debug').mockImplementation();
+
+      await debugEspresso['getStatus']();
+
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('API response: {'),
+      );
+      debugSpy.mockRestore();
+    });
+
     it('should fetch test status from API', async () => {
       espresso['appId'] = 1234;
 

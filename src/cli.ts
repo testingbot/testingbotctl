@@ -474,6 +474,7 @@ program
   // Authentication
   .option('--api-key <key>', 'TestingBot API key.')
   .option('--api-secret <secret>', 'TestingBot API secret.')
+  .option('--debug', 'Enable debug logging of API responses.')
   // Machine-readable output
   .option(
     '--json',
@@ -555,8 +556,12 @@ program
         dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        debug: args.debug,
         metadata,
       });
+      if (args.debug) {
+        enableDebugLogging();
+      }
       const espresso = new Espresso(credentials, options);
       const result = await espresso.run();
       await finishCommand(espresso.toJsonOutput(result), jsonOptions);
