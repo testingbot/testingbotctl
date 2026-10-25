@@ -120,7 +120,6 @@ testingbot maestro <app> <flows...> [options]
 | Option                        | Description                                                                                                                                                                                                      |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--name <name>`               | Test name for dashboard identification                                                                                                                                                                           |
-| `--build <build>`             | Build identifier for grouping test runs                                                                                                                                                                          |
 | `--groups <names>`            | Tag the test session with one or more groups (comma-separated). Groups appear on the test in the TestingBot dashboard                                                                                            |
 | `--include-tags <tags>`       | Only run flows with these tags (comma-separated)                                                                                                                                                                 |
 | `--exclude-tags <tags>`       | Exclude flows with these tags (comma-separated)                                                                                                                                                                  |
@@ -220,7 +219,7 @@ testingbot maestro --app main.apk \
 testingbot maestro app.apk ./flows --report junit --report-output-dir ./reports
 
 # Download all artifacts (logs, screenshots, video)
-testingbot maestro app.apk ./flows --download-artifacts --build "build-123"
+testingbot maestro app.apk ./flows --download-artifacts --name "build-123"
 
 # Download artifacts only for failed tests
 testingbot maestro app.apk ./flows --download-artifacts failed --artifacts-output-dir ./artifacts
@@ -685,10 +684,10 @@ All test frameworks support downloading reports after completion:
 Download all test artifacts including logs, screenshots, and video recordings:
 
 ```sh
-testingbot maestro app.apk ./flows --download-artifacts --build "my-build"
+testingbot maestro app.apk ./flows --download-artifacts --name "my-build"
 ```
 
-Artifacts are saved as a zip file named after the `--build` value (or with a timestamp if not provided).
+Artifacts are saved as a zip file named after the `--name` value (or with a timestamp if not provided).
 
 ## Exit Codes
 
