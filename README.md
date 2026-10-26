@@ -78,6 +78,27 @@ This opens your browser for authentication. After logging in, your credentials a
 - **Environment variables**: `TB_KEY` and `TB_SECRET`
 - **Config file**: Create `~/.testingbot` with content `key:secret`
 
+Command-line options win over the environment variables, which win over the file.
+
+### Check or remove credentials
+
+```sh
+testingbot whoami          # account, plan, minutes left, concurrency, and which credentials are used
+testingbot whoami --json
+testingbot logout          # deletes ~/.testingbot (TB_KEY / TB_SECRET are not touched)
+```
+
+### List devices
+
+`testingbot devices` lists the device names and OS versions each framework can run on, in the form `--device`, `--deviceVersion` / `--platform-version` and `--device-matrix` accept. No credentials are needed, except with `--real`.
+
+```sh
+testingbot devices                              # Maestro emulators and simulators
+testingbot devices --framework xcuitest         # or espresso
+testingbot devices --platform ios --real        # real devices, with live availability
+testingbot devices --json
+```
+
 ## Commands
 
 ### Maestro

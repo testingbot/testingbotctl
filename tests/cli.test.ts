@@ -6,12 +6,20 @@ import XCUITest from './../src/providers/xcuitest';
 import Maestro from './../src/providers/maestro';
 import fs from 'node:fs';
 import { JsonOutput } from './../src/utils/json_output';
+import * as account from './../src/providers/account';
+import Credentials from './../src/models/credentials';
 
 jest.mock('./../src/logger');
 jest.mock('./../src/auth');
 jest.mock('./../src/providers/espresso');
 jest.mock('./../src/providers/xcuitest');
 jest.mock('./../src/providers/maestro');
+jest.mock('./../src/providers/account', () => ({
+  ...jest.requireActual('./../src/providers/account'),
+  fetchAccount: jest.fn(),
+  listDevices: jest.fn(),
+  removeSavedCredentials: jest.fn(),
+}));
 
 const mockGetCredentials = Auth.getCredentials as jest.Mock;
 
@@ -2013,5 +2021,92 @@ describe('TestingBotCTL CLI', () => {
     ).rejects.toThrow('process.exit called with code: 1');
 
     exitSpy.mockRestore();
+  });
+
+  describe('account commands', () => {
+    let consoleSpy: jest.SpyInstance;
+    let stdoutSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      process.exitCode = undefined;
+      consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      stdoutSpy = jest
+        .spyOn(process.stdout, 'write')
+        .mockImplementation(() => true);
+    });
+
+    afterEach(() => {
+      consoleSpy.mockRestore();
+      stdoutSpy.mockRestore();
+      process.exitCode = undefined;
+    });
+
+    test('logout removes the saved credentials', async () => {
+      (account.removeSavedCredentials as jest.Mock).mockResolvedValue(true);
+      await program.parseAsync(['node', 'cli', 'logout']);
+      expect(account.removeSavedCredentials).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Removed'),
+      );
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    test('whoami --json prints the account and the credential source', async () => {
+      (Auth.resolveCredentials as jest.Mock).mockResolvedValue({
+        credentials: new Credentials('my-key', 'my-secret'),
+        source: 'env',
+      });
+      (account.fetchAccount as jest.Mock).mockResolvedValue({
+        id: 7,
+        name: 'Ada',
+        concurrency: {},
+      });
+      await program.parseAsync(['node', 'cli', 'whoami', '--json']);
+      const printed = JSON.parse(String(stdoutSpy.mock.calls[0][0]));
+      expect(printed).toMatchObject({
+        id: 7,
+        key: 'my-key',
+        credentialsFrom: 'env',
+      });
+      expect(JSON.stringify(printed)).not.toContain('my-secret');
+    });
+
+    test('whoami without credentials fails with the usual guidance', async () => {
+      (Auth.resolveCredentials as jest.Mock).mockResolvedValue(null);
+      mockGetCredentials.mockResolvedValue(null);
+      await program.parseAsync(['node', 'cli', 'whoami']);
+      expect(account.fetchAccount).not.toHaveBeenCalled();
+      expect(process.exitCode).toBe(1);
+    });
+
+    test('devices passes framework and platform, and only asks for credentials with --real', async () => {
+      (account.listDevices as jest.Mock).mockResolvedValue([
+        {
+          name: 'Pixel 9',
+          platform: 'Android',
+          versions: ['16.0'],
+          type: 'phone',
+          real: false,
+        },
+      ]);
+      await program.parseAsync([
+        'node',
+        'cli',
+        'devices',
+        '--framework',
+        'espresso',
+        '--platform',
+        'android',
+      ]);
+      expect(account.listDevices).toHaveBeenLastCalledWith({
+        framework: 'espresso',
+        platform: 'Android',
+        real: false,
+        credentials: undefined,
+      });
+      const printed = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(printed).toContain('Pixel 9');
+      expect(printed).toContain('--platform-version 16.0');
+    });
   });
 });

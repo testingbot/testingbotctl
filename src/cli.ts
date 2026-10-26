@@ -22,6 +22,15 @@ import MaestroOptions, {
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 import Login from './providers/login';
+import {
+  CREDENTIALS_FILE,
+  DeviceFramework,
+  DevicePlatform,
+  CatalogDevice,
+  fetchAccount,
+  listDevices,
+  removeSavedCredentials,
+} from './providers/account';
 import Credentials from './models/credentials';
 import path from 'node:path';
 import { isAppUrl } from './utils/app_source';
@@ -1485,5 +1494,186 @@ program
       process.exitCode = 1;
     }
   });
+
+program
+  .command('logout')
+  .description(
+    'Remove the credentials saved by "testingbot login" (~/.testingbot).',
+  )
+  .action(async () => {
+    try {
+      const removed = await removeSavedCredentials();
+      logger.info(
+        removed
+          ? `Removed ${CREDENTIALS_FILE}.`
+          : `No saved credentials (${CREDENTIALS_FILE} does not exist).`,
+      );
+      if (process.env.TB_KEY && process.env.TB_SECRET) {
+        logger.warn(
+          'TB_KEY and TB_SECRET are still set in your environment, so commands keep using those credentials.',
+        );
+      }
+    } catch (err) {
+      logger.error(`Logout error: ${err instanceof Error ? err.message : err}`);
+      process.exitCode = EXIT_ERROR;
+    }
+  });
+
+const CREDENTIAL_SOURCE_LABELS = {
+  options: '--api-key / --api-secret',
+  env: 'TB_KEY / TB_SECRET environment variables',
+  file: CREDENTIALS_FILE,
+} as const;
+
+withFlags(
+  program
+    .command('whoami')
+    .description('Show the TestingBot account the CLI is using.')
+    .option('--json', 'Print the account as JSON on stdout.'),
+  AUTH_FLAGS,
+)
+  .action(async (args) => {
+    try {
+      if (args.json) redirectLogsToStderr();
+      if (args.debug) enableDebugLogging();
+      const resolved = await Auth.resolveCredentials({
+        apiKey: args.apiKey,
+        apiSecret: args.apiSecret,
+      });
+      if (!resolved) {
+        // Same guidance as every other command.
+        await requireCredentials(args);
+        return;
+      }
+      const account = await fetchAccount(resolved.credentials);
+      const output = {
+        ...account,
+        key: resolved.credentials.userName,
+        credentialsFrom: resolved.source,
+      };
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+        return;
+      }
+      const c = account.concurrency;
+      console.log(
+        `Account:      ${account.name || '(no name)'} (id ${account.id})`,
+      );
+      console.log(`API key:      ${resolved.credentials.userName}`);
+      console.log(`Credentials:  ${CREDENTIAL_SOURCE_LABELS[resolved.source]}`);
+      if (account.plan) console.log(`Plan:         ${account.plan}`);
+      if (account.minutesLeft !== undefined) {
+        console.log(`Minutes left: ${account.minutesLeft}`);
+      }
+      console.log(
+        `Concurrency:  ${c.runningVirtual ?? 0}/${c.virtual ?? '?'} virtual, ${c.runningPhysical ?? 0}/${c.physical ?? '?'} physical in use`,
+      );
+    } catch (err) {
+      logger.error(`Whoami error: ${err instanceof Error ? err.message : err}`);
+      process.exitCode = EXIT_ERROR;
+    }
+  })
+  .showHelpAfterError(true);
+
+function parseFramework(value: string): DeviceFramework {
+  const v = value.toLowerCase();
+  if (v === 'maestro' || v === 'espresso' || v === 'xcuitest') return v;
+  throw new InvalidArgumentError('expected maestro, espresso or xcuitest.');
+}
+
+function parsePlatform(value: string): DevicePlatform {
+  const v = value.toLowerCase();
+  if (v === 'android') return 'Android';
+  if (v === 'ios') return 'iOS';
+  throw new InvalidArgumentError('expected android or ios.');
+}
+
+withFlags(
+  program
+    .command('devices')
+    .description(
+      'List the devices and OS versions you can run on, with the values --device and the version flags accept.',
+    )
+    .option(
+      '--framework <name>',
+      'maestro (default), espresso or xcuitest.',
+      parseFramework,
+      'maestro' as DeviceFramework,
+    )
+    .option('--platform <platform>', 'Only android or ios.', parsePlatform)
+    .option(
+      '--real',
+      'List real devices, with live availability, instead of emulators and simulators.',
+    )
+    .option('--json', 'Print the devices as JSON on stdout.'),
+  AUTH_FLAGS,
+)
+  .action(async (args) => {
+    try {
+      if (args.json) redirectLogsToStderr();
+      if (args.debug) enableDebugLogging();
+      const devices = await listDevices({
+        framework: args.framework,
+        platform: args.platform,
+        real: Boolean(args.real),
+        credentials: args.real ? await requireCredentials(args) : undefined,
+      });
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify(devices, null, 2)}\n`);
+        return;
+      }
+      printDevices(devices, Boolean(args.real), args.framework);
+    } catch (err) {
+      logger.error(
+        `Devices error: ${err instanceof Error ? err.message : err}`,
+      );
+      process.exitCode = EXIT_ERROR;
+    }
+  })
+  .showHelpAfterError(true);
+
+function printDevices(
+  devices: CatalogDevice[],
+  real: boolean,
+  framework: DeviceFramework,
+): void {
+  if (devices.length === 0) {
+    console.log('No devices found.');
+    return;
+  }
+  const nameWidth = Math.min(
+    36,
+    Math.max(6, ...devices.map((d) => d.name.length)),
+  );
+  const last = real ? 'AVAILABLE' : 'TYPE';
+  const header = `${'PLATFORM'.padEnd(8)}  ${'DEVICE'.padEnd(nameWidth)}  ${last.padEnd(9)}  VERSIONS`;
+  console.log(header);
+  console.log('-'.repeat(header.length + 10));
+  for (const d of devices) {
+    const extra = real ? (d.available ? 'yes' : 'no') : (d.type ?? '');
+    console.log(
+      `${d.platform.padEnd(8)}  ${d.name.padEnd(nameWidth)}  ${extra.padEnd(9)}  ${d.versions.join(', ')}`,
+    );
+  }
+  const example =
+    devices.find((d) => (real ? d.available : d.type === 'phone')) ??
+    devices[0];
+  const version = example.versions[0];
+  const versionFlag =
+    framework === 'maestro' ? '--deviceVersion' : '--platform-version';
+  const usage = [
+    `--device "${example.name}"`,
+    version ? `${versionFlag} ${version}` : '',
+    real ? '--real-device' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  console.log(`\n${devices.length} device(s). Example: ${usage}`);
+  if (framework === 'maestro') {
+    console.log(
+      `Several at once: --device-matrix "${example.name}${version ? `:${version}` : ''}${real ? ':real' : ''},..."`,
+    );
+  }
+}
 
 export default program;

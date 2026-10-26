@@ -126,4 +126,30 @@ describe('Auth', () => {
       expect(credentials).toBeNull();
     });
   });
+
+  describe('resolveCredentials', () => {
+    it.each([
+      [{ apiKey: 'k', apiSecret: 's' }, {}, 'options'],
+      [{}, { TB_KEY: 'k', TB_SECRET: 's' }, 'env'],
+      [{}, {}, 'file'],
+    ])(
+      'reports where the credentials came from (%j, %j)',
+      async (options, env, source) => {
+        Object.assign(process.env, env);
+        (fs.promises.readFile as jest.Mock).mockResolvedValue('k:s');
+
+        const resolved = await Auth.resolveCredentials(options);
+
+        expect(resolved?.source).toBe(source);
+        expect(resolved?.credentials.userName).toBe('k');
+      },
+    );
+
+    it('returns null when nothing is configured', async () => {
+      (fs.promises.readFile as jest.Mock).mockRejectedValue(
+        new Error('ENOENT'),
+      );
+      expect(await Auth.resolveCredentials()).toBeNull();
+    });
+  });
 });

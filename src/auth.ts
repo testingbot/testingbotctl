@@ -8,6 +8,8 @@ export interface AuthOptions {
   apiSecret?: string;
 }
 
+export type CredentialSource = 'options' | 'env' | 'file';
+
 export default class Auth {
   /**
    * Get credentials from multiple sources in order of precedence:
@@ -18,20 +20,34 @@ export default class Auth {
   public static async getCredentials(
     options?: AuthOptions,
   ): Promise<Credentials | null> {
+    return (await this.resolveCredentials(options))?.credentials ?? null;
+  }
+
+  /** Like getCredentials, and also says where the credentials came from. */
+  public static async resolveCredentials(
+    options?: AuthOptions,
+  ): Promise<{ credentials: Credentials; source: CredentialSource } | null> {
     // 1. Check CLI options first (highest precedence)
     if (options?.apiKey && options?.apiSecret) {
-      return new Credentials(options.apiKey, options.apiSecret);
+      return {
+        credentials: new Credentials(options.apiKey, options.apiSecret),
+        source: 'options',
+      };
     }
 
     // 2. Check environment variables
     const envKey = process.env.TB_KEY;
     const envSecret = process.env.TB_SECRET;
     if (envKey && envSecret) {
-      return new Credentials(envKey, envSecret);
+      return {
+        credentials: new Credentials(envKey, envSecret),
+        source: 'env',
+      };
     }
 
     // 3. Fall back to ~/.testingbot file
-    return this.getCredentialsFromFile();
+    const fromFile = await this.getCredentialsFromFile();
+    return fromFile ? { credentials: fromFile, source: 'file' } : null;
   }
 
   private static async getCredentialsFromFile(): Promise<Credentials | null> {
