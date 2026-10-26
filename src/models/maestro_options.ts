@@ -5,6 +5,12 @@ export interface MaestroConfig {
   includeTags?: string[];
   excludeTags?: string[];
   executionOrder?: 'continue' | 'stop';
+  /**
+   * Extra files to bundle, as globs relative to the config file, for paths
+   * the CLI cannot discover from the flows (e.g. `assertScreenshot` baselines
+   * whose path contains a variable).
+   */
+  includedPaths?: string[];
 }
 
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';

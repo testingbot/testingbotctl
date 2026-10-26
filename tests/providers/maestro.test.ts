@@ -12,6 +12,7 @@ import axios from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
 import * as fileTypeDetector from '../../src/utils/file-type-detector';
+import { glob } from 'glob';
 
 jest.mock('axios');
 jest.mock('testingbot-tunnel-launcher', () => ({
@@ -2930,6 +2931,34 @@ describe('Maestro', () => {
   });
 
   describe('Discover Dependencies', () => {
+    it('should discover assertScreenshot baselines, adding .png when omitted', async () => {
+      const flowContent = `
+- assertScreenshot: ../baselines/home
+- assertScreenshot:
+    path: ../baselines/login.png
+    thresholdPercentage: 90
+- takeScreenshot: ../out/ignored
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'home.yaml');
+      const existing = new Set([
+        path.join(projectDir, 'baselines', 'home.png'),
+        path.join(projectDir, 'baselines', 'login.png'),
+      ]);
+      fs.promises.readFile = jest.fn().mockResolvedValue(flowContent);
+      fs.promises.access = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          existing.has(p)
+            ? Promise.resolve(undefined)
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+
+      const deps = await maestro['discoverDependencies'](flowPath, projectDir);
+
+      expect(deps.sort()).toEqual([...existing].sort());
+    });
+
     beforeEach(() => {
       jest.clearAllMocks();
     });
@@ -3919,6 +3948,48 @@ flows:
   });
 
   describe('loadConfigTags', () => {
+    it('collectIncludedPaths globs includedPaths from the config dir and stays inside baseDir', async () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((p: string) =>
+          p === path.join(projectDir, 'config.yaml')
+            ? Promise.resolve(
+                'includedPaths:\n  - "screenshots/**"\n  - "../shared/*"\n',
+              )
+            : Promise.reject(new Error(`ENOENT: ${p}`)),
+        );
+      (glob as unknown as jest.Mock).mockImplementation(
+        async (pattern: string) =>
+          pattern === 'screenshots/**'
+            ? [
+                path.join(projectDir, 'screenshots', 'b.png'),
+                path.join(projectDir, 'screenshots', 'a.png'),
+              ]
+            : [path.resolve(path.sep, 'shared', 'x.png')],
+      );
+
+      const files = await maestro['collectIncludedPaths'](projectDir);
+
+      expect(files).toEqual([
+        path.join(projectDir, 'screenshots', 'a.png'),
+        path.join(projectDir, 'screenshots', 'b.png'),
+      ]);
+      expect(glob).toHaveBeenCalledWith('screenshots/**', {
+        cwd: projectDir,
+        absolute: true,
+        nodir: true,
+      });
+      (glob as unknown as jest.Mock).mockResolvedValue([]);
+    });
+
+    it('collectIncludedPaths returns nothing without includedPaths', async () => {
+      fs.promises.readFile = jest.fn().mockResolvedValue('flows:\n  - "*"\n');
+      expect(
+        await maestro['collectIncludedPaths'](path.resolve(path.sep, 'p')),
+      ).toEqual([]);
+    });
+
     const projectDir = path.resolve(path.sep, 'project');
     const buildMaestro = () =>
       new Maestro(
@@ -5665,6 +5736,55 @@ flows:
   });
 
   describe('Find Missing References', () => {
+    describe('assertScreenshot baselines', () => {
+      const projectDir = path.resolve(path.sep, 'project');
+      const flowPath = path.join(projectDir, 'flows', 'home.yaml');
+
+      it('accepts a baseline bundled under its .png name', async () => {
+        fs.promises.readFile = jest
+          .fn()
+          .mockResolvedValue('- assertScreenshot: ../baselines/home\n');
+        const missing = await maestro['findMissingReferences'](
+          [flowPath],
+          [flowPath, path.join(projectDir, 'baselines', 'home.png')],
+        );
+        expect(missing).toEqual([]);
+      });
+
+      it('accepts a variable path when an included file fits it', async () => {
+        fs.promises.readFile = jest
+          .fn()
+          .mockResolvedValue(
+            '- assertScreenshot: ../screenshots/${DEVICE}/home.png\n',
+          );
+        const missing = await maestro['findMissingReferences'](
+          [flowPath],
+          [
+            flowPath,
+            path.join(projectDir, 'screenshots', 'pixel-9', 'home.png'),
+          ],
+        );
+        expect(missing).toEqual([]);
+      });
+
+      it('points a variable path without a match at includedPaths', async () => {
+        fs.promises.readFile = jest
+          .fn()
+          .mockResolvedValue(
+            '- assertScreenshot: ../screenshots/${DEVICE}/home.png\n',
+          );
+        const missing = await maestro['findMissingReferences'](
+          [flowPath],
+          [flowPath, path.join(projectDir, 'screenshots', 'home.png')],
+        );
+        expect(missing).toHaveLength(1);
+        expect(missing[0].referencedFile).toBe(
+          '../screenshots/${DEVICE}/home.png',
+        );
+        expect(missing[0].hint).toContain('includedPaths');
+      });
+    });
+
     beforeEach(() => {
       jest.clearAllMocks();
     });
