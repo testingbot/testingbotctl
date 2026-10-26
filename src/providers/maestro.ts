@@ -138,6 +138,8 @@ export interface MissingFileReference {
   flowFile: string;
   referencedFile: string;
   resolvedPath: string;
+  /** Extra advice printed after the reference, e.g. for variable paths. */
+  hint?: string;
 }
 
 export interface DuplicateFlowReference {
@@ -1072,6 +1074,18 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       allFlowFiles.push(...filtered);
     }
 
+    // includedPaths from config.yaml: files the flows reference in ways the
+    // dependency scan cannot follow. Added after tag filtering so they stay.
+    if (baseDir) {
+      for (const file of await this.collectIncludedPaths(baseDir)) {
+        const resolved = path.resolve(file);
+        if (!allFilesSet.has(resolved)) {
+          allFilesSet.add(resolved);
+          allFlowFiles.push(file);
+        }
+      }
+    }
+
     if (!this.options.quiet) {
       this.logIncludedFiles(allFlowFiles, topLevelFlowFiles, baseDir);
 
@@ -1399,13 +1413,51 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   }
 
   /**
-   * Load includeTags / excludeTags declared in the Maestro project's
-   * config.yaml (or config.yml). Returns undefined fields when no config
-   * exists or the values are not arrays.
+   * Files matched by `includedPaths` in the Maestro project's config file.
+   * Globs resolve against the config file's directory; matches outside
+   * baseDir are skipped, since the bundle is rooted there.
    */
-  private async loadConfigTags(
+  private async collectIncludedPaths(baseDir: string): Promise<string[]> {
+    const config = await this.readProjectConfig(baseDir);
+    const patterns = Array.isArray(config?.parsed?.includedPaths)
+      ? config.parsed.includedPaths.filter(
+          (p): p is string => typeof p === 'string',
+        )
+      : [];
+    if (!config || patterns.length === 0) return [];
+
+    const configDir = path.dirname(config.path);
+    const root = path.resolve(baseDir);
+    const files: string[] = [];
+    for (const pattern of patterns) {
+      const matches = await glob(pattern, {
+        cwd: configDir,
+        absolute: true,
+        nodir: true,
+      });
+      if (matches.length === 0 && !this.options.quiet) {
+        logger.warn(`includedPaths: "${pattern}" matched no files`);
+      }
+      for (const match of matches.sort()) {
+        const relative = path.relative(root, match);
+        if (relative.startsWith('..') || path.isAbsolute(relative)) {
+          if (!this.options.quiet) {
+            logger.warn(
+              `includedPaths: skipping ${match}, which is outside ${baseDir}`,
+            );
+          }
+          continue;
+        }
+        files.push(match);
+      }
+    }
+    return files;
+  }
+
+  /** Path and parsed content of the project's config file, if any. */
+  private async readProjectConfig(
     baseDir: string,
-  ): Promise<{ includeTags?: string[]; excludeTags?: string[] }> {
+  ): Promise<{ path: string; parsed: MaestroConfig | null } | null> {
     const candidates = this.options.configFile
       ? [path.resolve(this.options.configFile)]
       : [path.join(baseDir, 'config.yaml'), path.join(baseDir, 'config.yml')];
@@ -1413,26 +1465,34 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     for (const candidate of candidates) {
       try {
         const content = await fs.promises.readFile(candidate, 'utf-8');
-        const parsed = yaml.load(content) as MaestroConfig | null;
-        if (parsed && typeof parsed === 'object') {
-          const include = Array.isArray(parsed.includeTags)
-            ? parsed.includeTags.filter(
-                (t): t is string => typeof t === 'string',
-              )
-            : undefined;
-          const exclude = Array.isArray(parsed.excludeTags)
-            ? parsed.excludeTags.filter(
-                (t): t is string => typeof t === 'string',
-              )
-            : undefined;
-          return { includeTags: include, excludeTags: exclude };
-        }
-        return {};
+        return {
+          path: candidate,
+          parsed: yaml.load(content) as MaestroConfig | null,
+        };
       } catch {
         // try next candidate
       }
     }
-    return {};
+    return null;
+  }
+
+  /**
+   * Load includeTags / excludeTags declared in the Maestro project's
+   * config.yaml (or config.yml). Returns undefined fields when no config
+   * exists or the values are not arrays.
+   */
+  private async loadConfigTags(
+    baseDir: string,
+  ): Promise<{ includeTags?: string[]; excludeTags?: string[] }> {
+    const parsed = (await this.readProjectConfig(baseDir))?.parsed;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const include = Array.isArray(parsed.includeTags)
+      ? parsed.includeTags.filter((t): t is string => typeof t === 'string')
+      : undefined;
+    const exclude = Array.isArray(parsed.excludeTags)
+      ? parsed.excludeTags.filter((t): t is string => typeof t === 'string')
+      : undefined;
+    return { includeTags: include, excludeTags: exclude };
   }
 
   private async filterFlowsByTags(
@@ -1677,6 +1737,31 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         }
       }
 
+      // assertScreenshot: baseline image, string or { path: "..." }. Maestro
+      // adds .png when the path does not end in it, so try that name too.
+      if ('assertScreenshot' in obj) {
+        handledKeys.add('assertScreenshot');
+        const assertScreenshot = obj.assertScreenshot;
+        const baseline =
+          typeof assertScreenshot === 'string'
+            ? assertScreenshot
+            : (assertScreenshot as Record<string, unknown>)?.path;
+        if (typeof baseline === 'string') {
+          const candidates = baseline.toLowerCase().endsWith('.png')
+            ? [baseline]
+            : [baseline, `${baseline}.png`];
+          for (const candidate of candidates) {
+            await this.tryAddDependency(
+              candidate,
+              flowFile,
+              baseDir,
+              dependencies,
+              visited,
+            );
+          }
+        }
+      }
+
       // onFlowStart: array of commands in frontmatter
       if ('onFlowStart' in obj) {
         handledKeys.add('onFlowStart');
@@ -1746,6 +1831,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         'includeTags',
         'excludeTags',
         'env',
+        'includedPaths',
       ]);
 
       for (const [key, propValue] of Object.entries(obj)) {
@@ -1961,6 +2047,47 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   /**
    * Recursively find missing file references in a YAML value
    */
+  /**
+   * An assertScreenshot baseline counts as bundled when the path, or the path
+   * plus .png, is included. A path with a ${...} variable cannot be resolved
+   * up front; it counts when an included file fits it with any value in place
+   * of each variable (which is what includedPaths in config.yaml is for).
+   */
+  private findMissingBaseline(
+    baseline: string,
+    flowFile: string,
+    includedFiles: Set<string>,
+  ): MissingFileReference | undefined {
+    const resolvedPath = path.resolve(path.dirname(flowFile), baseline);
+    const candidates = baseline.toLowerCase().endsWith('.png')
+      ? [resolvedPath]
+      : [resolvedPath, `${resolvedPath}.png`];
+
+    if (!/\$\{[^}]+\}/.test(baseline)) {
+      if (candidates.some((c) => includedFiles.has(c))) return undefined;
+      return { flowFile, referencedFile: baseline, resolvedPath };
+    }
+
+    const patterns = candidates.map(
+      (c) =>
+        new RegExp(
+          `^${c
+            .split(/\$\{[^}]+\}/)
+            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('[^/\\\\]+')}$`,
+        ),
+    );
+    for (const file of includedFiles) {
+      if (patterns.some((re) => re.test(file))) return undefined;
+    }
+    return {
+      flowFile,
+      referencedFile: baseline,
+      resolvedPath,
+      hint: 'the path contains a variable, so list the baselines under includedPaths in config.yaml (e.g. "screenshots/**")',
+    };
+  }
+
   private async findMissingInValue(
     value: unknown,
     flowFile: string,
@@ -2069,6 +2196,24 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         }
       }
 
+      // Handle assertScreenshot baselines (string or { path })
+      if ('assertScreenshot' in obj) {
+        handledKeys.add('assertScreenshot');
+        const assertScreenshot = obj.assertScreenshot;
+        const baseline =
+          typeof assertScreenshot === 'string'
+            ? assertScreenshot
+            : (assertScreenshot as Record<string, unknown>)?.path;
+        if (typeof baseline === 'string') {
+          const missing = this.findMissingBaseline(
+            baseline,
+            flowFile,
+            includedFiles,
+          );
+          if (missing) missingReferences.push(missing);
+        }
+      }
+
       // Handle file property
       if ('file' in obj && typeof obj.file === 'string') {
         handledKeys.add('file');
@@ -2108,6 +2253,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         'includeTags',
         'excludeTags',
         'env',
+        'includedPaths',
       ]);
 
       for (const [key, propValue] of Object.entries(obj)) {
@@ -2144,7 +2290,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const flowRelative = baseDir
         ? path.relative(baseDir, ref.flowFile)
         : path.basename(ref.flowFile);
-      logger.warn(`  In ${flowRelative}: ${ref.referencedFile}`);
+      logger.warn(
+        `  In ${flowRelative}: ${ref.referencedFile}${ref.hint ? ` (${ref.hint})` : ''}`,
+      );
     }
 
     logger.warn(

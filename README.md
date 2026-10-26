@@ -323,6 +323,22 @@ testingbot maestro app.apk ./flows --dry-run
 `testingbotctl` also prints a warning if a flow you passed will run more than
 once because another top-level flow calls it via `runFlow`.
 
+### Files the flows use
+
+Files referenced by `runFlow`, `runScript`, `addMedia` and `assertScreenshot` are bundled automatically, relative to the flow that references them. For `assertScreenshot`, `.png` is added when the path has no extension, as Maestro does.
+
+A path that contains a variable, such as `screenshots/${DEVICE}/home.png`, can't be resolved before the run. List the files under `includedPaths` in `config.yaml`. The globs are relative to the config file and must stay inside the flows directory:
+
+```yaml
+# config.yaml
+flows:
+  - 'flows/*'
+includedPaths:
+  - 'screenshots/**'
+```
+
+`--dry-run` lists every bundled file and warns about references that won't be in the upload.
+
 ---
 
 ### Upload once, run many times
