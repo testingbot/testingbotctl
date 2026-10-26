@@ -630,6 +630,14 @@ program
     'Use the Google Play Store-enabled version (Android emulator only).',
   )
   .option(
+    '--disable-animations',
+    'Turn off device animations (Android animation scales, iOS Reduce Motion). Overrides platform.*.disableAnimations in config.yaml.',
+  )
+  .option(
+    '--no-disable-animations',
+    'Keep device animations on, even where config.yaml sets platform.*.disableAnimations.',
+  )
+  .option(
     '--orientation <orientation>',
     'Screen orientation: PORTRAIT or LANDSCAPE.',
     (val) => val.toUpperCase() as Orientation,
@@ -963,6 +971,7 @@ program
         retry: args.retry,
         debug: args.debug,
         googlePlayStore: args.googlePlay,
+        disableAnimations: args.disableAnimations,
         configFile: args.config,
         groups: args.groups,
         metadata,

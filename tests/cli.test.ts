@@ -1545,6 +1545,24 @@ describe('TestingBotCTL CLI', () => {
       });
     });
 
+    test.each([
+      [[], undefined],
+      [['--disable-animations'], true],
+      [['--no-disable-animations'], false],
+    ])('%j sets disableAnimations to %s', async (flags, expected) => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        ...(flags as string[]),
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).disableAnimations).toBe(
+        expected,
+      );
+    });
+
     test('-e lands in env and --secret-env in secretEnv', async () => {
       await program.parseAsync([
         'node',
