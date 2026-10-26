@@ -85,6 +85,8 @@ export default class EspressoOptions {
   private _dryRun: boolean;
   private _report?: ReportFormat;
   private _reportOutputDir?: string;
+  // Debugging
+  private _debug: boolean;
   // Metadata
   private _metadata?: RunMetadata;
 
@@ -119,6 +121,7 @@ export default class EspressoOptions {
       dryRun?: boolean;
       report?: ReportFormat;
       reportOutputDir?: string;
+      debug?: boolean;
       metadata?: RunMetadata;
     },
   ) {
@@ -163,6 +166,7 @@ export default class EspressoOptions {
     this._dryRun = options?.dryRun ?? false;
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
+    this._debug = options?.debug ?? false;
     this._metadata = options?.metadata;
   }
 
@@ -283,6 +287,10 @@ export default class EspressoOptions {
 
   public get reportOutputDir(): string | undefined {
     return this._reportOutputDir;
+  }
+
+  public get debug(): boolean {
+    return this._debug;
   }
 
   public get metadata(): RunMetadata | undefined {

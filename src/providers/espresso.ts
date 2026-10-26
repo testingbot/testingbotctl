@@ -327,6 +327,12 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         const latestVersion = response.headers?.['x-testingbotctl-version'];
         utils.checkForUpdate(latestVersion);
 
+        if (this.options.debug) {
+          logger.debug(
+            `API response: ${JSON.stringify(response.data, null, 2)}`,
+          );
+        }
+
         return response.data;
       });
     } catch (error) {
