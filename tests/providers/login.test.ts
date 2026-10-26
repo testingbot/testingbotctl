@@ -9,6 +9,7 @@ jest.mock('node:fs', () => ({
   promises: {
     ...jest.requireActual('fs').promises,
     writeFile: jest.fn(),
+    chmod: jest.fn(),
   },
 }));
 
@@ -76,6 +77,21 @@ function getCallback(port: number, query: string): Promise<number> {
   });
 }
 
+function waitForPort(login: Login): Promise<number> {
+  return new Promise<number>((resolve) => {
+    const check = () => {
+      const p = (login as unknown as { port: number }).port;
+      if (p > 0) resolve(p);
+      else setTimeout(check, 5);
+    };
+    check();
+  });
+}
+
+function stateOf(login: Login): string {
+  return (login as unknown as { state: string }).state;
+}
+
 async function findPort(): Promise<number> {
   const server = http.createServer();
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -86,10 +102,12 @@ async function findPort(): Promise<number> {
 
 describe('Login.run', () => {
   const writeFileMock = fs.promises.writeFile as jest.Mock;
+  const chmodMock = fs.promises.chmod as jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     writeFileMock.mockResolvedValue(undefined);
+    chmodMock.mockResolvedValue(undefined);
   });
 
   it('completes authentication via JSON POST callback and saves credentials', async () => {
@@ -108,12 +126,61 @@ describe('Login.run', () => {
       check();
     });
 
-    await postCallback(port, { key: 'my-key', secret: 'my-secret' });
+    await postCallback(port, {
+      key: 'my-key',
+      secret: 'my-secret',
+      state: stateOf(login),
+    });
 
     const result = await runPromise;
     expect(result.success).toBe(true);
     expect(writeFileMock).toHaveBeenCalledWith(
       expect.stringContaining(os.homedir()),
+      'my-key:my-secret',
+      { mode: 0o600 },
+    );
+    expect(chmodMock).toHaveBeenCalledWith(
+      expect.stringContaining(os.homedir()),
+      0o600,
+    );
+  });
+
+  it('sends a state to the auth page', async () => {
+    const login = new Login();
+    const runPromise = login.run();
+    const port = await waitForPort(login);
+
+    expect(stateOf(login)).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const { execFile } = jest.requireMock('node:child_process');
+    const openedUrl = (execFile as jest.Mock).mock.calls[0][1].at(-1);
+    expect(openedUrl).toContain(`&state=${stateOf(login)}`);
+
+    await getCallback(port, `error=done&state=${stateOf(login)}`);
+    await runPromise;
+  });
+
+  it('ignores callbacks without the expected state and keeps waiting', async () => {
+    const login = new Login();
+    const runPromise = login.run();
+    const port = await waitForPort(login);
+
+    expect(await getCallback(port, 'key=evil&secret=evil')).toBe(400);
+    expect(await getCallback(port, 'key=evil&secret=evil&state=wrong')).toBe(
+      400,
+    );
+    expect(await getCallback(port, 'error=aborted')).toBe(400);
+
+    await postCallback(port, {
+      key: 'my-key',
+      secret: 'my-secret',
+      state: stateOf(login),
+    });
+
+    const result = await runPromise;
+    expect(result.success).toBe(true);
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    expect(writeFileMock).toHaveBeenCalledWith(
+      expect.any(String),
       'my-key:my-secret',
       { mode: 0o600 },
     );
@@ -132,7 +199,7 @@ describe('Login.run', () => {
       check();
     });
 
-    await getCallback(port, 'error=user_denied');
+    await getCallback(port, `error=user_denied&state=${stateOf(login)}`);
 
     const result = await runPromise;
     expect(result.success).toBe(false);
