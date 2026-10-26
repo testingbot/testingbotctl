@@ -503,6 +503,21 @@ describe('MaestroOptions', () => {
     });
   });
 
+  describe('disableAnimations', () => {
+    it('is omitted from getMaestroOptions when not given', () => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');
+      expect(options.disableAnimations).toBeUndefined();
+      expect(options.getMaestroOptions()).toBeUndefined();
+    });
+
+    it.each([true, false])('is emitted as disableAnimations: %s', (value) => {
+      const options = new MaestroOptions('app.apk', './flows', 'Pixel 8', {
+        disableAnimations: value,
+      });
+      expect(options.getMaestroOptions()).toEqual({ disableAnimations: value });
+    });
+  });
+
   describe('secretEnv', () => {
     it('is undefined by default and omitted from getMaestroOptions', () => {
       const options = new MaestroOptions('app.apk', './flows', 'Pixel 8');

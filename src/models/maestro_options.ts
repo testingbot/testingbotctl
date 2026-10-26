@@ -51,6 +51,13 @@ export interface MaestroRunOptions {
    */
   secretEnv?: Record<string, string>;
   version?: string;
+  /**
+   * Turns device animations off (true) or keeps them on (false), overriding
+   * `platform.ios/android.disableAnimations` in config.yaml. Left out when
+   * neither --disable-animations nor --no-disable-animations is given, so
+   * the config file (or the device default) applies.
+   */
+  disableAnimations?: boolean;
 }
 
 /** One device of a --device-matrix run. */
@@ -125,6 +132,7 @@ export default class MaestroOptions {
   private _configFile?: string;
   private _groups?: string[];
   private _googlePlayStore: boolean;
+  private _disableAnimations?: boolean;
   // Metadata
   private _metadata?: RunMetadata;
 
@@ -165,6 +173,7 @@ export default class MaestroOptions {
       configFile?: string;
       groups?: string[];
       googlePlayStore?: boolean;
+      disableAnimations?: boolean;
       metadata?: RunMetadata;
       otherApps?: string[];
       appBinaryId?: number;
@@ -241,6 +250,7 @@ export default class MaestroOptions {
     this._configFile = options?.configFile;
     this._groups = options?.groups;
     this._googlePlayStore = options?.googlePlayStore ?? false;
+    this._disableAnimations = options?.disableAnimations;
     this._metadata = options?.metadata;
   }
 
@@ -412,6 +422,10 @@ export default class MaestroOptions {
     return this._googlePlayStore;
   }
 
+  public get disableAnimations(): boolean | undefined {
+    return this._disableAnimations;
+  }
+
   public getMaestroOptions(): MaestroRunOptions | undefined {
     const opts: MaestroRunOptions = {};
 
@@ -429,6 +443,9 @@ export default class MaestroOptions {
     }
     if (this._maestroVersion) {
       opts.version = this._maestroVersion;
+    }
+    if (this._disableAnimations !== undefined) {
+      opts.disableAnimations = this._disableAnimations;
     }
 
     return Object.keys(opts).length > 0 ? opts : undefined;
