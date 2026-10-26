@@ -2615,6 +2615,42 @@ describe('Maestro', () => {
       );
     });
 
+    it('should treat a cancelled run as failed for --download-artifacts failed', async () => {
+      const optionsFailed = new MaestroOptions(
+        'path/to/app.apk',
+        'path/to/flows',
+        'Pixel 6',
+        { downloadArtifacts: 'failed', quiet: true },
+      );
+      const maestroFailed = new Maestro(mockCredentials, optionsFailed);
+      const waitSpy = jest
+        .spyOn(
+          maestroFailed as unknown as {
+            waitForArtifactsSync: (id: number) => Promise<unknown>;
+          },
+          'waitForArtifactsSync',
+        )
+        .mockRejectedValue(new Error('stop here'));
+      fs.promises.mkdtemp = jest.fn().mockResolvedValue('/tmp/x');
+      fs.promises.rm = jest.fn().mockResolvedValue(undefined);
+      jest
+        .spyOn(
+          maestroFailed as unknown as {
+            createZipFromDirectory: () => Promise<void>;
+          },
+          'createZipFromDirectory',
+        )
+        .mockResolvedValue(undefined);
+
+      await maestroFailed['downloadArtifacts']([
+        { id: 1, status: 'CANCELLED', success: 1, flows: [] },
+        { id: 2, status: 'DONE', success: 1, flows: [] },
+      ] as never);
+
+      expect(waitSpy).toHaveBeenCalledTimes(1);
+      expect(waitSpy).toHaveBeenCalledWith(1);
+    });
+
     it('should download per-flow assets for flow-based runs', async () => {
       const optionsWithArtifacts = new MaestroOptions(
         'path/to/app.apk',
