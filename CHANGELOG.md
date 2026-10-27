@@ -2,6 +2,24 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
+## 1.4.3 - 2026-10-27
+
+### Added
+
+- `testingbot whoami`: shows the account, plan, minutes left and concurrency, and which credentials are in use (options, `TB_KEY`/`TB_SECRET` or `~/.testingbot`).
+- `testingbot logout`: deletes `~/.testingbot`, and warns when `TB_KEY`/`TB_SECRET` still apply.
+- `testingbot devices`: lists device names and OS versions per framework, or real devices with their availability with `--real` (needs credentials), along with the flags the run commands take to select them.
+- `--disable-animations` / `--no-disable-animations` for `testingbot maestro`, sent as `maestroOptions.disableAnimations` only when one of them is given, so `platform.ios/android.disableAnimations` in `config.yaml` (and the device default) still apply otherwise.
+- `--debug` for `testingbot espresso`, which logs API responses the way it already did for `xcuitest` and `maestro`.
+
+### Fixed
+
+- Maestro `assertScreenshot` baselines are now uploaded when the path has no extension (`assertScreenshot: screenshots/home`, which Maestro saves as `.png`) and when it uses the `{ path }` form. Before, these runs failed with "Screenshot file not found".
+- `includedPaths` globs in Maestro's `config.yaml` are now bundled, which covers baselines whose paths contain variables (`screenshots/${DEVICE}/home.png`) and can't be resolved before the run.
+- `--download-artifacts failed` for Maestro now selects failed runs by the same rule as the exit code, so cancelled runs get their artifacts too.
+- `testingbot espresso --report html` is now rejected before any upload. The Espresso API only serves JUnit reports, and before this the command exited 0 without writing a file.
+- `testingbot login` now checks a random `state` value on the loopback callback, so another local process can't inject credentials or abort the login. An existing `~/.testingbot` is now set to mode `0600`.
+
 ## 1.4.2 - 2026-10-25
 
 ### Added
