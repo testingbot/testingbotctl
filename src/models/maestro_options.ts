@@ -136,6 +136,7 @@ export default class MaestroOptions {
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
   private _retry: number;
+  private _cancelPrevious: boolean;
   private _debug: boolean;
   private _configFile?: string;
   private _groups?: string[];
@@ -177,6 +178,7 @@ export default class MaestroOptions {
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
       retry?: number;
+      cancelPrevious?: boolean;
       debug?: boolean;
       configFile?: string;
       groups?: string[];
@@ -244,6 +246,7 @@ export default class MaestroOptions {
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
+    this._cancelPrevious = options?.cancelPrevious ?? false;
     this._retry = options?.retry ?? 0;
     if (
       !Number.isInteger(this._retry) ||
@@ -408,6 +411,10 @@ export default class MaestroOptions {
 
   public get retry(): number {
     return this._retry;
+  }
+
+  public get cancelPrevious(): boolean {
+    return this._cancelPrevious;
   }
 
   public get debug(): boolean {
