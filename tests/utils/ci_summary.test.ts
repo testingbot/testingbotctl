@@ -103,6 +103,21 @@ describe('renderMarkdown', () => {
     expect(md).not.toContain('search on');
   });
 
+  test('a backslash before a pipe cannot unescape it and break the table', () => {
+    const md = renderMarkdown({
+      ...maestro,
+      runs: [
+        {
+          ...maestro.runs[0],
+          flows: [
+            flow(2, 'checkout', false, { errors: ['path C:\\tmp\\| x'] }),
+          ],
+        },
+      ],
+    });
+    expect(md).toContain('| path C:\\\\tmp\\\\\\| x |');
+  });
+
   test('a passed Espresso run without flows', () => {
     const md = renderMarkdown(espresso);
     expect(md).toContain('### TestingBot Espresso: ✅ passed');
