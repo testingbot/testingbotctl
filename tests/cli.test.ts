@@ -8,12 +8,17 @@ import fs from 'node:fs';
 import { JsonOutput } from './../src/utils/json_output';
 import * as account from './../src/providers/account';
 import Credentials from './../src/models/credentials';
+import { ciRepoMetadata } from './../src/utils/ci_env';
 
 jest.mock('./../src/logger');
 jest.mock('./../src/auth');
 jest.mock('./../src/providers/espresso');
 jest.mock('./../src/providers/xcuitest');
 jest.mock('./../src/providers/maestro');
+// Keep the suite hermetic when it runs inside CI itself (GITHUB_ACTIONS etc.).
+jest.mock('./../src/utils/ci_env', () => ({
+  ciRepoMetadata: jest.fn(() => ({})),
+}));
 jest.mock('./../src/providers/account', () => ({
   ...jest.requireActual('./../src/providers/account'),
   fetchAccount: jest.fn(),
@@ -1970,6 +1975,57 @@ describe('TestingBotCTL CLI', () => {
       expect(opts.app).toBe('');
       expect(opts.appUrl).toBe('https://testingbot.com/appium/sample.apk');
       expect(mockUploadOnly).toHaveBeenCalledTimes(1);
+    });
+
+    test('detected CI repository metadata fills in what flags leave out', async () => {
+      (ciRepoMetadata as jest.Mock).mockReturnValueOnce({
+        repoUrl: 'https://dev.azure.com/acme/mobile/_git/app',
+        commitSha: 'b'.repeat(40),
+        branch: 'develop',
+        pullRequestId: '12',
+        pullRequestUrl:
+          'https://dev.azure.com/acme/mobile/_git/app/pullrequest/12',
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--branch',
+        'release',
+        '--pull-request-id',
+        '7',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toEqual({
+        repoUrl: 'https://dev.azure.com/acme/mobile/_git/app',
+        commitSha: 'b'.repeat(40),
+        branch: 'release',
+        pullRequestId: '7',
+      });
+    });
+
+    test('an explicit --repo-owner/--repo-name replaces the detected repository', async () => {
+      (ciRepoMetadata as jest.Mock).mockReturnValueOnce({
+        repoUrl: 'https://github.com/detected/repo',
+        repoOwner: 'detected',
+        repoName: 'repo',
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--repo-owner',
+        'acme',
+        '--repo-name',
+        'app',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).metadata).toEqual({
+        repoOwner: 'acme',
+        repoName: 'app',
+      });
     });
 
     test('EAS Build env fills in the commit and build metadata', async () => {

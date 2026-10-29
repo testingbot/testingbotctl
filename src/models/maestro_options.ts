@@ -24,6 +24,8 @@ export interface RunMetadata {
   pullRequestUrl?: string;
   repoName?: string;
   repoOwner?: string;
+  /** The repository's web URL on any host; detected from the CI env. */
+  repoUrl?: string;
   branch?: string;
   /** Free-form key/value pairs from --metadata, shown on the dashboard. */
   custom?: Record<string, string>;

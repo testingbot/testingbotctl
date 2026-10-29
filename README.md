@@ -193,16 +193,16 @@ Values passed with `-e` are stored in plain text: they are returned in the run's
 
 **CI/CD Integration:**
 
-| Option                       | Description                                                                                                          |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `--branch <name>`            | Git branch this test run was built from                                                                              |
-| `--commit-sha <sha>`         | Git commit SHA associated with this test run                                                                         |
-| `--pull-request-id <id>`     | Pull request ID this test run originated from                                                                        |
-| `--pr-url <url>`             | Pull request URL this test run originated from                                                                       |
-| `--repo-name <name>`         | Repository name (e.g., GitHub repo slug)                                                                             |
-| `--repo-owner <owner>`       | Repository owner (e.g., GitHub organization or username)                                                             |
-| `-m, --metadata <KEY=VALUE>` | Free-form metadata attached to the run and shown in the dashboard (repeatable, e.g. `-m team=mobile -m env=staging`) |
-| `--check-name <name>` | Name the GitHub pull request check `TestingBot / <name>` so several runs on one commit (iOS, Android) post separate checks that branch protection can require individually |
+| Option                       | Description                                                                                                                                                                |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--branch <name>`            | Git branch this test run was built from                                                                                                                                    |
+| `--commit-sha <sha>`         | Git commit SHA associated with this test run                                                                                                                               |
+| `--pull-request-id <id>`     | Pull request ID this test run originated from                                                                                                                              |
+| `--pr-url <url>`             | Pull request URL this test run originated from                                                                                                                             |
+| `--repo-name <name>`         | Repository name (e.g., GitHub repo slug)                                                                                                                                   |
+| `--repo-owner <owner>`       | Repository owner (e.g., GitHub organization or username)                                                                                                                   |
+| `-m, --metadata <KEY=VALUE>` | Free-form metadata attached to the run and shown in the dashboard (repeatable, e.g. `-m team=mobile -m env=staging`)                                                       |
+| `--check-name <name>`        | Name the GitHub pull request check `TestingBot / <name>` so several runs on one commit (iOS, Android) post separate checks that branch protection can require individually |
 
 **Allure reports:** `--report allure` converts each run's results into Allure result files under `<report-output-dir>/allure-results/`, one JSON per flow with its steps, status and failure details. Render them with `allure serve <report-output-dir>/allure-results` (requires the [Allure CLI](https://allurereport.org/docs/install/)). Results from several runs or shards accumulate in the same directory.
 
@@ -404,6 +404,8 @@ testingbot maestro --app-url "$URL" ./flows --device "Pixel 9"
 # A local tar.gz works too
 testingbot maestro build.tar.gz ./flows
 ```
+
+Inside GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines or CircleCI, `testingbot maestro` reads the repository URL, branch, commit and pull request from the CI environment, so the dashboard links the run to them on whichever host the repository lives (GitHub, GitLab, Bitbucket, Azure Repos or self-hosted). Any of `--branch`, `--commit-sha`, `--pull-request-id`, `--pr-url`, `--repo-owner` and `--repo-name` overrides what was detected.
 
 Inside an EAS Build or EAS Workflows job, the run is tagged automatically with the EAS build id, profile and platform, and `EAS_BUILD_GIT_COMMIT_HASH` is used as the commit SHA unless `--commit-sha` is given. `testingbot upload <url>` accepts URLs as well.
 

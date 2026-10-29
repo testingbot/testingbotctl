@@ -21,6 +21,7 @@ import MaestroOptions, {
   ArtifactDownloadMode,
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
+import { ciRepoMetadata } from './utils/ci_env';
 import Login from './providers/login';
 import {
   CREDENTIALS_FILE,
@@ -931,18 +932,25 @@ program
       if (Array.isArray(args.secretEnv)) args.secretEnv.length = 0;
 
       const eas = easBuildMetadata(process.env);
+      const ci = ciRepoMetadata(process.env);
+      // The repository is one unit: an explicit --repo-owner / --repo-name
+      // replaces everything detected about it, and an explicit PR id drops
+      // the detected PR URL, which would point at a different PR.
+      const explicitRepo = !!(args.repoOwner || args.repoName);
       const custom = {
         ...eas.custom,
         ...(parseKeyValues(args.metadata, '--metadata') ?? {}),
         ...(args.checkName?.trim() && { checkName: args.checkName.trim() }),
       };
       const metadata = buildRunMetadata({
-        commitSha: args.commitSha ?? eas.commitSha,
-        pullRequestId: args.pullRequestId,
-        pullRequestUrl: args.prUrl,
-        repoName: args.repoName,
-        repoOwner: args.repoOwner,
-        branch: args.branch,
+        commitSha: args.commitSha ?? eas.commitSha ?? ci.commitSha,
+        pullRequestId: args.pullRequestId ?? ci.pullRequestId,
+        pullRequestUrl:
+          args.prUrl ?? (args.pullRequestId ? undefined : ci.pullRequestUrl),
+        repoUrl: explicitRepo ? undefined : ci.repoUrl,
+        repoName: explicitRepo ? args.repoName : ci.repoName,
+        repoOwner: explicitRepo ? args.repoOwner : ci.repoOwner,
+        branch: args.branch ?? ci.branch,
         custom: Object.keys(custom).length > 0 ? custom : undefined,
       });
 
