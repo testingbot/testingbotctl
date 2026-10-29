@@ -1,16 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import TestingBotError from './testingbot_error';
+import type { RunMetadata } from './maestro_options';
 
 export type TestSize = 'small' | 'medium' | 'large';
 export type ReportFormat = 'html' | 'junit';
 export type ThrottleNetwork = '4G' | '3G' | 'Edge' | 'airplane';
 
-export interface RunMetadata {
-  commitSha?: string;
-  pullRequestId?: string;
-  repoName?: string;
-  repoOwner?: string;
-}
+// One metadata shape for every run command (CI fields + --metadata pairs).
+export type { RunMetadata };
 
 export interface CustomNetworkProfile {
   uploadSpeed: number; // kbps

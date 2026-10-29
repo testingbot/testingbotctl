@@ -220,6 +220,49 @@ function buildRunMetadata(fields: RunMetadata): RunMetadata | undefined {
     : undefined;
 }
 
+interface CiMetadataArgs {
+  branch?: string;
+  commitSha?: string;
+  pullRequestId?: string;
+  prUrl?: string;
+  repoName?: string;
+  repoOwner?: string;
+  metadata?: string[];
+  checkName?: string;
+}
+
+/**
+ * The run metadata every run command sends: the CI/CD flags, merged over what
+ * was detected from the CI environment (and EAS Build, for Maestro), plus the
+ * free-form --metadata pairs. Flags win over anything detected.
+ */
+function ciRunMetadata(
+  args: CiMetadataArgs,
+  detected: { commitSha?: string; custom?: Record<string, string> } = {},
+): RunMetadata | undefined {
+  const ci = ciRepoMetadata(process.env);
+  // The repository is one unit: an explicit --repo-owner / --repo-name
+  // replaces everything detected about it, and an explicit PR id drops
+  // the detected PR URL, which would point at a different PR.
+  const explicitRepo = !!(args.repoOwner || args.repoName);
+  const custom = {
+    ...detected.custom,
+    ...(parseKeyValues(args.metadata, '--metadata') ?? {}),
+    ...(args.checkName?.trim() && { checkName: args.checkName.trim() }),
+  };
+  return buildRunMetadata({
+    commitSha: args.commitSha ?? detected.commitSha ?? ci.commitSha,
+    pullRequestId: args.pullRequestId ?? ci.pullRequestId,
+    pullRequestUrl:
+      args.prUrl ?? (args.pullRequestId ? undefined : ci.pullRequestUrl),
+    repoUrl: explicitRepo ? undefined : ci.repoUrl,
+    repoName: explicitRepo ? args.repoName : ci.repoName,
+    repoOwner: explicitRepo ? args.repoOwner : ci.repoOwner,
+    branch: args.branch ?? ci.branch,
+    custom: Object.keys(custom).length > 0 ? custom : undefined,
+  });
+}
+
 /** Android API level → OS version, for `--device-os android-34`. */
 const ANDROID_API_TO_VERSION: Record<string, string> = {
   '26': '8.0',
@@ -470,8 +513,18 @@ program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
-  // CI/CD metadata
+  // CI/CD metadata (also detected from the CI environment)
+  .option('--branch <name>', 'Git branch this upload was built from.')
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
+  .option(
+    '--pr-url <url>',
+    'URL of the pull request this upload originated from.',
+  )
+  .option(
+    '-m, --metadata <KEY=VALUE>',
+    'Arbitrary metadata to attach to the run, shown in the dashboard (repeatable).',
+    collectRepeatable,
+  )
   .option(
     '--pull-request-id <id>',
     'The ID of the pull request this upload originated from.',
@@ -529,15 +582,7 @@ program
         );
       }
 
-      const metadata =
-        args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
-          ? {
-              commitSha: args.commitSha,
-              pullRequestId: args.pullRequestId,
-              repoName: args.repoName,
-              repoOwner: args.repoOwner,
-            }
-          : undefined;
+      const metadata = ciRunMetadata(args);
 
       const options = new EspressoOptions(app, testApp, args.device, {
         version: args.platformVersion,
@@ -931,28 +976,7 @@ program
       if (Array.isArray(args.env)) args.env.length = 0;
       if (Array.isArray(args.secretEnv)) args.secretEnv.length = 0;
 
-      const eas = easBuildMetadata(process.env);
-      const ci = ciRepoMetadata(process.env);
-      // The repository is one unit: an explicit --repo-owner / --repo-name
-      // replaces everything detected about it, and an explicit PR id drops
-      // the detected PR URL, which would point at a different PR.
-      const explicitRepo = !!(args.repoOwner || args.repoName);
-      const custom = {
-        ...eas.custom,
-        ...(parseKeyValues(args.metadata, '--metadata') ?? {}),
-        ...(args.checkName?.trim() && { checkName: args.checkName.trim() }),
-      };
-      const metadata = buildRunMetadata({
-        commitSha: args.commitSha ?? eas.commitSha ?? ci.commitSha,
-        pullRequestId: args.pullRequestId ?? ci.pullRequestId,
-        pullRequestUrl:
-          args.prUrl ?? (args.pullRequestId ? undefined : ci.pullRequestUrl),
-        repoUrl: explicitRepo ? undefined : ci.repoUrl,
-        repoName: explicitRepo ? args.repoName : ci.repoName,
-        repoOwner: explicitRepo ? args.repoOwner : ci.repoOwner,
-        branch: args.branch ?? ci.branch,
-        custom: Object.keys(custom).length > 0 ? custom : undefined,
-      });
+      const metadata = ciRunMetadata(args, easBuildMetadata(process.env));
 
       const options = new MaestroOptions(app, flows, args.device, {
         includeTags: args.includeTags,
@@ -1080,8 +1104,18 @@ program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
-  // CI/CD metadata
+  // CI/CD metadata (also detected from the CI environment)
+  .option('--branch <name>', 'Git branch this upload was built from.')
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
+  .option(
+    '--pr-url <url>',
+    'URL of the pull request this upload originated from.',
+  )
+  .option(
+    '-m, --metadata <KEY=VALUE>',
+    'Arbitrary metadata to attach to the run, shown in the dashboard (repeatable).',
+    collectRepeatable,
+  )
   .option(
     '--pull-request-id <id>',
     'The ID of the pull request this upload originated from.',
@@ -1139,15 +1173,7 @@ program
         );
       }
 
-      const metadata =
-        args.commitSha || args.pullRequestId || args.repoName || args.repoOwner
-          ? {
-              commitSha: args.commitSha,
-              pullRequestId: args.pullRequestId,
-              repoName: args.repoName,
-              repoOwner: args.repoOwner,
-            }
-          : undefined;
+      const metadata = ciRunMetadata(args);
 
       const options = new XCUITestOptions(app, testApp, args.device, {
         version: args.platformVersion,
