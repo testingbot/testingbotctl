@@ -530,6 +530,10 @@ program
     (val) => Number(val),
   )
   .option(
+    '--fail-fast',
+    'Stop at the first failure that will not be retried: cancel the runs still queued or running.',
+  )
+  .option(
     '--download-artifacts [mode]',
     'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
     (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
@@ -638,6 +642,7 @@ program
         reportOutputDir: args.reportOutputDir,
         retry: args.retry,
         timeout: args.timeout,
+        failFast: args.failFast,
         downloadArtifacts:
           args.downloadArtifacts === true
             ? 'all'
@@ -811,6 +816,10 @@ program
     '--timeout <minutes>',
     'Stop waiting after N minutes (default 60), including retries. Unfinished runs are stopped and the command fails.',
     (val) => Number(val),
+  )
+  .option(
+    '--fail-fast',
+    'Stop at the first failure that will not be retried: cancel the runs still queued or running.',
   )
   .option(
     '--async',
@@ -1052,6 +1061,7 @@ program
         shardSplit: args.shardSplit,
         retry: args.retry,
         timeout: args.timeout,
+        failFast: args.failFast,
         cancelPrevious: args.cancelPrevious,
         debug: args.debug,
         googlePlayStore: args.googlePlay,
@@ -1159,6 +1169,10 @@ program
     (val) => Number(val),
   )
   .option(
+    '--fail-fast',
+    'Stop at the first failure that will not be retried: cancel the runs still queued or running.',
+  )
+  .option(
     '--download-artifacts [mode]',
     'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
     (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
@@ -1260,6 +1274,7 @@ program
         reportOutputDir: args.reportOutputDir,
         retry: args.retry,
         timeout: args.timeout,
+        failFast: args.failFast,
         downloadArtifacts:
           args.downloadArtifacts === true
             ? 'all'

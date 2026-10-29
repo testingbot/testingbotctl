@@ -76,6 +76,7 @@ export interface BaseProviderOptions {
   quiet?: boolean;
   /** --timeout, in minutes. */
   timeout?: number;
+  failFast?: boolean;
   reportOutputDir?: string;
   dryRun?: boolean;
   tunnel?: boolean;
@@ -185,6 +186,8 @@ export default abstract class BaseProvider<
    */
   protected supersededRunIds = new Set<number>();
   protected activeRunIds: number[] = [];
+  /** --fail-fast cancelled the remaining runs; no more retries start. */
+  protected failFastStopped = false;
   /** When waiting for results gives up; set once, shared by --retry rounds. */
   private waitDeadline: number | undefined;
   protected isShuttingDown = false;
@@ -242,6 +245,29 @@ export default abstract class BaseProvider<
     await this.stopActiveRuns();
     this.activeRunIds = [];
     return `Timed out after ${minutes} minute(s)`;
+  }
+
+  /**
+   * --fail-fast: a test failed for good, so cancel every run still queued or
+   * running. The caller keeps polling until they settle, so the summary,
+   * reports and artifacts cover what did run.
+   */
+  protected async stopAfterFailure(what: string): Promise<void> {
+    this.failFastStopped = true;
+    const stopping = this.activeRunIds.length;
+    this.spinner.stop();
+    this.clearLine();
+    logger.error(
+      `${what} failed` +
+        (stopping > 0
+          ? `; --fail-fast is stopping ${stopping} unfinished run(s)`
+          : '; --fail-fast'),
+    );
+    await this.stopActiveRuns();
+  }
+
+  protected get failFastError(): string {
+    return 'Stopped after the first failure (--fail-fast)';
   }
 
   /** Whether a run status is still queued or running. */

@@ -1359,6 +1359,137 @@ describe('Maestro', () => {
     });
   });
 
+  describe('--fail-fast', () => {
+    const flowRow = (
+      id: number,
+      name: string,
+      status: string,
+      success = 0,
+    ) => ({
+      id,
+      name,
+      status,
+      success,
+    });
+    const runRow = (id: number, status: string, flows: unknown[]) => ({
+      id,
+      status,
+      capabilities: { deviceName: `Device ${id}`, platformName: 'Android' },
+      success: 0,
+      flows,
+    });
+
+    const failFastMaestro = (extra: Record<string, unknown> = {}) => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', 'flows', 'Pixel 6', {
+          quiet: true,
+          failFast: true,
+          ...extra,
+        }),
+      );
+      m['appId'] = 1234;
+      m['MIN_POLL_INTERVAL_MS'] = 1;
+      m['MAX_POLL_INTERVAL_MS'] = 1;
+      return m;
+    };
+
+    it('cancels the other runs at the first failed flow and waits for them to settle', async () => {
+      const m = failFastMaestro();
+      const busy = {
+        runs: [
+          runRow(1, 'READY', [flowRow(11, 'login', 'FAILED')]),
+          runRow(2, 'READY', [flowRow(21, 'login', 'READY')]),
+        ],
+        success: false,
+        completed: false,
+      };
+      const settled = {
+        runs: [
+          runRow(1, 'CANCELLED', [flowRow(11, 'login', 'FAILED')]),
+          runRow(2, 'CANCELLED', [flowRow(21, 'login', 'CANCELLED')]),
+        ],
+        success: false,
+        completed: true,
+      };
+      m['getStatus'] = jest
+        .fn()
+        .mockResolvedValueOnce(busy)
+        .mockResolvedValue(settled);
+      const stopRun = jest.fn().mockResolvedValue(undefined);
+      m['stopRun'] = stopRun;
+
+      const result = await m['waitForCompletion']();
+
+      expect(stopRun.mock.calls.map(([id]) => id).sort()).toEqual([1, 2]);
+      expect(result).toMatchObject({
+        success: false,
+        outcome: 'failed',
+        error: expect.stringMatching(/--fail-fast/),
+      });
+    });
+
+    it('waits for a retry before stopping, and does not retry cancelled flows', async () => {
+      const m = failFastMaestro({ retry: 1 });
+      const retryFlow = jest.fn().mockResolvedValue(12);
+      m['retryFlow'] = retryFlow;
+      const stopRun = jest.fn().mockResolvedValue(undefined);
+      m['stopRun'] = stopRun;
+      m['getStatus'] = jest
+        .fn()
+        // First failure: still within the retry budget, so no fail-fast.
+        .mockResolvedValueOnce({
+          runs: [
+            runRow(1, 'READY', [
+              flowRow(11, 'login', 'FAILED'),
+              flowRow(13, 'search', 'READY'),
+            ]),
+          ],
+          completed: false,
+        })
+        // The retry failed too: now it is final.
+        .mockResolvedValueOnce({
+          runs: [
+            runRow(1, 'READY', [
+              flowRow(11, 'login', 'FAILED'),
+              flowRow(12, 'login', 'FAILED'),
+              flowRow(13, 'search', 'READY'),
+            ]),
+          ],
+          completed: false,
+        })
+        .mockResolvedValue({
+          runs: [
+            runRow(1, 'CANCELLED', [
+              flowRow(11, 'login', 'FAILED'),
+              flowRow(12, 'login', 'FAILED'),
+              flowRow(13, 'search', 'CANCELLED'),
+            ]),
+          ],
+          completed: true,
+        });
+
+      const result = await m['waitForCompletion']();
+
+      expect(retryFlow).toHaveBeenCalledTimes(1);
+      expect(retryFlow).toHaveBeenCalledWith(1, 11);
+      expect(stopRun).toHaveBeenCalledWith(1);
+      expect(result.outcome).toBe('failed');
+    });
+
+    it('is rejected with --async', async () => {
+      const m = failFastMaestro({ async: true });
+      m['validate'] = jest.fn().mockResolvedValue(true);
+      m['ensureConnectivity'] = jest.fn().mockResolvedValue(undefined);
+      m['uploadApp'] = jest.fn().mockResolvedValue(undefined);
+      m['uploadFlows'] = jest.fn().mockResolvedValue(undefined);
+      jest.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await m.run();
+      expect(result.outcome).toBe('error');
+      expect(result.error).toMatch(/--fail-fast with --async/);
+    });
+  });
+
   describe('--timeout', () => {
     const busyStatus = {
       runs: [

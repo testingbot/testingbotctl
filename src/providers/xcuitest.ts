@@ -76,6 +76,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       throw new TestingBotError(`testApp option is required`);
     }
 
+    if (this.options.failFast && this.options.async) {
+      throw new TestingBotError(
+        'Cannot use --fail-fast with --async mode. Stopping on a failure requires waiting for results.',
+      );
+    }
+
     if (this.options.timeout && this.options.async) {
       throw new TestingBotError(
         'Cannot use --timeout with --async mode. The CLI does not wait for results in async mode.',
@@ -383,6 +389,9 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
     }
   }
 
+  /** Which --retry round is running: 0 is the first attempt. */
+  private retryRound = 0;
+
   private async waitForCompletion(): Promise<XCUITestResult> {
     this.startWaitClock();
     const startTime = Date.now();
@@ -404,6 +413,24 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       this.activeRunIds = runs
         .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
         .map((run) => run.id);
+
+      // A failure counts once its run has no retries left: on the last
+      // --retry round (or the only round without --retry).
+      if (
+        this.options.failFast &&
+        !this.failFastStopped &&
+        this.retryRound >= this.options.retry
+      ) {
+        const failed = runs.find(
+          (run) =>
+            !this.isRunBusy(run.status) && !this.isRunSuccessful(run.success),
+        );
+        if (failed) {
+          await this.stopAfterFailure(
+            `Run ${failed.id} (${this.getRunDisplayName(failed)})`,
+          );
+        }
+      }
 
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
@@ -467,6 +494,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         return {
           success: allSucceeded,
           outcome: allSucceeded ? 'passed' : 'failed',
+          ...(this.failFastStopped && { error: this.failFastError }),
           runs,
         };
       }
@@ -514,6 +542,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         );
       }
       setTitle(`xcuitest · retry ${attempt}/${retries}`);
+      this.retryRound = attempt;
       for (let i = 0; i < failed.length; i++) await this.runTests();
       result = await this.waitForCompletion();
     }

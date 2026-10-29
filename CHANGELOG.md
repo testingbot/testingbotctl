@@ -12,6 +12,7 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - `testingbot espresso` and `testingbot xcuitest` take the same CI/CD metadata as `maestro`: `--branch`, `--pr-url`, `-m/--metadata` and the CI environment detection, through one shared code path.
 - `--retry <count>`, `--download-artifacts [all|failed]` and `--artifacts-output-dir` for `testingbot espresso` and `testingbot xcuitest`. A retried run is started again on the uploaded app; the last attempt decides the exit code, the `--report` and the artifacts. Artifacts (video, logs, screenshots) are zipped with a folder per run, like `maestro`.
 - `--timeout <minutes>` for `testingbot maestro`, `espresso` and `xcuitest`: how long to wait for results, counted from when the tests start and shared by every `--retry` attempt. Default 60.
+- `--fail-fast` for `testingbot maestro`, `espresso` and `xcuitest`: at the first failure that will not be retried, the runs still queued or running are cancelled. The command waits for them to stop, then reports as usual and fails with exit code 2.
 
 ### Changed
 
