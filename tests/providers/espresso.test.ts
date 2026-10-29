@@ -1434,6 +1434,43 @@ describe('Espresso', () => {
     });
   });
 
+  describe('Report after --retry', () => {
+    it('combines the final runs own reports instead of the project report', async () => {
+      const reporting = new Espresso(
+        mockCredentials,
+        new EspressoOptions('a.apk', 'b.apk', 'Pixel 6', {
+          report: 'junit',
+          reportOutputDir: '/tmp/reports',
+          quiet: true,
+        }),
+      );
+      reporting['appId'] = 42;
+      reporting['supersededRunIds'].add(1);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+      axios.get = jest.fn();
+
+      await reporting['fetchReports']([
+        {
+          id: 2,
+          status: 'DONE',
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: true,
+          report:
+            '<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="EspressoRun #2" tests="1" failures="0"/>',
+        },
+      ]);
+
+      expect(axios.get).not.toHaveBeenCalled();
+      const [file, content] = (fs.promises.writeFile as jest.Mock).mock
+        .calls[0];
+      expect(file).toBe('/tmp/reports/espresso_report_42.xml');
+      expect(content).toContain(
+        '<testsuites>\n<testsuite name="EspressoRun #2"',
+      );
+      expect(content.match(/<\?xml/g)).toHaveLength(1);
+    });
+  });
+
   describe('Scenario: --dry-run', () => {
     it('performs no HTTP calls and returns success', async () => {
       fs.promises.access = jest.fn().mockResolvedValue(undefined);

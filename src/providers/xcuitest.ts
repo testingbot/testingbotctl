@@ -11,6 +11,7 @@ import utils from '../utils';
 import BaseProvider, { ProviderResult } from './base_provider';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
+import { downloadSessionArtifacts } from '../utils/session_artifacts';
 
 export interface XCUITestRunEnvironment {
   device?: string;
@@ -75,6 +76,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       throw new TestingBotError(`testApp option is required`);
     }
 
+    if (this.options.retry > 0 && this.options.async) {
+      throw new TestingBotError(
+        'Cannot use --retry with --async mode. Retrying a failed test requires waiting for results.',
+      );
+    }
+
     // Validate report options
     if (this.options.report && !this.options.reportOutputDir) {
       throw new TestingBotError(
@@ -98,6 +105,12 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
 
     if (this.options.reportOutputDir) {
       fileChecks.push(this.ensureOutputDirectory(this.options.reportOutputDir));
+    }
+
+    if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+      fileChecks.push(
+        this.ensureOutputDirectory(this.options.artifactsOutputDir),
+      );
     }
 
     await Promise.all(fileChecks);
@@ -192,7 +205,28 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       if (!this.options.quiet) {
         logger.info('Waiting for test results...');
       }
-      const result = await this.waitForCompletion();
+      const result = await this.retryFailedRuns(await this.waitForCompletion());
+
+      // Reports and artifacts describe the final attempt of each run.
+      if (this.options.report && this.options.reportOutputDir) {
+        await this.fetchReports(result.runs);
+      }
+      if (this.options.downloadArtifacts) {
+        await downloadSessionArtifacts({
+          provider: 'xcuitest',
+          credentials: this.credentials,
+          runs: result.runs.map((run) => ({
+            id: run.id,
+            passed: this.isRunSuccessful(run.success),
+            sessionId: run.test?.sessionId,
+            device: this.getRunDisplayName(run),
+          })),
+          mode: this.options.downloadArtifacts,
+          outputDir: this.options.artifactsOutputDir || process.cwd(),
+          name: this.options.name,
+          quiet: this.options.quiet,
+        });
+      }
 
       // Clean up
       this.disconnectFromUpdateServer();
@@ -355,29 +389,32 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       }
 
       const status = await this.getStatus();
+      const runs = this.currentRuns(status.runs);
+      const completed =
+        runs.length > 0 && !runs.some((run) => this.isRunBusy(run.status));
 
       // Track active run IDs for graceful shutdown
-      this.activeRunIds = status.runs
+      this.activeRunIds = runs
         .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
         .map((run) => run.id);
 
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
-        this.displayRunStatus(status.runs, startTime, previousStatus);
+        this.displayRunStatus(runs, startTime, previousStatus);
       }
 
-      const running = status.runs.find((r) => r.status === 'READY');
+      const running = runs.find((r) => r.status === 'READY');
       if (running) {
         const device =
           running.environment?.name || running.capabilities.deviceName;
         setTitle(`xcuitest · running · ${device}`);
       }
 
-      if (status.completed) {
+      if (completed) {
         // Stop the spinner and print final status
         if (!this.options.quiet) {
           this.spinner.stop();
-          for (const run of status.runs) {
+          for (const run of runs) {
             const passed = this.isRunSuccessful(run.success);
             const symbol = passed ? pc.green('✔') : pc.red('✘');
             const statusText = passed
@@ -389,7 +426,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           }
         }
 
-        const allSucceeded = status.runs.every((run) =>
+        const allSucceeded = runs.every((run) =>
           this.isRunSuccessful(run.success),
         );
 
@@ -399,7 +436,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
             logger.info('All tests completed successfully!');
           }
         } else {
-          const failedRuns = status.runs.filter(
+          const failedRuns = runs.filter(
             (run) => !this.isRunSuccessful(run.success),
           );
           setTitle(`xcuitest · ✘ ${failedRuns.length} failed`);
@@ -420,15 +457,10 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           }
         }
 
-        // Fetch reports if requested
-        if (this.options.report && this.options.reportOutputDir) {
-          await this.fetchReports(status.runs);
-        }
-
         return {
-          success: status.success,
-          outcome: status.success ? 'passed' : 'failed',
-          runs: status.runs,
+          success: allSucceeded,
+          outcome: allSucceeded ? 'passed' : 'failed',
+          runs,
         };
       }
 
@@ -442,13 +474,43 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       }
 
       const signature = JSON.stringify(
-        status.runs.map((r) => [r.id, r.status, r.success]),
+        runs.map((r) => [r.id, r.status, r.success]),
       );
       const changed = signature !== previousSignature;
       previousSignature = signature;
       pollInterval = this.computeNextPollInterval(pollInterval, changed);
       await this.sleep(pollInterval);
     }
+  }
+
+  /**
+   * --retry: starts each failed run again on the same app, up to N times, and
+   * waits for it. The failed attempt is superseded, so the result, reports and
+   * artifacts are those of the last attempt.
+   */
+  private async retryFailedRuns(
+    result: XCUITestResult,
+  ): Promise<XCUITestResult> {
+    const retries = this.options.retry;
+    for (
+      let attempt = 1;
+      attempt <= retries && result.outcome === 'failed';
+      attempt++
+    ) {
+      const failed = result.runs.filter(
+        (run) => !this.isRunSuccessful(run.success),
+      );
+      for (const run of failed) this.supersededRunIds.add(run.id);
+      if (!this.options.quiet) {
+        logger.info(
+          `Retrying ${failed.length} failed run(s) (attempt ${attempt}/${retries})...`,
+        );
+      }
+      setTitle(`xcuitest · retry ${attempt}/${retries}`);
+      for (let i = 0; i < failed.length; i++) await this.runTests();
+      result = await this.waitForCompletion();
+    }
+    return result;
   }
 
   private displayRunStatus(

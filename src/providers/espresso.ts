@@ -11,6 +11,7 @@ import utils from '../utils';
 import BaseProvider, { ProviderResult } from './base_provider';
 import { setTitle } from '../ui/terminal-title';
 import { HTTP, SOCKET } from '../config/constants';
+import { downloadSessionArtifacts } from '../utils/session_artifacts';
 
 export interface EspressoRunEnvironment {
   device?: string;
@@ -30,7 +31,11 @@ export interface EspressoRunInfo {
   // The API serializes this as a boolean (test_case.success?); older/other
   // endpoints may use 1/0. Compare via isRunSuccessful, not `=== 1`.
   success: number | boolean;
+  /** This run's own JUnit XML. */
   report?: string;
+  test?: {
+    sessionId?: string;
+  };
 }
 
 export interface EspressoStatusResponse {
@@ -76,6 +81,12 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       );
     }
 
+    if (this.options.retry > 0 && this.options.async) {
+      throw new TestingBotError(
+        'Cannot use --retry with --async mode. Retrying a failed test requires waiting for results.',
+      );
+    }
+
     if (this.options.report && !this.options.reportOutputDir) {
       throw new TestingBotError(
         `--report-output-dir is required when --report is specified`,
@@ -98,6 +109,12 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
 
     if (this.options.reportOutputDir) {
       fileChecks.push(this.ensureOutputDirectory(this.options.reportOutputDir));
+    }
+
+    if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+      fileChecks.push(
+        this.ensureOutputDirectory(this.options.artifactsOutputDir),
+      );
     }
 
     await Promise.all(fileChecks);
@@ -192,7 +209,28 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       if (!this.options.quiet) {
         logger.info('Waiting for test results...');
       }
-      const result = await this.waitForCompletion();
+      const result = await this.retryFailedRuns(await this.waitForCompletion());
+
+      // Reports and artifacts describe the final attempt of each run.
+      if (this.options.report && this.options.reportOutputDir) {
+        await this.fetchReports(result.runs);
+      }
+      if (this.options.downloadArtifacts) {
+        await downloadSessionArtifacts({
+          provider: 'espresso',
+          credentials: this.credentials,
+          runs: result.runs.map((run) => ({
+            id: run.id,
+            passed: this.isRunSuccessful(run.success),
+            sessionId: run.test?.sessionId,
+            device: this.getRunDisplayName(run),
+          })),
+          mode: this.options.downloadArtifacts,
+          outputDir: this.options.artifactsOutputDir || process.cwd(),
+          name: this.options.name,
+          quiet: this.options.quiet,
+        });
+      }
 
       // Clean up
       this.disconnectFromUpdateServer();
@@ -355,30 +393,33 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       }
 
       const status = await this.getStatus();
+      const runs = this.currentRuns(status.runs);
+      const completed =
+        runs.length > 0 && !runs.some((run) => this.isRunBusy(run.status));
 
       // Track active run IDs for graceful shutdown
-      this.activeRunIds = status.runs
+      this.activeRunIds = runs
         .filter((run) => run.status !== 'DONE' && run.status !== 'FAILED')
         .map((run) => run.id);
 
       // Log current status of runs (unless quiet mode)
       if (!this.options.quiet) {
-        this.displayRunStatus(status.runs, startTime, previousStatus);
+        this.displayRunStatus(runs, startTime, previousStatus);
       }
 
       // Terminal-tab title reflects the coarse phase, regardless of quiet.
-      const running = status.runs.find((r) => r.status === 'READY');
+      const running = runs.find((r) => r.status === 'READY');
       if (running) {
         const device =
           running.environment?.name || running.capabilities.deviceName;
         setTitle(`espresso · running · ${device}`);
       }
 
-      if (status.completed) {
+      if (completed) {
         // Stop the spinner and print final status
         if (!this.options.quiet) {
           this.spinner.stop();
-          for (const run of status.runs) {
+          for (const run of runs) {
             const passed = this.isRunSuccessful(run.success);
             const symbol = passed ? pc.green('✔') : pc.red('✘');
             const statusText = passed
@@ -390,7 +431,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           }
         }
 
-        const allSucceeded = status.runs.every((run) =>
+        const allSucceeded = runs.every((run) =>
           this.isRunSuccessful(run.success),
         );
 
@@ -400,7 +441,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
             logger.info('All tests completed successfully!');
           }
         } else {
-          const failedRuns = status.runs.filter(
+          const failedRuns = runs.filter(
             (run) => !this.isRunSuccessful(run.success),
           );
           setTitle(`espresso · ✘ ${failedRuns.length} failed`);
@@ -412,15 +453,10 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           }
         }
 
-        // Fetch reports if requested
-        if (this.options.report && this.options.reportOutputDir) {
-          await this.fetchReports();
-        }
-
         return {
-          success: status.success,
-          outcome: status.success ? 'passed' : 'failed',
-          runs: status.runs,
+          success: allSucceeded,
+          outcome: allSucceeded ? 'passed' : 'failed',
+          runs,
         };
       }
 
@@ -434,13 +470,43 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       }
 
       const signature = JSON.stringify(
-        status.runs.map((r) => [r.id, r.status, r.success]),
+        runs.map((r) => [r.id, r.status, r.success]),
       );
       const changed = signature !== previousSignature;
       previousSignature = signature;
       pollInterval = this.computeNextPollInterval(pollInterval, changed);
       await this.sleep(pollInterval);
     }
+  }
+
+  /**
+   * --retry: starts each failed run again on the same app, up to N times, and
+   * waits for it. The failed attempt is superseded, so the result, reports and
+   * artifacts are those of the last attempt.
+   */
+  private async retryFailedRuns(
+    result: EspressoResult,
+  ): Promise<EspressoResult> {
+    const retries = this.options.retry;
+    for (
+      let attempt = 1;
+      attempt <= retries && result.outcome === 'failed';
+      attempt++
+    ) {
+      const failed = result.runs.filter(
+        (run) => !this.isRunSuccessful(run.success),
+      );
+      for (const run of failed) this.supersededRunIds.add(run.id);
+      if (!this.options.quiet) {
+        logger.info(
+          `Retrying ${failed.length} failed run(s) (attempt ${attempt}/${retries})...`,
+        );
+      }
+      setTitle(`espresso · retry ${attempt}/${retries}`);
+      for (let i = 0; i < failed.length; i++) await this.runTests();
+      result = await this.waitForCompletion();
+    }
+    return result;
   }
 
   private displayRunStatus(
@@ -511,7 +577,23 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     }
   }
 
-  private async fetchReports(): Promise<void> {
+  /** The runs' own <testsuite> reports in one <testsuites> document. */
+  private combinedReport(runs: EspressoRunInfo[]): string {
+    const suites = runs
+      .map((run) => (run.report ?? '').replace(/^\s*<\?xml[^>]*\?>\s*/, ''))
+      .filter(Boolean);
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<testsuites>\n${suites.join('\n')}\n</testsuites>\n`;
+  }
+
+  private async writeReport(content: string, outputDir: string) {
+    const filePath = path.join(outputDir, `espresso_report_${this.appId}.xml`);
+    await fs.promises.writeFile(filePath, content, 'utf-8');
+    if (!this.options.quiet) {
+      logger.info(`  Saved report: ${filePath}`);
+    }
+  }
+
+  private async fetchReports(runs: EspressoRunInfo[]): Promise<void> {
     const reportFormat = this.options.report;
     const outputDir = this.options.reportOutputDir;
 
@@ -527,6 +609,13 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
 
     if (!this.options.quiet) {
       logger.info('Fetching junit report...');
+    }
+
+    // The project report covers every run in the project, superseded --retry
+    // attempts included. After a retry, combine the final runs' own reports.
+    if (this.supersededRunIds.size > 0) {
+      await this.writeReport(this.combinedReport(runs), outputDir);
+      return;
     }
 
     try {
@@ -552,14 +641,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         return;
       }
 
-      const fileName = `espresso_report_${this.appId}.xml`;
-      const filePath = path.join(outputDir, fileName);
-
-      await fs.promises.writeFile(filePath, reportContent, 'utf-8');
-
-      if (!this.options.quiet) {
-        logger.info(`  Saved report: ${filePath}`);
-      }
+      await this.writeReport(reportContent, outputDir);
     } catch (error) {
       logger.error(
         `Failed to fetch report: ${error instanceof Error ? error.message : error}`,

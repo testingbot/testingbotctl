@@ -761,6 +761,91 @@ describe('XCUITest', () => {
     });
   });
 
+  describe('Retry', () => {
+    const run = (id: number, success: number, status = 'DONE') => ({
+      id,
+      status,
+      capabilities: { deviceName: 'iPhone 15', platformName: 'iOS' },
+      success,
+    });
+    const statusOf = (...runs: ReturnType<typeof run>[]) => ({
+      data: { runs, success: false, completed: true },
+    });
+    const retrying = (retry: number) => {
+      const provider = new XCUITest(
+        mockCredentials,
+        new XCUITestOptions('path/to/app.ipa', 'path/to/testApp.zip', 'X', {
+          retry,
+          quiet: true,
+        }),
+      );
+      provider['appId'] = 1234;
+      provider['MIN_POLL_INTERVAL_MS'] = 10;
+      provider['MAX_POLL_INTERVAL_MS'] = 10;
+      return provider;
+    };
+
+    beforeEach(() => {
+      axios.post = jest.fn().mockResolvedValue({ data: { success: true } });
+    });
+
+    it('starts a failed run again and judges the last attempt only', async () => {
+      const provider = retrying(1);
+      // The project status keeps returning the failed first attempt.
+      axios.get = jest
+        .fn()
+        .mockResolvedValueOnce(statusOf(run(1, 0)))
+        .mockResolvedValueOnce(statusOf(run(1, 0), run(2, 0, 'READY')))
+        .mockResolvedValue(statusOf(run(1, 0), run(2, 1)));
+
+      const result = await provider['retryFailedRuns'](
+        await provider['waitForCompletion'](),
+      );
+
+      expect(axios.post).toHaveBeenCalledTimes(1);
+      expect(result.outcome).toBe('passed');
+      expect(result.runs.map((r) => r.id)).toEqual([2]);
+    });
+
+    it('gives up after --retry attempts', async () => {
+      const provider = retrying(2);
+      axios.get = jest
+        .fn()
+        .mockResolvedValueOnce(statusOf(run(1, 0)))
+        .mockResolvedValueOnce(statusOf(run(1, 0), run(2, 0)))
+        .mockResolvedValue(statusOf(run(1, 0), run(2, 0), run(3, 0)));
+
+      const result = await provider['retryFailedRuns'](
+        await provider['waitForCompletion'](),
+      );
+
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      expect(result.outcome).toBe('failed');
+      expect(result.runs.map((r) => r.id)).toEqual([3]);
+    });
+
+    it('does not retry a passed run', async () => {
+      const provider = retrying(2);
+      axios.get = jest.fn().mockResolvedValue(statusOf(run(1, 1)));
+
+      const result = await provider['retryFailedRuns'](
+        await provider['waitForCompletion'](),
+      );
+
+      expect(axios.post).not.toHaveBeenCalled();
+      expect(result.outcome).toBe('passed');
+    });
+
+    it('rejects --retry above 2', () => {
+      expect(
+        () =>
+          new XCUITestOptions('a.ipa', 'b.zip', 'X', {
+            retry: 3,
+          }),
+      ).toThrow('Invalid --retry value (3)');
+    });
+  });
+
   describe('Async Mode', () => {
     it('should return immediately in async mode without polling', async () => {
       const asyncOptions = new XCUITestOptions(
