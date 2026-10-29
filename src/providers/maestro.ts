@@ -9,6 +9,7 @@ import { glob } from 'glob';
 import * as yaml from 'js-yaml';
 import archiver from 'archiver';
 import { io, Socket } from 'socket.io-client';
+import { proxyAgent } from '../utils/proxy';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import { detectPlatformFromFile } from '../utils/file-type-detector';
@@ -4346,6 +4347,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         reconnectionAttempts: SOCKET.RECONNECTION_ATTEMPTS,
         reconnectionDelay: SOCKET.RECONNECTION_DELAY_MS,
         timeout: SOCKET.TIMEOUT_MS,
+        // The WebSocket bypasses the global agent that --proxy installs.
+        ...(proxyAgent() && { agent: proxyAgent() as unknown as string }),
       });
 
       this.socket.on('connect', () => {

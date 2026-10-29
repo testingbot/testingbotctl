@@ -97,6 +97,14 @@ const STATUS_CODE_MESSAGES: Record<number, StatusCodeConfig> = {
       'Contact support if you believe this is an error',
     ],
   },
+  407: {
+    message: 'Proxy authentication required',
+    troubleshooting: [
+      'Your proxy refused the request: its credentials are missing or wrong',
+      'Put them in the proxy URL: --proxy http://user:password@host:port (or HTTPS_PROXY)',
+      'URL-encode special characters in the password, e.g. @ as %40',
+    ],
+  },
   500: {
     message: 'Server error occurred',
     troubleshooting: [

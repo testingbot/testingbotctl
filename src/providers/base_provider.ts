@@ -21,6 +21,7 @@ import {
   checkInternetConnectivity,
   formatConnectivityResults,
 } from '../utils/connectivity';
+import { activeProxyFor, redactProxy } from '../utils/proxy';
 import { POLLING } from '../config/constants';
 import type {
   JsonOutput,
@@ -355,6 +356,8 @@ export default abstract class BaseProvider<
       apiKey: string;
       apiSecret: string;
       tunnelIdentifier?: string;
+      proxy?: string;
+      'proxy-userpwd'?: string;
     } = {
       apiKey: this.credentials.userName,
       apiSecret: this.credentials.accessKey,
@@ -362,6 +365,17 @@ export default abstract class BaseProvider<
 
     if (this.options.tunnelIdentifier) {
       tunnelOptions.tunnelIdentifier = this.options.tunnelIdentifier;
+    }
+
+    // The tunnel is a separate (Java) process: hand it the proxy itself.
+    const proxy = activeProxyFor('https://api.testingbot.com');
+    if (proxy) {
+      const url = new URL(proxy);
+      tunnelOptions.proxy = `${url.hostname}:${url.port || (url.protocol === 'https:' ? '443' : '80')}`;
+      if (url.username) {
+        tunnelOptions['proxy-userpwd'] =
+          `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+      }
     }
 
     this.tunnelInstance = await downloadAndRunAsync(tunnelOptions);
@@ -592,6 +606,13 @@ export default abstract class BaseProvider<
    * Useful when network errors occur to help users troubleshoot.
    */
   protected async checkAndReportConnectivity(): Promise<boolean> {
+    const proxy = activeProxyFor('https://api.testingbot.com');
+    if (proxy) {
+      logger.info(
+        `Requests go through the proxy ${redactProxy(proxy)}: check that it is reachable and allows *.testingbot.com.`,
+      );
+      return true;
+    }
     logger.info('Checking internet connectivity...');
     const result = await checkInternetConnectivity();
     logger.info(formatConnectivityResults(result));
@@ -603,6 +624,9 @@ export default abstract class BaseProvider<
    * Throws an error with diagnostics if no connection is available.
    */
   protected async ensureConnectivity(): Promise<void> {
+    // The check asks third-party sites directly; behind a proxy that says
+    // nothing about reaching TestingBot, so let the first request tell.
+    if (activeProxyFor('https://api.testingbot.com')) return;
     const result = await checkInternetConnectivity();
     if (!result.connected) {
       logger.error('No internet connection detected.');
