@@ -852,6 +852,10 @@ program
     collectRepeatable,
   )
   .option(
+    '--cancel-previous',
+    'Cancel your queued or running runs of the same repository and branch (or pull request) from an earlier commit before starting this one.',
+  )
+  .option(
     '--check-name <name>',
     'Name the GitHub pull request check "TestingBot / <name>" so several runs on one commit (iOS, Android) post separate checks.',
   )
@@ -1031,6 +1035,7 @@ program
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
         retry: args.retry,
+        cancelPrevious: args.cancelPrevious,
         debug: args.debug,
         googlePlayStore: args.googlePlay,
         disableAnimations: args.disableAnimations,

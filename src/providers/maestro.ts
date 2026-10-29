@@ -491,6 +491,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             shardSplit: this.options.shardSplit,
           }),
           ...(metadata && { metadata }),
+          ...(this.options.cancelPrevious && { cancelPrevious: true }),
           ...(otherApps.length > 0 && {
             otherApps: previewOtherAppUrls,
           }),
@@ -2468,6 +2469,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             shardSplit: this.options.shardSplit,
           }),
           ...(metadata && { metadata }),
+          ...(this.options.cancelPrevious && { cancelPrevious: true }),
           ...(this.otherAppUrls.length > 0 && {
             otherApps: this.otherAppUrls,
           }),
@@ -2495,6 +2497,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       if (result.update_server && result.update_key) {
         this.updateServer = result.update_server;
         this.updateKey = result.update_key;
+      }
+
+      if (result.cancelled_previous) {
+        this.logCancelledPrevious(result.cancelled_previous);
       }
 
       // The server registers a GitHub check when the run carries repo + commit
@@ -4257,6 +4263,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         // Ignore cleanup errors
       }
     }
+  }
+
+  /** What --cancel-previous did, as the run response reports it. */
+  private logCancelledPrevious(cancelled: {
+    run_ids?: number[];
+    skipped?: string;
+  }): void {
+    if (cancelled.skipped) {
+      logger.warn(
+        `--cancel-previous: nothing cancelled, ${cancelled.skipped}.`,
+      );
+      return;
+    }
+    const ids = cancelled.run_ids ?? [];
+    if (this.options.quiet) return;
+    logger.info(
+      ids.length > 0
+        ? `Cancelled ${ids.length} run(s) of the previous push: ${ids.join(', ')}`
+        : 'No runs of a previous push were still running.',
+    );
   }
 
   private async createZipFromDirectory(

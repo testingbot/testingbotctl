@@ -203,6 +203,7 @@ Values passed with `-e` are stored in plain text: they are returned in the run's
 | `--repo-owner <owner>`       | Repository owner (e.g., GitHub organization or username)                                                                                                                   |
 | `-m, --metadata <KEY=VALUE>` | Free-form metadata attached to the run and shown in the dashboard (repeatable, e.g. `-m team=mobile -m env=staging`)                                                       |
 | `--check-name <name>`        | Name the GitHub pull request check `TestingBot / <name>` so several runs on one commit (iOS, Android) post separate checks that branch protection can require individually |
+| `--cancel-previous`          | Before starting, cancel your queued or running runs of the same repository and branch (or pull request) from an earlier commit. Runs on the same commit are left alone     |
 
 **Allure reports:** `--report allure` converts each run's results into Allure result files under `<report-output-dir>/allure-results/`, one JSON per flow with its steps, status and failure details. Render them with `allure serve <report-output-dir>/allure-results` (requires the [Allure CLI](https://allurereport.org/docs/install/)). Results from several runs or shards accumulate in the same directory.
 
@@ -694,6 +695,8 @@ testingbot xcuitest app.ipa app-test.zip \
 ### CI/CD Metadata
 
 `maestro`, `espresso` and `xcuitest` all take `--branch`, `--commit-sha`, `--pull-request-id`, `--pr-url`, `--repo-owner`, `--repo-name` and `-m, --metadata <KEY=VALUE>` (repeatable). Inside GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines or CircleCI, the repository URL, branch, commit and pull request are read from the CI environment, so the dashboard links the run to them on whichever host the repository lives (GitHub, GitLab, Bitbucket, Azure Repos or self-hosted). Any flag overrides what was detected.
+
+`testingbot maestro --cancel-previous` uses this context to cancel the runs of a previous push: your queued or running Maestro runs with the same repository and the same pull request (or branch) but a different commit. Runs on the same commit, such as the iOS and Android jobs of one pipeline, keep running.
 
 ### Real-time Progress
 

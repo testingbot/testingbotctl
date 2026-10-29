@@ -921,6 +921,78 @@ describe('Maestro', () => {
       logSpy.mockRestore();
     });
 
+    describe('--cancel-previous', () => {
+      const cancelling = () => {
+        const provider = new Maestro(
+          mockCredentials,
+          new MaestroOptions('path/to/app.apk', 'path/to/flows', 'Pixel 6', {
+            cancelPrevious: true,
+          }),
+        );
+        provider['appId'] = 1234;
+        return provider;
+      };
+
+      it('asks the server to cancel the previous push and logs what it did', async () => {
+        const provider = cancelling();
+        axios.post = jest.fn().mockResolvedValueOnce({
+          data: {
+            success: true,
+            runs: [],
+            cancelled_previous: { run_ids: [7, 8] },
+          },
+          headers: {},
+        });
+        const logSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+
+        await provider['runTests']();
+
+        expect((axios.post as jest.Mock).mock.calls[0][1].cancelPrevious).toBe(
+          true,
+        );
+        expect(logSpy).toHaveBeenCalledWith(
+          'Cancelled 2 run(s) of the previous push: 7, 8',
+        );
+        logSpy.mockRestore();
+      });
+
+      it('warns when the server could not tell which runs to cancel', async () => {
+        const provider = cancelling();
+        axios.post = jest.fn().mockResolvedValueOnce({
+          data: {
+            success: true,
+            runs: [],
+            cancelled_previous: {
+              run_ids: [],
+              skipped: 'metadata has no commitSha',
+            },
+          },
+          headers: {},
+        });
+        const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+
+        await provider['runTests']();
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          '--cancel-previous: nothing cancelled, metadata has no commitSha.',
+        );
+        warnSpy.mockRestore();
+      });
+
+      it('is not sent unless asked', async () => {
+        maestro['appId'] = 1234;
+        axios.post = jest
+          .fn()
+          .mockResolvedValueOnce({ data: { success: true }, headers: {} });
+
+        await maestro['runTests']();
+
+        expect((axios.post as jest.Mock).mock.calls[0][1]).not.toHaveProperty(
+          'cancelPrevious',
+        );
+      });
+    });
+
     it('should not include maestroOptions when none are set', async () => {
       maestro['appId'] = 1234;
 

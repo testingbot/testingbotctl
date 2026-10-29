@@ -2017,6 +2017,21 @@ describe('TestingBotCTL CLI', () => {
       expect(mockUploadOnly).toHaveBeenCalledTimes(1);
     });
 
+    test('maestro --cancel-previous reaches the options', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--cancel-previous',
+      ]);
+      expect(
+        lastConstructorOptions<{ cancelPrevious?: boolean }>(Maestro)
+          .cancelPrevious,
+      ).toBe(true);
+    });
+
     test('detected CI repository metadata fills in what flags leave out', async () => {
       (ciRepoMetadata as jest.Mock).mockReturnValueOnce({
         repoUrl: 'https://dev.azure.com/acme/mobile/_git/app',
