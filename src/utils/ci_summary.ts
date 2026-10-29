@@ -71,7 +71,8 @@ function failuresOf(output: JsonOutput): Failure[] {
 
 /** One line, no table-breaking pipes, bounded length. */
 function cell(text: string, max = 200): string {
-  const flat = text.replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+  // Backslashes too: otherwise an input `\|` becomes `\\|` and the pipe breaks the table.
+  const flat = text.replace(/\s+/g, ' ').replace(/[\\|]/g, '\\$&').trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
 }
 
