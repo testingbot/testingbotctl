@@ -22,6 +22,7 @@ import MaestroOptions, {
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 import { ciRepoMetadata } from './utils/ci_env';
+import { publishCiSummary } from './utils/ci_summary';
 import Login from './providers/login';
 import {
   CREDENTIALS_FILE,
@@ -357,10 +358,14 @@ function applyMaestroCloudAliases(args: MaestroCloudAliasArgs): string[] {
 async function finishCommand(
   output: JsonOutput,
   jsonOptions: JsonOutputOptions,
+  { ciSummary = true }: { ciSummary?: boolean } = {},
 ): Promise<void> {
   const written = await writeJsonOutput(output, jsonOptions);
   if (written && !jsonOptions.json) {
     logger.info(`JSON results written to ${written}`);
+  }
+  if (ciSummary) {
+    await publishCiSummary(output, { stdoutReserved: jsonOptions.json });
   }
   process.exitCode = resolveExitCode(output, jsonOptions);
 }
@@ -1462,7 +1467,10 @@ withFlags(
         }),
       );
       const result = await maestro.artifacts(args.id);
-      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+      // The run's own command already published its summary.
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions, {
+        ciSummary: false,
+      });
     } catch (err) {
       await failCommand('maestro', 'Artifacts', err, jsonOptions);
     }

@@ -6,6 +6,7 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 
 ### Added
 
+- Job summary and annotations in CI: in GitHub Actions a results table is appended to `$GITHUB_STEP_SUMMARY` and every failed flow or run gets an `::error` annotation; in Azure Pipelines the table is attached to the build and failures are logged as errors. For `maestro`, `espresso`, `xcuitest` and `status`. `TESTINGBOT_CI_SUMMARY=0` turns it off.
 - `testingbot maestro --cancel-previous`: before starting, cancels your queued or running runs of the same repository and branch or pull request from an earlier commit (`cancelPrevious` on the run API). Runs on the same commit are left alone.
 - `testingbot maestro` detects the repository URL, branch, commit and pull request in GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines and CircleCI and sends them as run metadata (`repoUrl` is new), so the dashboard can link to the commit and PR on any Git host. On a GitHub pull request the PR's head commit is used, not the merge commit. Explicit flags win.
 - `testingbot espresso` and `testingbot xcuitest` take the same CI/CD metadata as `maestro`: `--branch`, `--pr-url`, `-m/--metadata` and the CI environment detection, through one shared code path.
