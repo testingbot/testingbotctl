@@ -405,8 +405,6 @@ testingbot maestro --app-url "$URL" ./flows --device "Pixel 9"
 testingbot maestro build.tar.gz ./flows
 ```
 
-Inside GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines or CircleCI, `testingbot maestro` reads the repository URL, branch, commit and pull request from the CI environment, so the dashboard links the run to them on whichever host the repository lives (GitHub, GitLab, Bitbucket, Azure Repos or self-hosted). Any of `--branch`, `--commit-sha`, `--pull-request-id`, `--pr-url`, `--repo-owner` and `--repo-name` overrides what was detected.
-
 Inside an EAS Build or EAS Workflows job, the run is tagged automatically with the EAS build id, profile and platform, and `EAS_BUILD_GIT_COMMIT_HASH` is used as the commit SHA unless `--commit-sha` is given. `testingbot upload <url>` accepts URLs as well.
 
 ### Status, artifacts and list
@@ -686,6 +684,10 @@ testingbot xcuitest app.ipa app-test.zip \
 ---
 
 ## Common Features
+
+### CI/CD Metadata
+
+`maestro`, `espresso` and `xcuitest` all take `--branch`, `--commit-sha`, `--pull-request-id`, `--pr-url`, `--repo-owner`, `--repo-name` and `-m, --metadata <KEY=VALUE>` (repeatable). Inside GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines or CircleCI, the repository URL, branch, commit and pull request are read from the CI environment, so the dashboard links the run to them on whichever host the repository lives (GitHub, GitLab, Bitbucket, Azure Repos or self-hosted). Any flag overrides what was detected.
 
 ### Real-time Progress
 

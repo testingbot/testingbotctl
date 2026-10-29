@@ -717,6 +717,46 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  test.each([
+    ['espresso', ['app.apk', 'test.apk'], Espresso],
+    ['xcuitest', ['app.ipa', 'test.zip'], XCUITest],
+  ])(
+    '%s takes --branch, --pr-url, --metadata and the detected CI repository',
+    async (command, files, provider) => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      (ciRepoMetadata as jest.Mock).mockReturnValueOnce({
+        repoUrl: 'https://dev.azure.com/acme/mobile/_git/app',
+        commitSha: 'b'.repeat(40),
+        branch: 'develop',
+      });
+
+      await program.parseAsync([
+        'node',
+        'cli',
+        command,
+        ...files,
+        '--branch',
+        'release',
+        '--pr-url',
+        'https://dev.azure.com/acme/mobile/_git/app/pullrequest/7',
+        '-m',
+        'team=mobile',
+      ]);
+
+      expect(
+        lastConstructorOptions<{ metadata?: Record<string, unknown> }>(provider)
+          .metadata,
+      ).toEqual({
+        repoUrl: 'https://dev.azure.com/acme/mobile/_git/app',
+        commitSha: 'b'.repeat(40),
+        branch: 'release',
+        pullRequestUrl:
+          'https://dev.azure.com/acme/mobile/_git/app/pullrequest/7',
+        custom: { team: 'mobile' },
+      });
+    },
+  );
+
   test('xcuitest command should call xcuitest.run() with valid options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 

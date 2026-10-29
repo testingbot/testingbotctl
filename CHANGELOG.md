@@ -7,6 +7,7 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 ### Added
 
 - `testingbot maestro` detects the repository URL, branch, commit and pull request in GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines and CircleCI and sends them as run metadata (`repoUrl` is new), so the dashboard can link to the commit and PR on any Git host. On a GitHub pull request the PR's head commit is used, not the merge commit. Explicit flags win.
+- `testingbot espresso` and `testingbot xcuitest` take the same CI/CD metadata as `maestro`: `--branch`, `--pr-url`, `-m/--metadata` and the CI environment detection, through one shared code path.
 
 ## 1.4.3 - 2026-10-27
 
