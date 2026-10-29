@@ -81,6 +81,12 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       );
     }
 
+    if (this.options.timeout && this.options.async) {
+      throw new TestingBotError(
+        'Cannot use --timeout with --async mode. The CLI does not wait for results in async mode.',
+      );
+    }
+
     if (this.options.retry > 0 && this.options.async) {
       throw new TestingBotError(
         'Cannot use --retry with --async mode. Retrying a failed test requires waiting for results.',
@@ -382,6 +388,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
   }
 
   private async waitForCompletion(): Promise<EspressoResult> {
+    this.startWaitClock();
     const startTime = Date.now();
     const previousStatus: Map<number, EspressoRunInfo['status']> = new Map();
     let pollInterval = this.MIN_POLL_INTERVAL_MS;
@@ -463,10 +470,10 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       // Checked after getStatus() so a run that completes during the final
       // sleep is returned as success on the next iteration instead of being
       // misreported as a timeout.
-      if (Date.now() - startTime >= this.MAX_POLL_DURATION_MS) {
-        throw new TestingBotError(
-          `Test timed out after ${this.MAX_POLL_DURATION_MS / 1000 / 60} minutes`,
-        );
+      if (this.waitTimedOut()) {
+        const error = await this.stopTimedOutRuns();
+        setTitle('espresso · ✘ timed out');
+        return { success: false, outcome: 'failed', error, runs };
       }
 
       const signature = JSON.stringify(
@@ -490,7 +497,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     const retries = this.options.retry;
     for (
       let attempt = 1;
-      attempt <= retries && result.outcome === 'failed';
+      attempt <= retries && result.outcome === 'failed' && !result.error;
       attempt++
     ) {
       const failed = result.runs.filter(

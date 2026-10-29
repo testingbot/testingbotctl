@@ -59,9 +59,12 @@ function failuresOf(output: JsonOutput): Failure[] {
         });
       }
     } else if (!run.passed) {
+      const unfinished = run.status === 'WAITING' || run.status === 'READY';
       failures.push({
         title: `Run ${run.id} on ${deviceLabel(run)}`,
-        message: `Run ${run.status.toLowerCase()}`,
+        message: unfinished
+          ? 'Run did not finish before the timeout'
+          : `Run ${run.status.toLowerCase()}`,
         url: run.url,
       });
     }
@@ -87,6 +90,7 @@ export function renderMarkdown(output: JsonOutput): string {
     : `❌ ${failedRuns} of ${output.runs.length} run(s) failed`;
 
   const lines = [`### TestingBot ${label}: ${verdict}`, ''];
+  if (output.error) lines.push(`> ${cell(output.error)}`, '');
   if (output.url) lines.push(`[Open in TestingBot](${output.url})`, '');
 
   const hasFlows = output.runs.some((run) => run.flows?.length);

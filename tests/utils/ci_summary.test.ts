@@ -68,6 +68,25 @@ const espresso: JsonOutput = {
 };
 
 describe('renderMarkdown', () => {
+  it('says why a timed-out run failed', () => {
+    const md = renderMarkdown({
+      provider: 'xcuitest',
+      outcome: 'failed',
+      success: false,
+      error: 'Timed out after 30 minute(s)',
+      runs: [
+        {
+          id: 9,
+          status: 'READY',
+          passed: false,
+          device: { name: 'iPhone 16', platform: 'iOS' },
+        },
+      ],
+    });
+    expect(md).toContain('> Timed out after 30 minute(s)');
+    expect(md).toContain('Run did not finish before the timeout');
+  });
+
   test('a Maestro run: flows passed per device and the failing flows', () => {
     const md = renderMarkdown(maestro);
     expect(md).toContain('### TestingBot Maestro: ❌ 1 of 1 run(s) failed');

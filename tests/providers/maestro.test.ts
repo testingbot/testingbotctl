@@ -1359,6 +1359,75 @@ describe('Maestro', () => {
     });
   });
 
+  describe('--timeout', () => {
+    const busyStatus = {
+      runs: [
+        {
+          id: 5678,
+          status: 'READY',
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: 0,
+        },
+      ],
+      success: false,
+      completed: false,
+    };
+
+    const timedMaestro = (extra: Record<string, unknown> = {}) => {
+      const m = new Maestro(
+        mockCredentials,
+        new MaestroOptions('app.apk', 'flows', 'Pixel 6', {
+          quiet: true,
+          ...extra,
+        }),
+      );
+      m['appId'] = 1234;
+      m['MIN_POLL_INTERVAL_MS'] = 1;
+      m['MAX_POLL_INTERVAL_MS'] = 1;
+      m['MAX_POLL_DURATION_MS'] = 5;
+      m['getStatus'] = jest.fn().mockResolvedValue(busyStatus);
+      return m;
+    };
+
+    it('rejects a timeout that is not a whole number of minutes', () => {
+      for (const timeout of [0, -1, 1.5, NaN]) {
+        expect(
+          () => new MaestroOptions('app.apk', 'flows', 'Pixel 6', { timeout }),
+        ).toThrow(/Invalid --timeout/);
+      }
+    });
+
+    it('cancels unfinished runs and fails without fetching reports', async () => {
+      const m = timedMaestro({ report: 'junit', reportOutputDir: '/tmp/r' });
+      const stopRun = jest.fn().mockResolvedValue(undefined);
+      m['stopRun'] = stopRun;
+      const fetchReports = jest.fn();
+      m['fetchReports'] = fetchReports;
+
+      const result = await m['waitForCompletion']();
+
+      expect(stopRun).toHaveBeenCalledWith(5678);
+      expect(fetchReports).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        success: false,
+        outcome: 'failed',
+        error: expect.stringMatching(/Timed out/),
+      });
+    });
+
+    it('status --wait gives up waiting but leaves the runs running', async () => {
+      const m = timedMaestro();
+      const stopRun = jest.fn();
+      m['stopRun'] = stopRun;
+
+      const result = await m.status(1234, { wait: true });
+
+      expect(stopRun).not.toHaveBeenCalled();
+      expect(result.outcome).toBe('error');
+      expect(result.error).toMatch(/Stopped waiting.*still running/);
+    });
+  });
+
   describe('Wait For Completion', () => {
     beforeEach(() => {
       maestro['appId'] = 1234;

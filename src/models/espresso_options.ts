@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import TestingBotError from './testingbot_error';
 import {
   MAX_RETRY,
+  validateTimeout,
   type ArtifactDownloadMode,
   type RunMetadata,
 } from './maestro_options';
@@ -89,6 +90,7 @@ export default class EspressoOptions {
   // Debugging
   private _debug: boolean;
   private _retry: number;
+  private _timeout: number | undefined;
   private _downloadArtifacts?: ArtifactDownloadMode;
   private _artifactsOutputDir?: string;
   // Metadata
@@ -127,6 +129,7 @@ export default class EspressoOptions {
       reportOutputDir?: string;
       debug?: boolean;
       retry?: number;
+      timeout?: number;
       downloadArtifacts?: ArtifactDownloadMode;
       artifactsOutputDir?: string;
       metadata?: RunMetadata;
@@ -184,6 +187,8 @@ export default class EspressoOptions {
         `Invalid --retry value (${options?.retry}). It must be an integer between 0 and ${MAX_RETRY}.`,
       );
     }
+    this._timeout = options?.timeout;
+    validateTimeout(this._timeout);
     this._downloadArtifacts = options?.downloadArtifacts;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._metadata = options?.metadata;
@@ -314,6 +319,10 @@ export default class EspressoOptions {
 
   public get retry(): number {
     return this._retry;
+  }
+
+  public get timeout(): number | undefined {
+    return this._timeout;
   }
 
   public get downloadArtifacts(): ArtifactDownloadMode | undefined {

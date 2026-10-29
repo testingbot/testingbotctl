@@ -80,6 +80,19 @@ export const MAX_OTHER_APPS = 4;
 // Mirror devicecloud.dev: retries are capped at 2 (max 3 total runs per flow).
 export const MAX_RETRY = 2;
 
+/**
+ * --timeout: minutes to wait for results, counted from when the tests start
+ * and shared by every --retry attempt. Without it the CLI waits 60 minutes.
+ */
+export function validateTimeout(timeout: number | undefined): void {
+  if (timeout === undefined) return;
+  if (!Number.isInteger(timeout) || timeout < 1) {
+    throw new Error(
+      `Invalid --timeout value (${timeout}). It must be a whole number of minutes, 1 or more.`,
+    );
+  }
+}
+
 export default class MaestroOptions {
   private static isIpaFile(app?: string): boolean {
     return app?.toLowerCase().endsWith('.ipa') ?? false;
@@ -136,6 +149,7 @@ export default class MaestroOptions {
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
   private _retry: number;
+  private _timeout: number | undefined;
   private _cancelPrevious: boolean;
   private _debug: boolean;
   private _configFile?: string;
@@ -178,6 +192,7 @@ export default class MaestroOptions {
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
       retry?: number;
+      timeout?: number;
       cancelPrevious?: boolean;
       debug?: boolean;
       configFile?: string;
@@ -257,6 +272,8 @@ export default class MaestroOptions {
         `Invalid --retry value (${options?.retry}). It must be an integer between 0 and ${MAX_RETRY}.`,
       );
     }
+    this._timeout = options?.timeout;
+    validateTimeout(this._timeout);
     this._debug = options?.debug ?? false;
     this._configFile = options?.configFile;
     this._groups = options?.groups;
@@ -411,6 +428,10 @@ export default class MaestroOptions {
 
   public get retry(): number {
     return this._retry;
+  }
+
+  public get timeout(): number | undefined {
+    return this._timeout;
   }
 
   public get cancelPrevious(): boolean {
