@@ -19,6 +19,9 @@ jest.mock('./../src/providers/maestro');
 jest.mock('./../src/utils/ci_env', () => ({
   ciRepoMetadata: jest.fn(() => ({})),
 }));
+jest.mock('./../src/utils/ci_summary', () => ({
+  publishCiSummary: jest.fn(),
+}));
 jest.mock('./../src/providers/account', () => ({
   ...jest.requireActual('./../src/providers/account'),
   fetchAccount: jest.fn(),

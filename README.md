@@ -698,6 +698,10 @@ testingbot xcuitest app.ipa app-test.zip \
 
 `testingbot maestro --cancel-previous` uses this context to cancel the runs of a previous push: your queued or running Maestro runs with the same repository and the same pull request (or branch) but a different commit. Runs on the same commit, such as the iOS and Android jobs of one pipeline, keep running.
 
+### CI Job Summary and Annotations
+
+In GitHub Actions the results are added to the job summary (`$GITHUB_STEP_SUMMARY`) as a table per device with links to TestingBot, and each failed flow or run gets an `::error` annotation, shown on the workflow run and the pull request. In Azure Pipelines the same table is attached to the build (Extensions tab) and failures are logged as errors. Annotations are left out with `--json`, since stdout then holds the JSON document. Set `TESTINGBOT_CI_SUMMARY=0` to turn this off.
+
 ### Real-time Progress
 
 By default, the CLI shows real-time progress updates including:
