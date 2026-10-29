@@ -2,6 +2,7 @@ import Espresso, { EspressoSocketMessage } from '../../src/providers/espresso';
 import EspressoOptions from '../../src/models/espresso_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
+import path from 'node:path';
 import axios, { AxiosError } from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
@@ -1463,7 +1464,7 @@ describe('Espresso', () => {
       expect(axios.get).not.toHaveBeenCalled();
       const [file, content] = (fs.promises.writeFile as jest.Mock).mock
         .calls[0];
-      expect(file).toBe('/tmp/reports/espresso_report_42.xml');
+      expect(file).toBe(path.join('/tmp/reports', 'espresso_report_42.xml'));
       expect(content).toContain(
         '<testsuites>\n<testsuite name="EspressoRun #2"',
       );
