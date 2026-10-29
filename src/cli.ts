@@ -513,6 +513,21 @@ program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
+  .option(
+    '--retry <count>',
+    'Run a failed test again up to N times (0-2, default 0). The last attempt decides the result.',
+    (val) => parseInt(val, 10),
+    0,
+  )
+  .option(
+    '--download-artifacts [mode]',
+    'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
+    (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
+  )
+  .option(
+    '--artifacts-output-dir <path>',
+    'Directory to save the artifacts zip (defaults to current directory).',
+  )
   // CI/CD metadata (also detected from the CI environment)
   .option('--branch <name>', 'Git branch this upload was built from.')
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
@@ -611,6 +626,12 @@ program
         dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        retry: args.retry,
+        downloadArtifacts:
+          args.downloadArtifacts === true
+            ? 'all'
+            : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
+        artifactsOutputDir: args.artifactsOutputDir,
         debug: args.debug,
         metadata,
       });
@@ -1104,6 +1125,21 @@ program
     '--report-output-dir <path>',
     'Directory to save test reports (required when --report is used).',
   )
+  .option(
+    '--retry <count>',
+    'Run a failed test again up to N times (0-2, default 0). The last attempt decides the result.',
+    (val) => parseInt(val, 10),
+    0,
+  )
+  .option(
+    '--download-artifacts [mode]',
+    'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
+    (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
+  )
+  .option(
+    '--artifacts-output-dir <path>',
+    'Directory to save the artifacts zip (defaults to current directory).',
+  )
   // CI/CD metadata (also detected from the CI environment)
   .option('--branch <name>', 'Git branch this upload was built from.')
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
@@ -1195,6 +1231,12 @@ program
         dryRun: args.dryRun,
         report: args.report,
         reportOutputDir: args.reportOutputDir,
+        retry: args.retry,
+        downloadArtifacts:
+          args.downloadArtifacts === true
+            ? 'all'
+            : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
+        artifactsOutputDir: args.artifactsOutputDir,
         debug: args.debug,
         metadata,
       });

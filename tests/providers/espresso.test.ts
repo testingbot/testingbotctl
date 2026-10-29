@@ -2,6 +2,7 @@ import Espresso, { EspressoSocketMessage } from '../../src/providers/espresso';
 import EspressoOptions from '../../src/models/espresso_options';
 import TestingBotError from '../../src/models/testingbot_error';
 import fs from 'node:fs';
+import path from 'node:path';
 import axios, { AxiosError } from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
@@ -1431,6 +1432,43 @@ describe('Espresso', () => {
       await expect(espresso['waitForCompletion']()).rejects.toThrow(
         /Test timed out/,
       );
+    });
+  });
+
+  describe('Report after --retry', () => {
+    it('combines the final runs own reports instead of the project report', async () => {
+      const reporting = new Espresso(
+        mockCredentials,
+        new EspressoOptions('a.apk', 'b.apk', 'Pixel 6', {
+          report: 'junit',
+          reportOutputDir: '/tmp/reports',
+          quiet: true,
+        }),
+      );
+      reporting['appId'] = 42;
+      reporting['supersededRunIds'].add(1);
+      fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+      axios.get = jest.fn();
+
+      await reporting['fetchReports']([
+        {
+          id: 2,
+          status: 'DONE',
+          capabilities: { deviceName: 'Pixel 6', platformName: 'Android' },
+          success: true,
+          report:
+            '<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="EspressoRun #2" tests="1" failures="0"/>',
+        },
+      ]);
+
+      expect(axios.get).not.toHaveBeenCalled();
+      const [file, content] = (fs.promises.writeFile as jest.Mock).mock
+        .calls[0];
+      expect(file).toBe(path.join('/tmp/reports', 'espresso_report_42.xml'));
+      expect(content).toContain(
+        '<testsuites>\n<testsuite name="EspressoRun #2"',
+      );
+      expect(content.match(/<\?xml/g)).toHaveLength(1);
     });
   });
 

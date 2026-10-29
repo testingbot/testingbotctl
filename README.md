@@ -521,15 +521,18 @@ testingbot espresso [appFile] [testAppFile] [options]
 
 **Output Options:**
 
-| Option                       | Description                                                                                                                                                                              |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--async`                    | Start tests and exit without waiting for results                                                                                                                                         |
-| `-q, --quiet`                | Suppress progress output                                                                                                                                                                 |
-| `--json`                     | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
-| `--json-file`                | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
-| `--json-file-name <path>`    | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
-| `--report <format>`          | Download report after completion: junit (Espresso has no HTML report)                                                                                                                    |
-| `--report-output-dir <path>` | Directory to save reports (required with --report)                                                                                                                                       |
+| Option                          | Description                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--async`                       | Start tests and exit without waiting for results                                                                                                                                         |
+| `-q, --quiet`                   | Suppress progress output                                                                                                                                                                 |
+| `--json`                        | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
+| `--json-file`                   | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>`       | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
+| `--report <format>`             | Download report after completion: junit (Espresso has no HTML report)                                                                                                                    |
+| `--report-output-dir <path>`    | Directory to save reports (required with --report)                                                                                                                                       |
+| `--retry <count>`               | Run a failed test again up to N times (0-2). The last attempt decides the result, the report and the artifacts                                                                           |
+| `--download-artifacts [mode]`   | Download video, logs and screenshots as a zip after completion: `all` (default) or `failed`                                                                                              |
+| `--artifacts-output-dir <path>` | Directory for the artifacts zip (defaults to the current directory)                                                                                                                      |
 
 **Examples:**
 
@@ -625,15 +628,18 @@ testingbot xcuitest [appFile] [testAppFile] [options]
 
 **Output Options:**
 
-| Option                       | Description                                                                                                                                                                              |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--async`                    | Start tests and exit without waiting for results                                                                                                                                         |
-| `-q, --quiet`                | Suppress progress output                                                                                                                                                                 |
-| `--json`                     | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
-| `--json-file`                | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
-| `--json-file-name <path>`    | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
-| `--report <format>`          | Download report after completion: html or junit                                                                                                                                          |
-| `--report-output-dir <path>` | Directory to save reports (required with --report)                                                                                                                                       |
+| Option                          | Description                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--async`                       | Start tests and exit without waiting for results                                                                                                                                         |
+| `-q, --quiet`                   | Suppress progress output                                                                                                                                                                 |
+| `--json`                        | Print results as a single JSON document on stdout (logs move to stderr). Implies `--quiet`. Exit code 2 when tests fail                                                                  |
+| `--json-file`                   | Write results as JSON to a file (default: `<appId>_testingbot.json` in the current directory). Implies `--quiet`. Exit code stays 0 when tests fail so the pipeline can gate on the file |
+| `--json-file-name <path>`       | Custom path for the JSON results file (requires `--json-file`)                                                                                                                           |
+| `--report <format>`             | Download report after completion: html or junit                                                                                                                                          |
+| `--report-output-dir <path>`    | Directory to save reports (required with --report)                                                                                                                                       |
+| `--retry <count>`               | Run a failed test again up to N times (0-2). The last attempt decides the result, the report and the artifacts                                                                           |
+| `--download-artifacts [mode]`   | Download video, logs and screenshots as a zip after completion: `all` (default) or `failed`                                                                                              |
+| `--artifacts-output-dir <path>` | Directory for the artifacts zip (defaults to the current directory)                                                                                                                      |
 
 **Examples:**
 
@@ -721,15 +727,16 @@ All test frameworks support downloading reports after completion. Maestro and XC
 --report html --report-output-dir ./reports
 ```
 
-### Artifact Downloads (Maestro only)
+### Artifact Downloads
 
-Download all test artifacts including logs, screenshots, and video recordings:
+Download all test artifacts including logs, screenshots, and video recordings (`maestro`, `espresso` and `xcuitest`):
 
 ```sh
 testingbot maestro app.apk ./flows --download-artifacts --name "my-build"
+testingbot xcuitest app.ipa tests.zip --download-artifacts failed
 ```
 
-Artifacts are saved as a zip file named after the `--name` value (or with a timestamp if not provided).
+Artifacts are saved as a zip file named after the `--name` value (or with a timestamp if not provided), with a folder per run. `--download-artifacts failed` only fetches failed runs.
 
 ## Exit Codes
 

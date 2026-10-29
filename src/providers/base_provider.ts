@@ -177,6 +177,11 @@ export default abstract class BaseProvider<
   protected spinner: Spinner = new Spinner();
 
   protected appId: number | undefined = undefined;
+  /**
+   * Runs replaced by a --retry attempt. The project status keeps returning
+   * them, so pass status.runs through currentRuns() before judging it.
+   */
+  protected supersededRunIds = new Set<number>();
   protected activeRunIds: number[] = [];
   protected isShuttingDown = false;
   protected signalHandler: (() => void) | null = null;
@@ -191,6 +196,16 @@ export default abstract class BaseProvider<
     this.credentials = credentials;
     this.options = options;
     this.upload = new Upload();
+  }
+
+  /** The runs that count: every run not replaced by a --retry attempt. */
+  protected currentRuns<T extends { id: number }>(runs: T[]): T[] {
+    return runs.filter((run) => !this.supersededRunIds.has(run.id));
+  }
+
+  /** Whether a run status is still queued or running. */
+  protected isRunBusy(status: string): boolean {
+    return status === 'WAITING' || status === 'READY';
   }
 
   /**

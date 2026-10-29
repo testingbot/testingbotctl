@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import TestingBotError from './testingbot_error';
-import type { RunMetadata } from './maestro_options';
+import {
+  MAX_RETRY,
+  type ArtifactDownloadMode,
+  type RunMetadata,
+} from './maestro_options';
 
 export type Orientation = 'PORTRAIT' | 'LANDSCAPE';
 export type ReportFormat = 'html' | 'junit';
@@ -71,6 +75,9 @@ export default class XCUITestOptions {
   private _reportOutputDir?: string;
   // Debugging
   private _debug: boolean;
+  private _retry: number;
+  private _downloadArtifacts?: ArtifactDownloadMode;
+  private _artifactsOutputDir?: string;
   // Metadata
   private _metadata?: RunMetadata;
 
@@ -99,6 +106,9 @@ export default class XCUITestOptions {
       report?: ReportFormat;
       reportOutputDir?: string;
       debug?: boolean;
+      retry?: number;
+      downloadArtifacts?: ArtifactDownloadMode;
+      artifactsOutputDir?: string;
       metadata?: RunMetadata;
     },
   ) {
@@ -137,6 +147,18 @@ export default class XCUITestOptions {
     this._report = options?.report;
     this._reportOutputDir = options?.reportOutputDir;
     this._debug = options?.debug ?? false;
+    this._retry = options?.retry ?? 0;
+    if (
+      !Number.isInteger(this._retry) ||
+      this._retry < 0 ||
+      this._retry > MAX_RETRY
+    ) {
+      throw new TestingBotError(
+        `Invalid --retry value (${options?.retry}). It must be an integer between 0 and ${MAX_RETRY}.`,
+      );
+    }
+    this._downloadArtifacts = options?.downloadArtifacts;
+    this._artifactsOutputDir = options?.artifactsOutputDir;
     this._metadata = options?.metadata;
   }
 
@@ -233,6 +255,18 @@ export default class XCUITestOptions {
 
   public get debug(): boolean {
     return this._debug;
+  }
+
+  public get retry(): number {
+    return this._retry;
+  }
+
+  public get downloadArtifacts(): ArtifactDownloadMode | undefined {
+    return this._downloadArtifacts;
+  }
+
+  public get artifactsOutputDir(): string | undefined {
+    return this._artifactsOutputDir;
   }
 
   public get metadata(): RunMetadata | undefined {
