@@ -1339,7 +1339,7 @@ describe('Espresso', () => {
       espresso['MAX_POLL_INTERVAL_MS'] = 1;
     });
 
-    it('throws a timeout error after MAX_POLL_DURATION_MS', async () => {
+    it('stops unfinished runs and fails after MAX_POLL_DURATION_MS', async () => {
       espresso['MAX_POLL_DURATION_MS'] = 10;
       axios.get = jest.fn().mockResolvedValue({
         data: {
@@ -1367,10 +1367,61 @@ describe('Espresso', () => {
       quietEspresso['MIN_POLL_INTERVAL_MS'] = 1;
       quietEspresso['MAX_POLL_INTERVAL_MS'] = 1;
       quietEspresso['MAX_POLL_DURATION_MS'] = 10;
+      axios.post = jest.fn().mockResolvedValue({ data: {} });
 
-      await expect(quietEspresso['waitForCompletion']()).rejects.toThrow(
-        /Test timed out/,
+      const result = await quietEspresso['waitForCompletion']();
+
+      expect(result).toMatchObject({
+        success: false,
+        outcome: 'failed',
+        error: expect.stringMatching(/Timed out/),
+      });
+      expect(result.runs.map((run) => run.id)).toEqual([5678]);
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/1234/5678/stop'),
+        {},
+        expect.anything(),
       );
+    });
+
+    it('--timeout sets the wait, and a retry round keeps the first deadline', async () => {
+      const timed = new Espresso(
+        mockCredentials,
+        new EspressoOptions('a.apk', 'b.apk', 'Pixel 6', {
+          quiet: true,
+          timeout: 5,
+        }),
+      );
+      expect(timed['waitLimitMs']).toBe(5 * 60 * 1000);
+
+      const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+      timed['startWaitClock']();
+      now.mockReturnValue(200_000);
+      timed['startWaitClock']();
+      expect(timed['waitTimedOut']()).toBe(false);
+      now.mockReturnValue(1_000 + 5 * 60 * 1000);
+      expect(timed['waitTimedOut']()).toBe(true);
+      now.mockRestore();
+    });
+
+    it('does not retry after a timeout', async () => {
+      const retrying = new Espresso(
+        mockCredentials,
+        new EspressoOptions('a.apk', 'b.apk', 'Pixel 6', {
+          quiet: true,
+          retry: 2,
+        }),
+      );
+      const runTests = jest.fn();
+      retrying['runTests'] = runTests;
+      const result = await retrying['retryFailedRuns']({
+        success: false,
+        outcome: 'failed',
+        error: 'Timed out after 60 minute(s)',
+        runs: [],
+      });
+      expect(runTests).not.toHaveBeenCalled();
+      expect(result.error).toMatch(/Timed out/);
     });
 
     it('propagates a 401 that occurs mid-polling', async () => {
@@ -1414,6 +1465,7 @@ describe('Espresso', () => {
 
     it('ignores responses missing "completed" and eventually times out', async () => {
       espresso['MAX_POLL_DURATION_MS'] = 10;
+      axios.post = jest.fn().mockResolvedValue({ data: {} });
       axios.get = jest.fn().mockResolvedValue({
         data: {
           runs: [
@@ -1429,9 +1481,9 @@ describe('Espresso', () => {
         },
       });
 
-      await expect(espresso['waitForCompletion']()).rejects.toThrow(
-        /Test timed out/,
-      );
+      const result = await espresso['waitForCompletion']();
+      expect(result.outcome).toBe('failed');
+      expect(result.error).toMatch(/Timed out/);
     });
   });
 

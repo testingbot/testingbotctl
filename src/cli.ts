@@ -525,6 +525,11 @@ program
     0,
   )
   .option(
+    '--timeout <minutes>',
+    'Stop waiting after N minutes (default 60), including retries. Unfinished runs are stopped and the command fails.',
+    (val) => Number(val),
+  )
+  .option(
     '--download-artifacts [mode]',
     'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
     (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
@@ -632,6 +637,7 @@ program
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         retry: args.retry,
+        timeout: args.timeout,
         downloadArtifacts:
           args.downloadArtifacts === true
             ? 'all'
@@ -800,6 +806,11 @@ program
     'Retry failed flows up to N times (0-2, default 0). Stops as soon as a flow passes.',
     (val) => parseInt(val, 10),
     0,
+  )
+  .option(
+    '--timeout <minutes>',
+    'Stop waiting after N minutes (default 60), including retries. Unfinished runs are stopped and the command fails.',
+    (val) => Number(val),
   )
   .option(
     '--async',
@@ -1040,6 +1051,7 @@ program
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
         retry: args.retry,
+        timeout: args.timeout,
         cancelPrevious: args.cancelPrevious,
         debug: args.debug,
         googlePlayStore: args.googlePlay,
@@ -1142,6 +1154,11 @@ program
     0,
   )
   .option(
+    '--timeout <minutes>',
+    'Stop waiting after N minutes (default 60), including retries. Unfinished runs are stopped and the command fails.',
+    (val) => Number(val),
+  )
+  .option(
     '--download-artifacts [mode]',
     'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
     (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
@@ -1242,6 +1259,7 @@ program
         report: args.report,
         reportOutputDir: args.reportOutputDir,
         retry: args.retry,
+        timeout: args.timeout,
         downloadArtifacts:
           args.downloadArtifacts === true
             ? 'all'

@@ -165,6 +165,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   private flowAnimationFrame = 0;
   private flowAnimationTimer: NodeJS.Timeout | null = null;
+  /** Set when --timeout stopped the runs; the result then fails with it. */
+  private timeoutError: string | undefined;
+  /** `status --wait`: watching a project this command did not start. */
+  private watchOnly = false;
   private latestFlows: MaestroFlowInfo[] = [];
   private latestDisplayedLineCount = 0;
   private flowsTableDisplayed = false;
@@ -573,6 +577,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       if (this.options.tunnel && this.options.async) {
         throw new TestingBotError(
           'Cannot use --tunnel with --async mode. The tunnel would close when the CLI exits. Use a standalone tunnel instead.',
+        );
+      }
+
+      if (this.options.timeout && this.options.async) {
+        throw new TestingBotError(
+          'Cannot use --timeout with --async mode. The CLI does not wait for results in async mode.',
         );
       }
 
@@ -2930,6 +2940,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     isComplete: (status: MaestroStatusResponse) => boolean,
     onPoll?: (status: MaestroStatusResponse) => Promise<void>,
   ): Promise<MaestroStatusResponse> {
+    this.startWaitClock();
     const startTime = Date.now();
     const previousStatus: Map<number, MaestroRunInfo['status']> = new Map();
     const previousFlowStatus: Map<number, MaestroFlowStatus> = new Map();
@@ -3037,10 +3048,18 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       // Checked after getStatus() so a run that completes during the final
       // sleep is returned as success on the next iteration instead of being
       // misreported as a timeout.
-      if (Date.now() - startTime >= this.MAX_POLL_DURATION_MS) {
-        throw new TestingBotError(
-          `Test timed out after ${this.MAX_POLL_DURATION_MS / 1000 / 60} minutes`,
-        );
+      if (this.waitTimedOut()) {
+        // `status --wait` only watches a project it did not start: give up
+        // waiting, but leave the runs alone.
+        if (this.watchOnly) {
+          throw new TestingBotError(
+            `Stopped waiting after ${Math.round(this.waitLimitMs / 60000)} minutes; project ${this.appId} is still running`,
+          );
+        }
+        this.timeoutError = await this.stopTimedOutRuns();
+        this.flowsTableDisplayed = flowsTableDisplayed;
+        this.latestDisplayedLineCount = displayedLineCount;
+        return status;
       }
 
       const signature = JSON.stringify(
@@ -3139,6 +3158,17 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
+    if (this.timeoutError) {
+      // The stopped runs have no final report or artifacts to wait for.
+      setTitle('maestro · ✘ timed out');
+      return {
+        success: false,
+        outcome: 'failed',
+        error: this.timeoutError,
+        runs: status.runs,
+      };
+    }
+
     if (this.options.report && this.options.reportOutputDir) {
       await this.fetchReports(status.runs);
     }
@@ -3175,6 +3205,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             `Waiting for project ${appId} to complete (Ctrl-C detaches; the runs keep going)...`,
           );
         }
+        this.watchOnly = true;
         return await this.waitForCompletion();
       }
 

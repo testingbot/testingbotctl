@@ -74,6 +74,8 @@ export interface JsonRunSource {
  */
 export interface BaseProviderOptions {
   quiet?: boolean;
+  /** --timeout, in minutes. */
+  timeout?: number;
   reportOutputDir?: string;
   dryRun?: boolean;
   tunnel?: boolean;
@@ -183,6 +185,8 @@ export default abstract class BaseProvider<
    */
   protected supersededRunIds = new Set<number>();
   protected activeRunIds: number[] = [];
+  /** When waiting for results gives up; set once, shared by --retry rounds. */
+  private waitDeadline: number | undefined;
   protected isShuttingDown = false;
   protected signalHandler: (() => void) | null = null;
   private tunnelInstance: TunnelInstance | null = null;
@@ -201,6 +205,43 @@ export default abstract class BaseProvider<
   /** The runs that count: every run not replaced by a --retry attempt. */
   protected currentRuns<T extends { id: number }>(runs: T[]): T[] {
     return runs.filter((run) => !this.supersededRunIds.has(run.id));
+  }
+
+  /** How long the CLI waits for results: --timeout, or 60 minutes. */
+  protected get waitLimitMs(): number {
+    return this.options.timeout
+      ? this.options.timeout * 60 * 1000
+      : this.MAX_POLL_DURATION_MS;
+  }
+
+  /**
+   * Starts the --timeout clock on the first call. Later calls (a --retry
+   * round) keep the original deadline, so retries cannot extend the wait.
+   */
+  protected startWaitClock(): void {
+    this.waitDeadline ??= Date.now() + this.waitLimitMs;
+  }
+
+  protected waitTimedOut(): boolean {
+    return this.waitDeadline !== undefined && Date.now() >= this.waitDeadline;
+  }
+
+  /**
+   * The wait reached its deadline: stop the runs still queued or running so
+   * they do not keep using minutes, and return the message for the result.
+   */
+  protected async stopTimedOutRuns(): Promise<string> {
+    const minutes = Math.round(this.waitLimitMs / 60000);
+    const stopping = this.activeRunIds.length;
+    this.spinner.stop();
+    this.stopAnimations();
+    logger.error(
+      `Timed out after ${minutes} minute(s) waiting for results` +
+        (stopping > 0 ? `, stopping ${stopping} unfinished run(s)` : ''),
+    );
+    await this.stopActiveRuns();
+    this.activeRunIds = [];
+    return `Timed out after ${minutes} minute(s)`;
   }
 
   /** Whether a run status is still queued or running. */

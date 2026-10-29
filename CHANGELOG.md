@@ -11,6 +11,11 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - `testingbot maestro` detects the repository URL, branch, commit and pull request in GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines and CircleCI and sends them as run metadata (`repoUrl` is new), so the dashboard can link to the commit and PR on any Git host. On a GitHub pull request the PR's head commit is used, not the merge commit. Explicit flags win.
 - `testingbot espresso` and `testingbot xcuitest` take the same CI/CD metadata as `maestro`: `--branch`, `--pr-url`, `-m/--metadata` and the CI environment detection, through one shared code path.
 - `--retry <count>`, `--download-artifacts [all|failed]` and `--artifacts-output-dir` for `testingbot espresso` and `testingbot xcuitest`. A retried run is started again on the uploaded app; the last attempt decides the exit code, the `--report` and the artifacts. Artifacts (video, logs, screenshots) are zipped with a folder per run, like `maestro`.
+- `--timeout <minutes>` for `testingbot maestro`, `espresso` and `xcuitest`: how long to wait for results, counted from when the tests start and shared by every `--retry` attempt. Default 60.
+
+### Changed
+
+- When the wait for results times out (after `--timeout`, or the default 60 minutes), the CLI now cancels the runs that are still queued or running, prints the results so far and exits with code 2 (`outcome: failed` with an `error` in `--json`). Before, it exited with code 1 and left the runs going. `testingbot status --wait` still only stops watching and leaves the runs alone.
 
 ## 1.4.3 - 2026-10-27
 
