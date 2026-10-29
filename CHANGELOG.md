@@ -2,6 +2,12 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
+## Unreleased
+
+### Added
+
+- `testingbot maestro` detects the repository URL, branch, commit and pull request in GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines and CircleCI and sends them as run metadata (`repoUrl` is new), so the dashboard can link to the commit and PR on any Git host. On a GitHub pull request the PR's head commit is used, not the merge commit. Explicit flags win.
+
 ## 1.4.3 - 2026-10-27
 
 ### Added
