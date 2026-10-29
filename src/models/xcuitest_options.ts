@@ -78,6 +78,7 @@ export default class XCUITestOptions {
   private _debug: boolean;
   private _retry: number;
   private _timeout: number | undefined;
+  private _failFast: boolean;
   private _downloadArtifacts?: ArtifactDownloadMode;
   private _artifactsOutputDir?: string;
   // Metadata
@@ -110,6 +111,7 @@ export default class XCUITestOptions {
       debug?: boolean;
       retry?: number;
       timeout?: number;
+      failFast?: boolean;
       downloadArtifacts?: ArtifactDownloadMode;
       artifactsOutputDir?: string;
       metadata?: RunMetadata;
@@ -162,6 +164,7 @@ export default class XCUITestOptions {
     }
     this._timeout = options?.timeout;
     validateTimeout(this._timeout);
+    this._failFast = options?.failFast ?? false;
     this._downloadArtifacts = options?.downloadArtifacts;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._metadata = options?.metadata;
@@ -268,6 +271,10 @@ export default class XCUITestOptions {
 
   public get timeout(): number | undefined {
     return this._timeout;
+  }
+
+  public get failFast(): boolean {
+    return this._failFast;
   }
 
   public get downloadArtifacts(): ArtifactDownloadMode | undefined {

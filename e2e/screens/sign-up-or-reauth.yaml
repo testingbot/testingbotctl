@@ -1,0 +1,11 @@
+appId: com.example.myapp
+---
+- runCondition:
+    visible: "Sign In"
+    commands:
+      - tapOn: "Email"
+      - inputText: ${TEST_USER}
+      - tapOn: "Password"
+      - inputText: ${TEST_PASSWORD}
+      - tapOn: "Sign In"
+      - assertVisible: "Home"

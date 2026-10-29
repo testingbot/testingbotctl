@@ -1,0 +1,181 @@
+14:06:33.770 [ INFO] maestro.cli.report.TestDebugReporter.logSystemInfo: Debug output path: /Users/testingbot/.maestro/tests/2026-04-28_140633
+14:06:33.772 [ INFO] MAESTRO.logSystemInfo: ---- System Info ----
+14:06:33.774 [ INFO] MAESTRO.logSystemInfo: Maestro Version: 2.5.0
+14:06:33.774 [ INFO] MAESTRO.logSystemInfo: CI: testingbot
+14:06:33.775 [ INFO] MAESTRO.logSystemInfo: OS Name: Mac OS X
+14:06:33.775 [ INFO] MAESTRO.logSystemInfo: OS Version: 26.3.1
+14:06:33.777 [ INFO] MAESTRO.logSystemInfo: Architecture: aarch64
+14:06:33.780 [ INFO] MAESTRO.logSystemInfo: Java Version: 17
+14:06:33.877 [ INFO] MAESTRO.logSystemInfo: Xcode Version: 26.3
+14:06:33.907 [ INFO] MAESTRO.logSystemInfo: Flutter Version: Undefined
+14:06:33.933 [ INFO] MAESTRO.logSystemInfo: Flutter Channel: Undefined
+14:06:33.933 [ INFO] MAESTRO.logSystemInfo: ---------------------
+14:06:34.445 [DEBUG] io.micrometer.common.util.internal.logging.InternalLoggerFactory.newDefaultFactory: Using SLF4J as the default logging framework
+14:06:38.915 [ INFO] maestro.cli.command.TestCommand.runShardSuite: [shard 1] Selected device 391090D3-BC8D-449C-916B-50E18E53EE5D using port 7001 with execution plan ExecutionPlan(flowsToRun=[/private/var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows/flow.yaml], sequence=FlowSequence(flows=[], continueOnFailure=true), workspaceConfig=WorkspaceConfig(flows=null, includeTags=null, excludeTags=null, executionOrder=null, baselineBranch=null, notifications=null, disableRetries=false, platform=PlatformConfiguration(android=AndroidConfiguration(disableAnimations=false), ios=IOSConfiguration(disableAnimations=false, snapshotKeyHonorModalViews=null)), testOutputDir=null))
+14:06:39.190 [TRACE] ios.xctest.XCTestIOSDevice.open: Opening a connection
+14:06:39.191 [TRACE] xcuitest.XCTestDriverClient.restartXCTestRunner: Restarting XCTest Runner (uninstalling, installing and starting)
+14:06:39.191 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:39.193 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:39.193 [TRACE] xcuitest.XCTestDriverClient.restartXCTestRunner: XCTest Runner uninstalled, will install and start it
+14:06:39.193 [ INFO] xcuitest.installer.LocalXCTestInstaller.start$lambda$3: start()
+14:06:39.194 [ INFO] xcuitest.installer.LocalXCTestInstaller.start$lambda$3: [Start] Install XCUITest runner on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:39.194 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:39.194 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:39.194 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Start] Writing build products
+14:06:39.242 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Done] Writing build products
+14:06:39.243 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Start] Writing maestro-driver-iosUITests-Runner app
+14:06:39.432 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Done] Writing maestro-driver-iosUITests-Runner app
+14:06:39.433 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Start] Writing maestro-driver-ios app
+14:06:39.438 [ INFO] xcuitest.installer.IOSBuildProductsExtractor.extract: [Done] Writing maestro-driver-ios app
+14:06:39.439 [ INFO] xcuitest.installer.LocalXCTestInstaller.startXCTestRunner: Installing driver with xcodebuild
+14:06:39.440 [ INFO] xcuitest.installer.LocalXCTestInstaller.startXCTestRunner: [Start] Running XcUITest with `xcodebuild test-without-building` with 7001 and config: IOSDriverConfig(prebuiltRunner=false, sourceDirectory=driver-iPhoneSimulator, context=CLI, snapshotKeyHonorModalViews=null)
+14:06:39.442 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [xcodebuild, test-without-building, -xctestrun, /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/391090D3-BC8D-449C-916B-50E18E53EE5D13346654788026472616/maestro-driver-ios-config.xctestrun, -destination, id=391090D3-BC8D-449C-916B-50E18E53EE5D, -derivedDataPath, /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro_xctestrunner_xcodebuild_output11243222725884316301] with {TEST_RUNNER_PORT=7001}
+14:06:39.445 [ INFO] xcuitest.installer.LocalXCTestInstaller.startXCTestRunner: [Done] Running XcUITest with `xcodebuild test-without-building`
+14:06:39.445 [ INFO] xcuitest.installer.LocalXCTestInstaller.start$lambda$3: [Done] Install XCUITest runner on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:39.445 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:39.446 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:39.946 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:39.947 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:40.448 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:40.448 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:40.949 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:40.950 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:41.450 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:41.451 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:41.951 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:41.952 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:42.452 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:42.453 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:42.954 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:42.954 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:43.455 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:43.456 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:43.956 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:43.957 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:44.457 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:44.459 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:44.959 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:44.960 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:45.461 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:45.462 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:45.962 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:45.963 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:46.464 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:46.464 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:46.964 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:46.965 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:47.465 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:47.466 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:47.968 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:47.969 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:48.469 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:48.470 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Failed] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:7001
+14:06:48.970 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Start] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:48.981 [ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [Done] Perform XCUITest driver status check on 391090D3-BC8D-449C-916B-50E18E53EE5D
+14:06:49.010 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow:  Running flow flow
+14:06:49.031 [ INFO] maestro.Maestro.cachedDeviceInfo_delegate$lambda$0: Getting device info
+14:06:49.194 [ INFO] maestro.Maestro.cachedDeviceInfo_delegate$lambda$0: Got device info: DeviceInfo(platform=IOS, widthPixels=1206, heightPixels=2622, widthGrid=402, heightGrid=874)
+14:06:49.232 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Define variables RUNNING
+14:06:49.233 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Define variables COMPLETED
+14:06:49.234 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Apply configuration RUNNING
+14:06:49.234 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Apply configuration COMPLETED
+14:06:49.234 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Launch app "org.reactjs.native.example.SampleApp" RUNNING
+14:06:49.235 [ INFO] device.SimctlIOSDevice.setPermissions: [Start] Setting permissions all=allow through applesimutils
+14:06:49.235 [ INFO] util.LocalSimulatorUtils.setAppleSimutilsPermissions: [Start] Setting permissions via pinned applesimutils
+14:06:49.235 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [/Users/testingbot/.maestro/deps/applesimutils, --byId, 391090D3-BC8D-449C-916B-50E18E53EE5D, --bundle, org.reactjs.native.example.SampleApp, --setPermissions, calendar=YES,camera=YES,contacts=YES,faceid=YES,homekit=YES,medialibrary=YES,microphone=YES,motion=YES,photos=YES,reminders=YES,siri=YES,speech=YES,userTracking=YES] with {}
+14:06:49.377 [ INFO] util.LocalSimulatorUtils.setAppleSimutilsPermissions: [Done] Setting permissions pinned applesimutils
+14:06:49.377 [ INFO] device.SimctlIOSDevice.setPermissions: [Done] Setting permissions through applesimutils
+14:06:49.378 [ INFO] device.SimctlIOSDevice.setPermissions: [Start] Setting Permissions all=allow through simctl
+14:06:49.378 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [xcrun, simctl, privacy, 391090D3-BC8D-449C-916B-50E18E53EE5D, grant, location-always, org.reactjs.native.example.SampleApp] with {}
+14:06:49.476 [ INFO] device.SimctlIOSDevice.setPermissions: [Done] Setting Permissions all=allow through simctl
+14:06:49.494 [ INFO] maestro.Maestro.launchApp$lambda$2: Launching app org.reactjs.native.example.SampleApp
+14:06:49.494 [ INFO] maestro.Maestro.launchApp$lambda$2: Stopping org.reactjs.native.example.SampleApp app during launch
+14:06:49.503 [ INFO] util.CommandLineUtils.runCommand: Running command line operation: [xcrun, simctl, launch, 391090D3-BC8D-449C-916B-50E18E53EE5D, org.reactjs.native.example.SampleApp] with {}
+14:06:49.739 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Launch app "org.reactjs.native.example.SampleApp" COMPLETED
+14:06:49.739 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Tap on id: inputA RUNNING
+14:06:51.201 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=inputA, title=, value=0, text=0, hintText=, resource-id=inputA, bounds=[166,246][244,283], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=166, y=246, width=78, height=37))
+14:06:51.204 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:06:51.424 [ INFO] maestro.Maestro.tap-HgV9Ck0: Refreshed element
+14:06:51.429 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 264) using hierarchy based logic for wait
+14:06:51.458 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:06:51.459 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:06:52.194 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:06:52.361 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:06:52.361 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Tap on id: inputA COMPLETED
+14:06:52.361 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Long press on id: inputA RUNNING
+14:06:52.894 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=inputA, title=, value=0, text=0, hintText=, resource-id=inputA, bounds=[166,246][244,283], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=166, y=246, width=78, height=37))
+14:06:52.895 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:06:53.492 [ INFO] maestro.Maestro.tap-HgV9Ck0: Refreshed element
+14:06:53.493 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 264) using hierarchy based logic for wait
+14:06:53.493 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:06:53.493 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:06:56.854 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:06:57.627 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:06:57.627 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Long press on id: inputA COMPLETED
+14:06:57.627 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Tap on "Select All" RUNNING
+14:06:57.860 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=Select All, title=, value=, text=, hintText=, resource-id=, bounds=[173,213][238,231], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=173, y=213, width=65, height=18))
+14:06:57.860 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:06:58.062 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 222) using hierarchy based logic for wait
+14:06:58.062 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:06:58.062 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:06:58.556 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:06:59.502 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:06:59.502 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Tap on "Select All" COMPLETED
+14:06:59.502 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Erase text RUNNING
+14:06:59.504 [ INFO] maestro.Maestro.eraseText$lambda$50: Erasing 50 characters
+14:07:02.049 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:02.445 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Erase text COMPLETED
+14:07:02.446 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Input text 10 RUNNING
+14:07:02.448 [ INFO] maestro.Maestro.inputText: Inputting text: 10
+14:07:03.470 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:03.777 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Input text 10 COMPLETED
+14:07:03.779 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Tap on id: inputB RUNNING
+14:07:04.271 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=inputB, title=, value=0, text=0, hintText=, resource-id=inputB, bounds=[166,349][244,386], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=166, y=349, width=78, height=37))
+14:07:04.275 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:04.652 [ INFO] maestro.Maestro.tap-HgV9Ck0: Refreshed element
+14:07:04.658 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 367) using hierarchy based logic for wait
+14:07:04.659 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:07:04.659 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:07:05.412 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:05.594 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:07:05.594 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Tap on id: inputB COMPLETED
+14:07:05.594 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Long press on id: inputB RUNNING
+14:07:06.447 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=inputB, title=, value=0, text=0, hintText=, resource-id=inputB, bounds=[166,349][244,386], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=166, y=349, width=78, height=37))
+14:07:06.447 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:06.620 [ INFO] maestro.Maestro.tap-HgV9Ck0: Refreshed element
+14:07:06.620 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 367) using hierarchy based logic for wait
+14:07:06.620 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:07:06.620 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:07:10.024 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:10.771 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:07:10.771 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Long press on id: inputB COMPLETED
+14:07:10.771 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Tap on "Select All" RUNNING
+14:07:10.964 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=Select All, title=, value=, text=, hintText=, resource-id=, bounds=[173,316][238,334], enabled=true, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=true, focused=false, checked=false, selected=false), bounds=Bounds(x=173, y=316, width=65, height=18))
+14:07:10.964 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:11.152 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 325) using hierarchy based logic for wait
+14:07:11.152 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:07:11.153 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:07:11.618 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:12.351 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:07:12.351 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Tap on "Select All" COMPLETED
+14:07:12.351 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Erase text RUNNING
+14:07:12.351 [ INFO] maestro.Maestro.eraseText$lambda$50: Erasing 50 characters
+14:07:14.892 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:15.081 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Erase text COMPLETED
+14:07:15.081 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Input text 5 RUNNING
+14:07:15.082 [ INFO] maestro.Maestro.inputText: Inputting text: 5
+14:07:15.811 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:15.982 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Input text 5 COMPLETED
+14:07:15.982 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Tap on id: sum RUNNING
+14:07:16.184 [ INFO] maestro.Maestro.tap-HgV9Ck0: Tapping on element:  UiElement(treeNode=TreeNode(attributes={accessibilityText=sum, title=, value=15, text=15, hintText=, resource-id=sum, bounds=[166,452][244,489], enabled=false, focused=false, selected=false, checked=false}, children=[], clickable=null, enabled=false, focused=false, checked=false, selected=false), bounds=Bounds(x=166, y=452, width=78, height=37))
+14:07:16.184 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:16.367 [ INFO] maestro.Maestro.tap-HgV9Ck0: Refreshed element
+14:07:16.367 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Try tapping at (205, 470) using hierarchy based logic for wait
+14:07:16.367 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to byte array
+14:07:16.367 [TRACE] maestro.utils.ScreenshotUtils.takeScreenshot: Taking screenshot to output sink
+14:07:16.838 [ INFO] device.IOSDevice.invoke-F9mIFpk: Waiting for animation to end with timeout 3000
+14:07:17.017 [ INFO] maestro.Maestro.screenshotBasedTap-ogj28Uc: Something have changed in the UI judging by view hierarchy. Proceed.
+14:07:17.017 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Tap on id: sum COMPLETED
+14:07:17.018 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$5: Assert that "15" is visible RUNNING
+14:07:17.200 [ INFO] maestro.cli.runner.TestSuiteInteractor.runFlow$lambda$17$lambda$7: Assert that "15" is visible COMPLETED
+14:07:17.362 [ INFO] maestro.cli.report.TestDebugReporter.deleteOldFiles: Performing purge of logs older than 14 days from /Users/testingbot/.maestro/tests/tb

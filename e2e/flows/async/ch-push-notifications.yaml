@@ -1,0 +1,21 @@
+appId: com.example.myapp
+tags:
+  - async
+  - notifications
+---
+- runFlow: ../../screens/reset-app.yaml
+- runFlow: ../../screens/sign-up-or-reauth.yaml
+
+- tapOn: "Settings"
+- tapOn: "Notifications"
+
+- assertVisible: "Push Notifications"
+- tapOn:
+    id: "toggle-push-notifications"
+- assertVisible: "Notifications enabled"
+
+- pressKey: Home
+- waitForAnimationToEnd
+- assertVisible: "Welcome notification"
+- tapOn: "Welcome notification"
+- assertVisible: "Home"

@@ -1,0 +1,421 @@
+2026-04-28 14:06:40.825 xcodebuild[1678:20803] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-04-28 14:06:40.834 xcodebuild[1678:20803] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-04-28 14:06:42.406 xcodebuild[1678:20803] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+** BUILD INTERRUPTED **
+
+
+2026-04-28 14:06:44.842604+0000 maestro-driver-iosUITests-Runner[1701:21163] [Default] Running tests...
+2026-04-28 14:06:45.352181+0000 maestro-driver-iosUITests-Runner[1701:21163] snapshotKeyHonorModalViews configured to value: (null)
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-04-28 14:06:48.636.
+Test Suite 'maestro-driver-iosUITests.xctest' started at 2026-04-28 14:06:48.636.
+Test Suite 'maestro_driver_iosUITests' started at 2026-04-28 14:06:48.636.
+    t =      nans Suite Set Up
+Test Case '-[maestro_driver_iosUITests.maestro_driver_iosUITests testHttpServer]' started.
+    t =     0.00s Start Test at 2026-04-28 14:06:48.638
+    t =     0.12s Set Up
+2026-04-28 14:06:48.757565+0000 maestro-driver-iosUITests-Runner[1701:21234] [maestro_driver_iosUITests] Will start HTTP server
+2026-04-28 14:06:48.825170+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] starting server 127.0.0.1:7001
+2026-04-28 14:06:48.973267+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> open connection
+2026-04-28 14:06:48.977137+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /status
+2026-04-28 14:06:49.036520+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> open connection
+2026-04-28 14:06:49.037923+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     0.40s Getting device orientation
+2026-04-28 14:06:49.045608+0000 maestro-driver-iosUITests-Runner[1701:21163] Using singleton test manager
+2026-04-28 14:06:49.046993+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["com.apple.springboard"]
+    t =     0.41s Getting device orientation
+    t =     0.41s Find the Application 'com.apple.springboard'
+2026-04-28 14:06:49.188412+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:06:49.487069+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: POST /setPermissions
+2026-04-28 14:06:49.497413+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /terminateApp
+2026-04-28 14:06:49.499119+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] Terminating app org.reactjs.native.example.SampleApp
+    t =     0.86s Terminate org.reactjs.native.example.SampleApp:0
+2026-04-28 14:06:49.502463+0000 maestro-driver-iosUITests-Runner[1701:21163] [End] Terminating app org.reactjs.native.example.SampleApp
+2026-04-28 14:06:49.830189+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     1.20s Getting device orientation
+2026-04-28 14:06:49.852677+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     1.22s Getting device orientation
+    t =     1.22s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:49.864899+0000 maestro-driver-iosUITests-Runner[1701:21163] Failure while getting screen size: Error Domain=com.apple.dt.xctest.ui-testing.error Code=10001 "Application org.reactjs.native.example.SampleApp is not running" UserInfo={NSLocalizedDescription=Application org.reactjs.native.example.SampleApp is not running}, falling back to get springboard size.
+    t =     1.23s Find the Application 'com.apple.springboard'
+2026-04-28 14:06:49.898480+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:06:50.003447+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:06:50.009369+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:06:50.009891+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:50.010158+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =     1.37s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:50.749742+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:06:50.758249+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:06:50.758991+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =     2.12s Checking existence of `StatusBar (First Match)`
+    t =     2.15s Get all elements bound by index for: Descendants matching type StatusBar
+    t =     2.18s Find the StatusBar (Element at index 0)
+    t =     2.23s Find the StatusBar (Element at index 1)
+2026-04-28 14:06:50.910722+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.15196895599365234
+2026-04-28 14:06:50.910826+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:06:50.914016+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0031659603118896484
+    t =     2.28s Find the Application 'com.apple.springboard'
+2026-04-28 14:06:50.955810+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:06:50.955969+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:06:50.984726+0000 maestro-driver-iosUITests-Runner[1701:21233] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     2.35s Getting device orientation
+2026-04-28 14:06:50.988911+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     2.35s Getting device orientation
+    t =     2.35s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:51.018810+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:06:51.023850+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:06:51.031964+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:06:51.033845+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:51.034128+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =     2.40s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:51.066430+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:06:51.075435+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:06:51.076235+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =     2.44s Checking existence of `StatusBar (First Match)`
+    t =     2.45s Get all elements bound by index for: Descendants matching type StatusBar
+    t =     2.48s Find the StatusBar (Element at index 0)
+    t =     2.50s Find the StatusBar (Element at index 1)
+2026-04-28 14:06:51.169111+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.0928570032119751
+2026-04-28 14:06:51.169206+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:06:51.170040+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0008260011672973633
+    t =     2.53s Find the Application 'com.apple.springboard'
+2026-04-28 14:06:51.188264+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:06:51.188470+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:06:51.209986+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:51.470025+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:06:51.747413+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:06:51.752945+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     3.12s Getting device orientation
+2026-04-28 14:06:51.754227+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =     3.12s Getting device orientation
+2026-04-28 14:06:51.755100+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping 205.0, 264.0
+    t =     3.12s Getting device orientation
+2026-04-28 14:06:52.193482+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 0.43507301807403564
+2026-04-28 14:06:52.195399+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:52.363270+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     3.73s Getting device orientation
+2026-04-28 14:06:52.370780+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     3.73s Getting device orientation
+2026-04-28 14:06:52.372336+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:06:52.372600+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:06:52.374132+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:06:52.378951+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:06:52.379252+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:52.379701+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =     3.74s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:52.698620+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:06:52.700030+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:06:52.704598+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =     4.07s Checking existence of `StatusBar (First Match)`
+    t =     4.08s Get all elements bound by index for: Descendants matching type StatusBar
+    t =     4.12s Find the StatusBar (Element at index 0)
+    t =     4.16s Find the StatusBar (Element at index 1)
+2026-04-28 14:06:52.852815+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.14819908142089844
+2026-04-28 14:06:52.852900+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:06:52.853620+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0006979703903198242
+    t =     4.22s Find the Application 'com.apple.springboard'
+2026-04-28 14:06:52.883730+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:06:52.883938+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:06:52.895981+0000 maestro-driver-iosUITests-Runner[1701:21233] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:53.129985+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:53.316433+0000 maestro-driver-iosUITests-Runner[1701:21233] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:53.494111+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:06:53.627610+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:06:53.631320+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     5.00s Getting device orientation
+2026-04-28 14:06:53.633567+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =     5.00s Getting device orientation
+2026-04-28 14:06:53.634946+0000 maestro-driver-iosUITests-Runner[1701:21163] Long pressing 205.0, 264.0 for 3.0s
+    t =     5.00s Getting device orientation
+2026-04-28 14:06:56.853171+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 3.2170779705047607
+2026-04-28 14:06:56.856041+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:57.129090+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:57.447253+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:57.629052+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =     8.99s Getting device orientation
+2026-04-28 14:06:57.634617+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     9.00s Getting device orientation
+2026-04-28 14:06:57.646151+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:06:57.646602+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:06:57.648432+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:06:57.653158+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:06:57.653805+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:57.654168+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =     9.02s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:06:57.705171+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:06:57.705318+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:06:57.705391+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =     9.07s Checking existence of `StatusBar (First Match)`
+    t =     9.08s Get all elements bound by index for: Descendants matching type StatusBar
+    t =     9.12s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =     9.12s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =     9.12s Find the StatusBar (Element at index 0)
+    t =     9.15s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =     9.15s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =     9.15s Find the StatusBar (Element at index 1)
+    t =     9.18s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =     9.18s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:06:57.826256+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.12084400653839111
+2026-04-28 14:06:57.826314+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:06:57.826794+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0004749298095703125
+    t =     9.19s Find the Application 'com.apple.springboard'
+    t =     9.21s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =     9.21s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:06:57.850765+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:06:57.850998+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:06:57.861424+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:58.063338+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:06:58.215557+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:06:58.219089+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =     9.58s Getting device orientation
+2026-04-28 14:06:58.220666+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =     9.58s Getting device orientation
+2026-04-28 14:06:58.221620+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping 205.0, 222.0
+    t =     9.58s Getting device orientation
+2026-04-28 14:06:58.555179+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 0.33268308639526367
+2026-04-28 14:06:58.558009+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:59.021621+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:59.288719+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:06:59.507974+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /eraseText
+2026-04-28 14:06:59.512877+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    10.88s Checking existence of `Keyboard (First Match)`
+2026-04-28 14:06:59.524430+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] first character: \^?
+    t =    10.89s Getting device orientation
+2026-04-28 14:07:00.240684+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] remaining text: \^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?
+    t =    11.60s Getting device orientation
+2026-04-28 14:07:02.048322+0000 maestro-driver-iosUITests-Runner[1701:21163] [EraseTextHandler] Erase text duration took 2.538323
+2026-04-28 14:07:02.051909+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:02.452327+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: POST /inputText
+2026-04-28 14:07:02.463483+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    13.83s Checking existence of `Keyboard (First Match)`
+2026-04-28 14:07:02.470622+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] first character: 1
+    t =    13.83s Getting device orientation
+2026-04-28 14:07:03.186542+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] remaining text: 0
+    t =    14.55s Getting device orientation
+2026-04-28 14:07:03.457409+0000 maestro-driver-iosUITests-Runner[1701:21163] [InputTextRouteHandler] Text input duration took 0.999126
+2026-04-28 14:07:03.477969+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:03.781600+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    15.15s Getting device orientation
+2026-04-28 14:07:03.787621+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    15.15s Getting device orientation
+2026-04-28 14:07:03.790325+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:07:03.790891+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:07:03.792793+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:07:03.796879+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:07:03.797266+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:03.797762+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    15.16s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:03.826121+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:07:03.826926+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:07:03.827020+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    15.19s Checking existence of `StatusBar (First Match)`
+    t =    15.20s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    15.25s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    15.26s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    15.26s Find the StatusBar (Element at index 0)
+    t =    15.40s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    15.41s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    15.42s Find the StatusBar (Element at index 1)
+    t =    15.50s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    15.51s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:04.173035+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.34598398208618164
+2026-04-28 14:07:04.174727+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:07:04.177047+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0022939443588256836
+    t =    15.54s Find the Application 'com.apple.springboard'
+    t =    15.58s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    15.58s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:04.229347+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:07:04.249467+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:07:04.279026+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:04.660804+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:07:05.040695+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:07:05.047654+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    16.41s Getting device orientation
+2026-04-28 14:07:05.049540+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =    16.41s Getting device orientation
+2026-04-28 14:07:05.050766+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping 205.0, 367.0
+    t =    16.41s Getting device orientation
+2026-04-28 14:07:05.411321+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 0.35907506942749023
+2026-04-28 14:07:05.413847+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:05.616569+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    17.00s Getting device orientation
+2026-04-28 14:07:05.664803+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    17.03s Getting device orientation
+2026-04-28 14:07:05.669198+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:07:05.669717+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:07:05.671941+0000 maestro-driver-iosUITests-Runner[1701:21238] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:07:05.678006+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:07:05.679087+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:05.679161+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    17.04s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:05.804594+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:07:05.823028+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:07:05.854831+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    17.25s Checking existence of `StatusBar (First Match)`
+    t =    17.30s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    17.43s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    17.49s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    17.50s Find the StatusBar (Element at index 0)
+    t =    17.55s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    17.55s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    17.57s Find the StatusBar (Element at index 1)
+    t =    17.65s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    17.65s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:06.311287+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.4564189910888672
+2026-04-28 14:07:06.312384+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:07:06.314636+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0022530555725097656
+    t =    17.68s Find the Application 'com.apple.springboard'
+    t =    17.75s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    17.80s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:06.442744+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:07:06.443393+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:07:06.448109+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:06.621432+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:07:06.783206+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:07:06.788863+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    18.15s Getting device orientation
+2026-04-28 14:07:06.790803+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =    18.15s Getting device orientation
+2026-04-28 14:07:06.805504+0000 maestro-driver-iosUITests-Runner[1701:21163] Long pressing 205.0, 367.0 for 3.0s
+    t =    18.17s Getting device orientation
+2026-04-28 14:07:10.022763+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 3.2139220237731934
+2026-04-28 14:07:10.026127+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:10.308272+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:10.573916+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:10.773388+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    22.14s Getting device orientation
+2026-04-28 14:07:10.778106+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    22.14s Getting device orientation
+2026-04-28 14:07:10.779585+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:07:10.779793+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:07:10.781719+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:07:10.785054+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:07:10.785458+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:10.785606+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    22.15s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:10.825108+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:07:10.825242+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:07:10.825321+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    22.19s Checking existence of `StatusBar (First Match)`
+    t =    22.20s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    22.22s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    22.22s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    22.22s Find the StatusBar (Element at index 0)
+    t =    22.24s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    22.25s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    22.25s Find the StatusBar (Element at index 1)
+    t =    22.29s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    22.29s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:10.936523+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.11116898059844971
+2026-04-28 14:07:10.936652+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:07:10.937056+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.000392913818359375
+    t =    22.30s Find the Application 'com.apple.springboard'
+    t =    22.32s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    22.32s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:10.960447+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:07:10.960655+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:07:10.965575+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:11.153755+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:07:11.273985+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:07:11.277441+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    22.64s Getting device orientation
+2026-04-28 14:07:11.278872+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =    22.64s Getting device orientation
+2026-04-28 14:07:11.279595+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping 205.0, 325.0
+    t =    22.64s Getting device orientation
+2026-04-28 14:07:11.616353+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 0.3358210325241089
+2026-04-28 14:07:11.619885+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:11.972920+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:12.185553+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:12.352744+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /eraseText
+2026-04-28 14:07:12.356134+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    23.72s Checking existence of `Keyboard (First Match)`
+2026-04-28 14:07:12.365094+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] first character: \^?
+    t =    23.73s Getting device orientation
+2026-04-28 14:07:13.086438+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] remaining text: \^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?\^?
+    t =    24.45s Getting device orientation
+2026-04-28 14:07:14.891594+0000 maestro-driver-iosUITests-Runner[1701:21163] [EraseTextHandler] Erase text duration took 2.538614
+2026-04-28 14:07:14.893517+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:15.083298+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /inputText
+2026-04-28 14:07:15.086325+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    26.45s Checking existence of `Keyboard (First Match)`
+2026-04-28 14:07:15.091404+0000 maestro-driver-iosUITests-Runner[1701:21163] [TextInputHelper] first character: 5
+    t =    26.45s Getting device orientation
+2026-04-28 14:07:15.810930+0000 maestro-driver-iosUITests-Runner[1701:21163] [InputTextRouteHandler] Text input duration took 0.727435
+2026-04-28 14:07:15.813082+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:15.984553+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    27.35s Getting device orientation
+2026-04-28 14:07:15.989627+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    27.35s Getting device orientation
+2026-04-28 14:07:15.991175+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:07:15.991236+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:07:15.993036+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:07:15.996880+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:07:15.997427+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:15.997475+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    27.36s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:16.023140+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:07:16.023388+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:07:16.023490+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    27.39s Checking existence of `StatusBar (First Match)`
+    t =    27.40s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    27.43s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    27.43s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    27.43s Find the StatusBar (Element at index 0)
+    t =    27.46s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    27.47s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    27.47s Find the StatusBar (Element at index 1)
+    t =    27.50s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    27.50s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:16.148162+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.12463593482971191
+2026-04-28 14:07:16.148245+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:07:16.148785+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0005260705947875977
+    t =    27.51s Find the Application 'com.apple.springboard'
+    t =    27.54s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    27.54s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:16.181119+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:07:16.181275+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:07:16.185652+0000 maestro-driver-iosUITests-Runner[1701:21236] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:16.368623+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: GET /screenshot
+2026-04-28 14:07:16.499065+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /touch
+2026-04-28 14:07:16.503320+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    27.87s Getting device orientation
+2026-04-28 14:07:16.505300+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+    t =    27.87s Getting device orientation
+2026-04-28 14:07:16.506300+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping 205.0, 470.0
+    t =    27.87s Getting device orientation
+2026-04-28 14:07:16.837574+0000 maestro-driver-iosUITests-Runner[1701:21163] Tapping took 0.3303799629211426
+2026-04-28 14:07:16.839462+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /isScreenStatic
+2026-04-28 14:07:17.020900+0000 maestro-driver-iosUITests-Runner[1701:21277] [FlyingFox] <127.0.0.1> request: POST /deviceInfo
+    t =    28.38s Getting device orientation
+2026-04-28 14:07:17.026612+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+    t =    28.39s Getting device orientation
+2026-04-28 14:07:17.029331+0000 maestro-driver-iosUITests-Runner[1701:21163] Returning cached screen size
+2026-04-28 14:07:17.029407+0000 maestro-driver-iosUITests-Runner[1701:21163] Device orientation is 1
+2026-04-28 14:07:17.031163+0000 maestro-driver-iosUITests-Runner[1701:21235] [FlyingFox] <127.0.0.1> request: POST /viewHierarchy
+2026-04-28 14:07:17.035049+0000 maestro-driver-iosUITests-Runner[1701:21163] Detected running apps: ["org.reactjs.native.example.SampleApp"]
+2026-04-28 14:07:17.035688+0000 maestro-driver-iosUITests-Runner[1701:21163] [Start] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:17.035828+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Starting getHierarchyWithFallback for element.
+    t =    28.40s Find the Application 'org.reactjs.native.example.SampleApp'
+2026-04-28 14:07:17.062279+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Successfully retrieved element hierarchy.
+2026-04-28 14:07:17.062419+0000 maestro-driver-iosUITests-Runner[1701:21163] Foreground app is not springboard skipping auto tapping on permissions
+2026-04-28 14:07:17.062478+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch status bar hierarchy - start
+    t =    28.43s Checking existence of `StatusBar (First Match)`
+    t =    28.44s Get all elements bound by index for: Descendants matching type StatusBar
+    t =    28.47s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    28.47s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    28.47s Find the StatusBar (Element at index 0)
+    t =    28.49s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    28.49s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    28.50s Find the StatusBar (Element at index 1)
+    t =    28.52s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    28.53s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:17.170816+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch status bar hierarchy - duration 0.10830497741699219
+2026-04-28 14:07:17.170915+0000 maestro-driver-iosUITests-Runner[1701:21163] [ViewHierarchyHandler] Fetch Safari WebView hierarchy - start
+2026-04-28 14:07:17.171443+0000 maestro-driver-iosUITests-Runner[1701:21163] Fetch Safari WebView hierarchy - duration 0.0004659891128540039
+    t =    28.53s Find the Application 'com.apple.springboard'
+    t =    28.56s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+    t =    28.56s Ignoring failure to get hierarchy for remote element in process 1742 (Error getting main window kAXErrorServerNotFound)
+2026-04-28 14:07:17.197384+0000 maestro-driver-iosUITests-Runner[1701:21163] Adjusting view hierarchy with offset: WindowOffset(offsetX: 9.0, offsetY: 22.0)
+2026-04-28 14:07:17.197571+0000 maestro-driver-iosUITests-Runner[1701:21163] [Done] View hierarchy snapshot for Application 'org.reactjs.native.example.SampleApp' 
+2026-04-28 14:07:17.620440+0000 maestro-driver-iosUITests-Runner[1701:21234] [FlyingFox] <127.0.0.1> request: GET /status

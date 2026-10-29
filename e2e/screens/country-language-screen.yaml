@@ -1,0 +1,10 @@
+appId: com.example.myapp
+---
+- runCondition:
+    visible: "Select Country"
+    commands:
+      - tapOn: "United States"
+      - assertVisible: "Select Language"
+      - tapOn: "English"
+      - tapOn: "Continue"
+      - waitForAnimationToEnd

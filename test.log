@@ -1,0 +1,73 @@
+18:18:12.31   App already uploaded, skipping upload
+18:18:12.31 Uploading Maestro Flows
+18:18:12.31 Bundling 4 files into flows.zip:
+18:18:12.31   Flow files (3):
+18:18:12.31     - android-advanced-flow.yaml
+18:18:12.31     - android-failing.yaml
+18:18:12.31     - subflows/onboarding-android.yaml
+18:18:12.31   Scripts (1):
+18:18:12.31     - scripts/getSearchQuery.js
+  flows.zip: [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 0% (0.00/0.00 MB)  flows.zip: [██████████████████████████████] 100% (0.00/0.00 MB)  flows.zip: [██████████████████████████████] 100% (0.00/0.00 MB)
+18:18:12.76 Running Maestro Tests
+18:18:12.86 Waiting for test results...
+  🔗 Run 21148 (*): Watch in realtime:
+     https://testingbot.com/members/maestro/19630/runs/21148
+
+[2m Duration   Status   Flow[22m
+[2m ────────── ──────── ──────────────────────────────[22m
+ 0s         [34mRUNNING[39m  Android Advanced Flow         
+ -          [37mWAITING[39m  Android Failing               
+[2A[K 6s         [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 11s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 16s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 21s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 26s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 32s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 37s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 42s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 48s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 53s        [34mRUNNING[39m  Android Advanced Flow
+[K -          [37mWAITING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 1s         [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 6s         [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 11s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 16s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 22s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 27s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 32s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 38s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 43s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 48s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 53s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 59s        [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 1m 4s      [34mRUNNING[39m  Android Failing
+[2A[K 57s        [32mPASSED[39m   Android Advanced Flow
+[K 1m 6s      [31mFAILED[39m   Android Failing
+[4A[2K[2m Duration   Status   Flow                              Fail reason[22m
+[2K[2m ────────── ──────── ────────────────────────────── ────────────────────────────────────────────────────────────────────────────────[22m
+[2K 57s        [32mPASSED[39m   Android Advanced Flow         
+[2K 1m 6s      [31mFAILED[39m   Android Failing                [31mAssertion is false: "BBB" is visible[39m
+
+  ❌ Run 21148 (Pixel 9 - 16.0): Test failed

@@ -1404,6 +1404,82 @@ describe('Espresso', () => {
       now.mockRestore();
     });
 
+    it('--fail-fast stops the other runs when one fails', async () => {
+      const failing = new Espresso(
+        mockCredentials,
+        new EspressoOptions('a.apk', 'b.apk', 'Pixel 6', {
+          quiet: true,
+          failFast: true,
+        }),
+      );
+      failing['appId'] = 1234;
+      failing['MIN_POLL_INTERVAL_MS'] = 1;
+      failing['MAX_POLL_INTERVAL_MS'] = 1;
+      const run = (id: number, status: string, success = 0) => ({
+        id,
+        status,
+        success,
+        capabilities: { deviceName: `Device ${id}`, platformName: 'Android' },
+      });
+      failing['getStatus'] = jest
+        .fn()
+        .mockResolvedValueOnce({
+          runs: [run(1, 'FAILED'), run(2, 'READY')],
+          completed: false,
+        })
+        .mockResolvedValue({
+          runs: [run(1, 'FAILED'), run(2, 'FAILED')],
+          completed: true,
+        });
+      const stopRun = jest.fn().mockResolvedValue(undefined);
+      failing['stopRun'] = stopRun;
+
+      const result = await failing['waitForCompletion']();
+
+      expect(stopRun).toHaveBeenCalledTimes(1);
+      expect(stopRun).toHaveBeenCalledWith(2);
+      expect(result).toMatchObject({
+        outcome: 'failed',
+        error: expect.stringMatching(/--fail-fast/),
+      });
+    });
+
+    it('--fail-fast waits for the last --retry round', async () => {
+      const failing = new Espresso(
+        mockCredentials,
+        new EspressoOptions('a.apk', 'b.apk', 'Pixel 6', {
+          quiet: true,
+          failFast: true,
+          retry: 1,
+        }),
+      );
+      failing['appId'] = 1234;
+      failing['MIN_POLL_INTERVAL_MS'] = 1;
+      failing['MAX_POLL_INTERVAL_MS'] = 1;
+      const run = (id: number, status: string) => ({
+        id,
+        status,
+        success: 0,
+        capabilities: { deviceName: `Device ${id}`, platformName: 'Android' },
+      });
+      failing['getStatus'] = jest
+        .fn()
+        .mockResolvedValueOnce({
+          runs: [run(1, 'FAILED'), run(2, 'READY')],
+          completed: false,
+        })
+        .mockResolvedValue({
+          runs: [run(1, 'FAILED'), run(2, 'DONE')],
+          completed: true,
+        });
+      const stopRun = jest.fn();
+      failing['stopRun'] = stopRun;
+
+      await failing['waitForCompletion']();
+
+      expect(stopRun).not.toHaveBeenCalled();
+    });
+
     it('does not retry after a timeout', async () => {
       const retrying = new Espresso(
         mockCredentials,

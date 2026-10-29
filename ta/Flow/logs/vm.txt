@@ -1,0 +1,188 @@
+13:45:59.43 service.js:11 info: Starting service...
+13:46:01.33 mac.js:863 info: Revision: 065bd0c3
+13:46:01.33 proxy.js:164 info: Starting proxy service on port 5556
+13:46:01.33 fakehub.js:306 info: Starting hub service on port 4444
+13:46:01.33 health.js:71 info: monitoring downstream: 127.0.0.1:5556
+13:46:30.51 fakehub.js:165 info: Registering node
+13:46:31.18 fakehub.js:231 info: Hostname = 7snsxnnTFrrKsfG
+14:05:59.32 webdriver.js:282 info: Incoming capabilities {"desiredCapabilities":{"platform":"TAHOE","deviceName":"iPhone 17","version":"26.0","platformName":"iOS","maxduration":10000,"idletimeout":10000,"maestro_app_url":"http://192.168.168.10:6002/intern/maestro_app?client_key=251ca561ab0f7557bb34c3ee3dbde285&client_secret=3fc22e44f086fa036d8b01eadf66740b&key=02cfaa2244755d999d314c7e","maestro_test_url":"http://192.168.168.10:6002/intern/maestro_test?client_key=251ca561ab0f7557bb34c3ee3dbde285&client_secret=3fc22e44f086fa036d8b01eadf66740b&key=02cfaa2244755d999d314c7e","maestro_run_id":40072,"maestro_project_id":36301,"maestro_test_run_id":154018,"maestroOptions":{"flows":["flow.yaml"]},"maestro_bundle_id":"org.reactjs.native.example.SampleApp","appChecksum":"6ygq59591eymuxrmnw70rwkf6xbp.zip","appContentType":"application/zip"}}
+14:05:59.32 mac.js:870 info: starting webrtc
+14:05:59.36 maestro.js:187 info: /Users/Shared/testingbot/vm/scripts/maestro.sh
+14:05:59.40 maestro.js:1541 info: Streaming maestro 154018
+14:05:59.41 tunnellocalproxies.js:57 warn: 443 '/Users/Shared/testingbot/vm/scripts/tunnellocalproxies.js:391\n' +
+  '\tconst fn = exports.parseRegisterMode(process.argv[5])\n' +
+  '\t                   ^\n' +
+  '\n' +
+  'TypeError: exports.parseRegisterMode is not a function\n' +
+  '    at Object.<anonymous> (/Users/Shared/testingbot/vm/scripts/tunnellocalproxies.js:391:21)\n' +
+  '    at Module._compile (node:internal/modules/cjs/loader:1521:14)\n' +
+  '    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)\n' +
+  '    at Module.load (node:internal/modules/cjs/loader:1266:32)\n' +
+  '    at Module._load (node:internal/modules/cjs/loader:1091:12)\n' +
+  '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n' +
+  '    at node:internal/main/run_main_module:28:49\n' +
+  '\n' +
+  'Node.js v20.20.1\n'
+14:05:59.41 tunnellocalproxies.js:57 warn: 80 '/Users/Shared/testingbot/vm/scripts/tunnellocalproxies.js:391\n' +
+  '\tconst fn = exports.parseRegisterMode(process.argv[5])\n' +
+  '\t                   ^\n' +
+  '\n' +
+  'TypeError: exports.parseRegisterMode is not a function\n' +
+  '    at Object.<anonymous> (/Users/Shared/testingbot/vm/scripts/tunnellocalproxies.js:391:21)\n' +
+  '    at Module._compile (node:internal/modules/cjs/loader:1521:14)\n' +
+  '    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)\n' +
+  '    at Module.load (node:internal/modules/cjs/loader:1266:32)\n' +
+  '    at Module._load (node:internal/modules/cjs/loader:1091:12)\n' +
+  '    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)\n' +
+  '    at node:internal/main/run_main_module:28:49\n' +
+  '\n' +
+  'Node.js v20.20.1\n'
+14:05:59.41 tunnellocalproxies.js:67 warn: sudo proxy on port 443 exited code=1 signal=null
+14:05:59.41 tunnellocalproxies.js:354 warn: Error starting local proxy on port 443: Error: sudo proxy exited code=1
+14:05:59.41 tunnellocalproxies.js:67 warn: sudo proxy on port 80 exited code=1 signal=null
+14:05:59.41 tunnellocalproxies.js:354 warn: Error starting local proxy on port 80: Error: sudo proxy exited code=1
+14:06:00.33 webdriver.js:1219 info: WebRTC started
+14:06:01.75 mac.js:782 info: [startSequoiaAllowScreenMonitor] button Allow of window 1 of application process UserNotificationCenter
+
+14:06:01.75 mac.js:790 warn: startSequoiaAllowScreenMonitor exited with code 0. Restarting...
+14:06:04.35 maestro.js:207 warn: #=#=#                                                                          ##O#-#                                                                         #                                                                          2.3%#####                                                                      7.6%#######                                                                   10.8%##########                                                                15.1%#############                                                             19.1%################                                                          22.6%####################                                                      27.9%#######################                                                   32.4%##########################                                                37.2%###############################                                           43.8%###################################                                       49.2%#######################################                                   54.4%##########################################                                59.6%##############################################                            64.6%##################################################                        69.7%#####################################################                     74.8%#########################################################                 79.6%############################################################              84.3%################################################################          89.1%###################################################################       93.6%######################################################################    98.0%######################################################################## 100.0%
+
+14:06:04.35 maestro.js:209 info: * Create distribution directories...
+* Downloading...
+* Checking archive integrity...
+* Extracting archive...
+* Remove previous installation (if any)
+* Copying archive contents...
+* Cleaning up...
+
+Adding maestro to your PATH in /Users/testingbot/.bash_profile
+Adding maestro to your PATH in /Users/testingbot/.zshrc
+
+14:06:05.71 downloader.js:123 info: File downloaded from https://ab0ab8e541e0112ddf85b1cf04bec5fc.r2.cloudflarestorage.com/maestro/6ygq59591eymuxrmnw70rwkf6xbp.zip?response-content-disposition=attachment%3B%20filename%3D6ygq59591eymuxrmnw70rwkf6xbp.zip&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=b40288ffeadf54e859cd920f45e36dc7%2F20260428%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260428T140605Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=e3bf98a112e92b1c28b01ddf10075efbe66fb18f8b2df21ee7eb3f80f81b41ea : /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/app.zip - 10.21 MB
+14:06:05.88 downloader.js:123 info: File downloaded from https://ab0ab8e541e0112ddf85b1cf04bec5fc.r2.cloudflarestorage.com/maestro/domhtopn4k08n2y2debfjfg454f6.zip?response-content-disposition=attachment%3B%20filename%3Ddomhtopn4k08n2y2debfjfg454f6.zip&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=b40288ffeadf54e859cd920f45e36dc7%2F20260428%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260428T140605Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=ba2088048340f167cd45c4c93f714ab9100cdfef7e17ca86a8e22d506a0c5955 : /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows.zip - 289 B
+14:06:05.88 maestro.js:414 info: Extracting cd /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd && unzip -o /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows.zip -d /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows && chmod -R u+w /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows && rm -rf /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows/__MACOSX && find /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows -name '._*' -delete && find /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows -name '.DS_Store' -delete
+14:06:05.89 maestro.js:437 info: Extracted files: [
+  '/var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows/flow.yaml'
+]
+14:06:07.03 maestro.js:1082 info: Monitoring boot status for iPhone 17 (391090D3-BC8D-449C-916B-50E18E53EE5D).
+Device is shutdown or shutting down. Waiting for boot to begin...
+[2026-04-28 14:06:07 +0000] Status=0, isTerminal=NO, Elapsed=00:00.
+	Booting
+
+
+14:06:07.63 maestro.js:1102 info: Simulator booting
+14:06:09.25 maestro.js:1082 info: [2026-04-28 14:06:09 +0000] Status=1, isTerminal=NO, Elapsed=00:02.
+	Waiting on BackBoard
+
+
+14:06:19.68 maestro.js:1082 info: [2026-04-28 14:06:19 +0000] Status=4294967295, isTerminal=YES, Elapsed=00:12.
+	Finished
+
+
+14:06:19.69 maestro.js:1090 info: Simulator ready 0
+14:06:19.70 maestro.js:1119 info: Opening simulator
+14:06:23.02 maestro.js:235 info: Starting SE poller
+14:06:23.02 maestro.js:1692 info: Installing /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/app.zip
+14:06:23.02 maestro.js:1248 info: installAppOniOSSimulator /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/app.zip
+14:06:23.12 maestro.js:1254 info: 
+14:06:23.12 maestro.js:1266 info: Found app candidates [
+  '/var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/app/SampleApp.app'
+]
+14:06:23.12 maestro.js:1268 info: unzipped app path /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/app/SampleApp.app
+14:06:31.81 maestro.js:1276 info: 
+14:06:31.81 maestro.js:1702 info: Running Maestro tests
+14:06:31.81 maestro.js:662 info: maestro args [
+  'test',
+  '--no-ansi',
+  '--format=JUNIT',
+  '--output=/tmp/maestro.xml',
+  '--test-output-dir=/Users/testingbot/.maestro/tests/tb',
+  '-e',
+  'APP_ID=org.reactjs.native.example.SampleApp',
+  '-e',
+  'APPID=org.reactjs.native.example.SampleApp',
+  '-e',
+  'appId=org.reactjs.native.example.SampleApp',
+  'flow.yaml'
+]
+14:06:31.81 maestro.js:665 info: /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd/flows
+14:06:31.82 webdriver.js:362 info: Starting session
+14:06:31.82 seleniumserver.js:10 info: Selenium Server listening on 5580
+14:06:31.82 webdriver.js:624 info: Started Mock Selenium Server on 5580
+14:06:31.82 forwarder.js:41 info: [POST] Forward to 127.0.0.1 : 5580 - /wd/hub/session
+14:06:31.82 forwarder.js:47 info: {"desiredCapabilities":{"platform":"iOS","deviceName":"iPhone 17","version":"26.0","platformName":"iOS","maxduration":10000,"idletimeout":10000,"maestro_app_url":"http://192.168.168.10:6002/intern/maestro_app?client_key=251ca561ab0f7557bb34c3ee3dbde285&client_secret=3fc22e44f086fa036d8b01eadf66740b&key=02cfaa2244755d999d314c7e","maestro_test_url":"http://192.168.168.10:6002/intern/maestro_test?client_key=251ca561ab0f7557bb34c3ee3dbde285&client_secret=3fc22e44f086fa036d8b01eadf66740b&key=02cfaa2244755d999d314c7e","maestro_run_id":40072,"maestro_project_id":36301,"maestro_test_run_id":154018,"maestroOptions":{"flows":["flow.yaml"]},"maestro_bundle_id":"org.reactjs.native.example.SampleApp","appChecksum":"6ygq59591eymuxrmnw70rwkf6xbp.zip","appContentType":"application/zip","acceptSslCerts":true}}
+14:06:31.82 seleniumserver.js:36 info: se server /wd/hub/session
+14:06:31.83 forwarder.js:67 info: 127.0.0.1:5580 responded (969) : {"state":null,"sessionId":"tb-890503414723229171","hCode":"134812987","value":{"platform":"iOS","deviceName":"iPhone 17","version":"26.0","platformName":"iOS","maxduration":10000,"idletimeout":10000,"maestro_app_url":"http://192.168.168.10:6002/intern/maestro_app?client_key=251ca561ab0f7557bb34c3ee3dbde285&client_secret=3fc22e44f086fa036d8b01eadf66740b&key=02cfaa2244755d999d314c7e","maestro_test_url":"http://192.168.168.10:6002/intern/maestro_test?client_key=251ca561ab0f7557bb34c3ee3dbde285&client_secret=3fc22e44f086fa036d8b01eadf66740b&key=02cfaa2244755d999d314c7e","maestro_run_id":40072,"maestro_project_id":36301,"maestro_test_run_id":154018,"maestroOptions":{"flows":["flow.yaml"]},"maestro_bundle_id":"org.reactjs.native.example.SampleApp","appChecksum":"6ygq59591eymuxrmnw70rwkf6xbp.zip","appContentType":"application/zip","acceptSslCerts":true,"webdriver.remote.sessionid":"tb-890503414723229171"},"class":"org.openqa.selenium.remote.Response","status":0}
+14:06:31.83 central.js:139 info: Starting screenrecorder
+14:06:49.01 maestro.js:693 info: 
+Waiting for flows to complete...
+
+14:07:17.36 maestro.js:693 info: [Passed]
+14:07:17.36 maestro.js:693 info:  flow (28s)
+
+14:07:17.36 maestro.js:693 info: 
+1/1 Flow Passed in 28s
+
+
+14:07:18.57 maestro.js:715 warn: Maestro process exits with code 0
+14:07:18.57 maestro.js:718 info: processing junit xml
+14:07:18.57 maestro.js:1388 info: Found matching Maestro test directory: /Users/testingbot/.maestro/tests/tb/2026-04-28_140633
+14:07:18.57 maestro.js:720 info: processing result dir /Users/testingbot/.maestro/tests/tb/2026-04-28_140633
+14:07:18.58 maestro.js:104 info: processJUnitReport: parsed testcases count: 1
+14:07:18.58 maestro.js:105 info: processJUnitReport: testcase classnames: [ 'flow' ]
+14:07:18.58 maestro.js:125 info: processJUnitReport: processing testcase: flow
+14:07:18.58 maestro.js:144 info: processJUnitReport: finished reading JSON for flow - steps: 15
+14:07:18.59 maestro.js:147 info: processJUnitReport: finalize with flows: [ 'flow' ]
+14:07:18.59 maestro.js:27 info: generateJUnitReport: flows to generate: [ 'flow' ]
+14:07:18.59 maestro.js:30 info: generateJUnitReport: generating testcase: flow steps: 15
+14:07:18.59 maestro.js:726 info: processJUnitReport null <?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Test Suite" device="iPhone 17 - iOS 26.0 - 391090D3-BC8D-449C-916B-50E18E53EE5D" tests="1" failures="0" time="28.0">
+    <testcase id="flow" name="flow" classname="flow" time="28.0" status="SUCCESS">
+      <property name="step" details="{&quot;selector&quot;:{&quot;textRegex&quot;:&quot;Select All&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:false,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385230771" status="COMPLETED" />
+      <property name="step" details="{&quot;selector&quot;:{&quot;idRegex&quot;:&quot;inputA&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:true,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385212361" status="COMPLETED" />
+      <property name="step" details="{&quot;env&quot;:{&quot;APP_ID&quot;:&quot;org.reactjs.native.example.SampleApp&quot;,&quot;APPID&quot;:&quot;org.reactjs.native.example.SampleApp&quot;,&quot;appId&quot;:&quot;org.reactjs.native.example.SampleApp&quot;,&quot;MAESTRO_DISABLE_UPDATE_CHECK&quot;:&quot;true&quot;,&quot;MAESTRO_DRIVER_STARTUP_TIMEOUT&quot;:&quot;120000&quot;,&quot;MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED&quot;:&quot;true&quot;,&quot;MAESTRO_CLI_NO_ANALYTICS&quot;:&quot;true&quot;,&quot;MAESTRO_FILENAME&quot;:&quot;flow&quot;,&quot;MAESTRO_DEVICE_UDID&quot;:&quot;391090D3-BC8D-449C-916B-50E18E53EE5D&quot;,&quot;MAESTRO_SHARD_ID&quot;:&quot;1&quot;,&quot;MAESTRO_SHARD_INDEX&quot;:&quot;0&quot;},&quot;optional&quot;:false}" value="defineVariablesCommand" timestamp="1777385209232" status="COMPLETED" />
+      <property name="step" details="{&quot;selector&quot;:{&quot;idRegex&quot;:&quot;inputB&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:false,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385223779" status="COMPLETED" />
+      <property name="step" details="{&quot;selector&quot;:{&quot;idRegex&quot;:&quot;sum&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:false,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385235982" status="COMPLETED" />
+      <property name="step" details="{&quot;condition&quot;:{&quot;visible&quot;:{&quot;textRegex&quot;:&quot;15&quot;,&quot;optional&quot;:false}},&quot;optional&quot;:false}" value="assertConditionCommand" timestamp="1777385237018" status="COMPLETED" />
+      <property name="step" details="{&quot;config&quot;:{&quot;appId&quot;:&quot;org.reactjs.native.example.SampleApp&quot;},&quot;optional&quot;:false}" value="applyConfigurationCommand" timestamp="1777385209234" status="COMPLETED" />
+      <property name="step" details="{&quot;selector&quot;:{&quot;idRegex&quot;:&quot;inputA&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:false,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385209739" status="COMPLETED" />
+      <property name="step" details="{&quot;optional&quot;:false}" value="eraseTextCommand" timestamp="1777385232351" status="COMPLETED" />
+      <property name="step" details="{&quot;text&quot;:&quot;5&quot;,&quot;optional&quot;:false}" value="inputTextCommand" timestamp="1777385235081" status="COMPLETED" />
+      <property name="step" details="{&quot;selector&quot;:{&quot;textRegex&quot;:&quot;Select All&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:false,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385217627" status="COMPLETED" />
+      <property name="step" details="{&quot;selector&quot;:{&quot;idRegex&quot;:&quot;inputB&quot;,&quot;optional&quot;:false},&quot;retryIfNoChange&quot;:false,&quot;waitUntilVisible&quot;:false,&quot;longPress&quot;:true,&quot;optional&quot;:false}" value="tapOnElement" timestamp="1777385225594" status="COMPLETED" />
+      <property name="step" details="{&quot;optional&quot;:false}" value="eraseTextCommand" timestamp="1777385219502" status="COMPLETED" />
+      <property name="step" details="{&quot;appId&quot;:&quot;org.reactjs.native.example.SampleApp&quot;,&quot;optional&quot;:false}" value="launchAppCommand" timestamp="1777385209234" status="COMPLETED" />
+      <property name="step" details="{&quot;text&quot;:&quot;10&quot;,&quot;optional&quot;:false}" value="inputTextCommand" timestamp="1777385222446" status="COMPLETED" />
+    </testcase>
+  </testsuite>
+</testsuites>
+14:07:18.59 maestro.js:458 info: ending maestro success=true xml length=4727 []
+14:07:18.59 maestro.js:467 info: Sending maestro report 4996 bytes
+14:07:18.59 maestro.js:1704 info: Maestro done
+14:07:18.69 maestro.js:1402 info: Collecting Maestro assets
+14:07:18.70 maestro.js:1420 info: Processing directory: /Users/testingbot/.maestro/tests files: [ '2026-04-28_140633', 'tb' ]
+14:07:18.70 maestro.js:1420 info: Processing directory: /Users/testingbot/.maestro/tests/2026-04-28_140633 files: [ 'maestro.log' ]
+14:07:18.70 maestro.js:1440 info: Copy Maestro log
+14:07:18.70 maestro.js:1420 info: Processing directory: /Users/testingbot/.maestro/tests/tb files: [ '2026-04-28_140633' ]
+14:07:18.70 maestro.js:1420 info: Processing directory: /Users/testingbot/.maestro/tests/tb/2026-04-28_140633 files: [ 'commands-(flow).json' ]
+14:07:18.70 maestro.js:1768 info: Copying xcuitest log from: /Users/testingbot/Library/Logs/maestro/xctest_runner_logs/xctest_runner_2026-04-28_140639.log
+14:07:18.70 maestro.js:1774 info: Copied xcuitest log to: /tmp/xcuitest.log
+14:07:18.70 maestro.js:1505 info: Collecting Maestro assets from workspaceDirectory /var/folders/w_/43x8282561z7fsnm6zzv9klw0000gn/T/maestro-aq1QCd
+14:07:18.70 webdriver.js:689 info: Stopping session
+14:07:18.70 forwarder.js:41 info: [DELETE] Forward to 127.0.0.1 : 5580 - /wd/hub/session/tb-890503414723229171
+14:07:18.70 seleniumserver.js:36 info: se server /wd/hub/session/tb-890503414723229171
+14:07:18.70 forwarder.js:67 info: 127.0.0.1:5580 responded (80) : {"state":null,"sessionId":"tb-890503414723229171","hCode":1398215661,"value":{}}
+14:07:18.72 maestro.js:494 info: Maestro report sent successfully {"success":true}
+14:07:20.70 central.js:215 info: Starting post process
+14:07:20.70 mac.js:602 info: mac Postprocess false
+14:07:20.70 assets.js:730 info: Stopping video
+14:07:20.94 assets.js:735 info: checking if video has fully stopped
+14:07:21.02 assets.js:810 info: asset files [ 'video.mp4' ]
+14:07:21.02 assets.js:461 info: Renaming files [ 'video.mp4' ]
+14:07:21.03 assets.js:523 info: Done converting videos null [ 'd11773d22754-46d59e998852-82a8eb00b9fd-177738519182-03174756.mp4' ]
+14:07:21.03 assets.js:181 info: Starting video upload
+14:07:21.03 assets.js:196 info: Uploading video d11773d22754-46d59e998852-82a8eb00b9fd-177738519182-03174756.mp4
+14:07:24.50 assets.js:207 warn: urllib3/connectionpool.py:1013: InsecureRequestWarning: Unverified HTTPS request is being made to host 'ab0ab8e541e0112ddf85b1cf04bec5fc.eu.r2.cloudflarestorage.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/1.26.x/advanced-usage.html#ssl-warnings
+
+14:07:24.55 assets.js:810 info: asset files []

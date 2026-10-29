@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Maestro Report · Run 37828</title>
+  <style>
+  :root {
+    --bg: #f6f8fa;
+    --card-bg: #ffffff;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #6e7781;
+    --pass: #1a7f37;
+    --pass-bg: #dafbe1;
+    --fail: #cf222e;
+    --fail-bg: #ffebe9;
+    --warn: #9a6700;
+    --warn-bg: #fff8c5;
+    --accent: #0969da;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0 0 4px 0; font-size: 24px; }
+  h2 { font-size: 18px; margin: 24px 0 12px 0; }
+  h3 { font-size: 15px; margin: 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .stat { background: var(--bg); padding: 10px 12px; border-radius: 6px; }
+  .stat .label { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+  .stat .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge-pass { background: var(--pass-bg); color: var(--pass); }
+  .badge-fail { background: var(--fail-bg); color: var(--fail); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+  .badge-muted { background: #eaeef2; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    vertical-align: top;
+  }
+  th { background: var(--bg); font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+  tr:last-child td { border-bottom: none; }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  .failure-msg { color: var(--fail); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  details { margin-top: 8px; }
+  details > summary { cursor: pointer; padding: 6px 0; font-weight: 500; }
+  .steps { list-style: none; padding-left: 0; margin: 8px 0 0 0; border-left: 2px solid var(--border); }
+  .steps li { padding: 6px 10px; border-bottom: 1px dashed var(--border); }
+  .steps li:last-child { border-bottom: none; }
+  .step-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .step-cmd { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: var(--accent); }
+  .step-meta { color: var(--muted); font-size: 11px; }
+  .step-details pre {
+    background: var(--bg);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    overflow-x: auto;
+    max-height: 240px;
+    margin: 4px 0 0 0;
+  }
+  .assets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .assets img { width: 120px; height: auto; border: 1px solid var(--border); border-radius: 4px; }
+  .log-links a { display: inline-block; margin: 2px 8px 2px 0; font-size: 12px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h1>Maestro Test Report</h1>
+      <div class="muted">
+        Project #33898
+         · org.reactjs.native.example.SampleApp
+         · v1.0
+      </div>
+        <div class="muted">Run: Maestro Project 33898 (#37828)</div>
+    </div>
+    <div>
+      <span class="badge badge-pass">Passed</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="stat">
+      <div class="label">Device</div>
+      <div class="value" style="font-size: 14px;">iOS / iPhone 15 / 18.0</div>
+    </div>
+    <div class="stat">
+      <div class="label">Flows</div>
+      <div class="value">1</div>
+    </div>
+    <div class="stat">
+      <div class="label">Passed</div>
+      <div class="value" style="color: var(--pass);">1</div>
+    </div>
+    <div class="stat">
+      <div class="label">Failed</div>
+      <div class="value" style="color: var(--fail);">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">Duration</div>
+      <div class="value" style="font-size: 16px;">145.0s</div>
+    </div>
+    <div class="stat">
+      <div class="label">Started</div>
+      <div class="value" style="font-size: 13px;">2026-04-22 07:59 UTC</div>
+    </div>
+  </div>
+</div>
+
+
+    <div class="card">
+      <h2>Flows</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Flow</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Failure</th>
+            </tr>
+          </thead>
+          <tbody>
+              <tr>
+                <td class="mono">1</td>
+                <td>Flow</td>
+                <td><span class="badge badge-pass">Passed</span></td>
+                <td class="mono">145.0s</td>
+                <td>
+                    <span class="muted">—</span>
+                </td>
+              </tr>
+          </tbody>
+        </table>
+    </div>
+
+    <footer>
+      Generated by TestingBot · 2026-04-22 08:01 UTC
+    </footer>
+  </div>
+</body>
+</html>

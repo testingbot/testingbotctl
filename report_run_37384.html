@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Maestro Detailed Report · Run 37384</title>
+  <style>
+  :root {
+    --bg: #f6f8fa;
+    --card-bg: #ffffff;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #6e7781;
+    --pass: #1a7f37;
+    --pass-bg: #dafbe1;
+    --fail: #cf222e;
+    --fail-bg: #ffebe9;
+    --warn: #9a6700;
+    --warn-bg: #fff8c5;
+    --accent: #0969da;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0 0 4px 0; font-size: 24px; }
+  h2 { font-size: 18px; margin: 24px 0 12px 0; }
+  h3 { font-size: 15px; margin: 0; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .stat { background: var(--bg); padding: 10px 12px; border-radius: 6px; }
+  .stat .label { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+  .stat .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge-pass { background: var(--pass-bg); color: var(--pass); }
+  .badge-fail { background: var(--fail-bg); color: var(--fail); }
+  .badge-warn { background: var(--warn-bg); color: var(--warn); }
+  .badge-muted { background: #eaeef2; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    vertical-align: top;
+  }
+  th { background: var(--bg); font-weight: 600; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+  tr:last-child td { border-bottom: none; }
+  .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; }
+  .failure-msg { color: var(--fail); font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  details { margin-top: 8px; }
+  details > summary { cursor: pointer; padding: 6px 0; font-weight: 500; }
+  .steps { list-style: none; padding-left: 0; margin: 8px 0 0 0; border-left: 2px solid var(--border); }
+  .steps li { padding: 6px 10px; border-bottom: 1px dashed var(--border); }
+  .steps li:last-child { border-bottom: none; }
+  .step-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .step-cmd { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px; color: var(--accent); }
+  .step-meta { color: var(--muted); font-size: 11px; }
+  .step-details pre {
+    background: var(--bg);
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    overflow-x: auto;
+    max-height: 240px;
+    margin: 4px 0 0 0;
+  }
+  .assets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .assets img { width: 120px; height: auto; border: 1px solid var(--border); border-radius: 4px; }
+  .log-links a { display: inline-block; margin: 2px 8px 2px 0; font-size: 12px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h1>Maestro Test Report</h1>
+      <div class="muted">
+        Project #33451
+         · org.reactjs.native.example.SampleApp
+         · v1.0
+      </div>
+        <div class="muted">Run: Maestro Project 33451 (#37384)</div>
+    </div>
+    <div>
+      <span class="badge badge-pass">Passed</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="stat">
+      <div class="label">Device</div>
+      <div class="value" style="font-size: 14px;">iOS / iPhone 15 / 18.0</div>
+    </div>
+    <div class="stat">
+      <div class="label">Flows</div>
+      <div class="value">1</div>
+    </div>
+    <div class="stat">
+      <div class="label">Passed</div>
+      <div class="value" style="color: var(--pass);">1</div>
+    </div>
+    <div class="stat">
+      <div class="label">Failed</div>
+      <div class="value" style="color: var(--fail);">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">Duration</div>
+      <div class="value" style="font-size: 16px;">84.0s</div>
+    </div>
+    <div class="stat">
+      <div class="label">Started</div>
+      <div class="value" style="font-size: 13px;">2026-04-21 09:22 UTC</div>
+    </div>
+  </div>
+</div>
+
+
+    <div class="card">
+      <h2>Flows</h2>
+
+        <details  style="border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px;">
+          <summary>
+            <span style="font-weight: 600;">1. Flow</span>
+            <span class="badge badge-pass" style="margin-left: 8px;">Passed</span>
+            <span class="muted" style="margin-left: 8px;">83.0s</span>
+              <span class="muted mono" style="margin-left: 8px;">session 4f3351b9b968-b448aa36483f-169c8d0fbaae-177676338021-34483682</span>
+          </summary>
+
+
+            <div style="margin-top: 12px;">
+              <h3>
+                flow
+                <span class="muted" style="font-weight: normal; font-size: 12px;">
+                  
+                  · 31.0s
+                </span>
+              </h3>
+                <ul class="steps">
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">defineVariablesCommand</span>
+        </div>
+        <div class="step-meta">
+          
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;env&quot;: {
+    &quot;APP_ID&quot;: &quot;org.reactjs.native.example.SampleApp&quot;,
+    &quot;APPID&quot;: &quot;org.reactjs.native.example.SampleApp&quot;,
+    &quot;appId&quot;: &quot;org.reactjs.native.example.SampleApp&quot;,
+    &quot;MAESTRO_CLI_NO_ANALYTICS&quot;: &quot;true&quot;,
+    &quot;MAESTRO_DISABLE_UPDATE_CHECK&quot;: &quot;true&quot;,
+    &quot;MAESTRO_DRIVER_STARTUP_TIMEOUT&quot;: &quot;240000&quot;,
+    &quot;MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED&quot;: &quot;true&quot;,
+    &quot;MAESTRO_FILENAME&quot;: &quot;flow&quot;,
+    &quot;MAESTRO_DEVICE_UDID&quot;: &quot;00008120-000202A12632201E&quot;,
+    &quot;MAESTRO_SHARD_ID&quot;: &quot;1&quot;,
+    &quot;MAESTRO_SHARD_INDEX&quot;: &quot;0&quot;
+  },
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">applyConfigurationCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>0.01s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;config&quot;: {
+    &quot;appId&quot;: &quot;org.reactjs.native.example.SampleApp&quot;
+  },
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">launchAppCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>0.0s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;appId&quot;: &quot;org.reactjs.native.example.SampleApp&quot;,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>1.31s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;idRegex&quot;: &quot;inputA&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: false,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>4.08s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;idRegex&quot;: &quot;inputA&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: true,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>4.71s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;textRegex&quot;: &quot;Select All&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: false,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">eraseTextCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>1.63s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">inputTextCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>3.33s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;text&quot;: &quot;10&quot;,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>1.73s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;idRegex&quot;: &quot;inputB&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: false,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>1.34s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;idRegex&quot;: &quot;inputB&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: true,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>4.55s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;textRegex&quot;: &quot;Select All&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: false,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">eraseTextCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>1.72s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">inputTextCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>3.25s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;text&quot;: &quot;5&quot;,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">tapOnElement</span>
+        </div>
+        <div class="step-meta">
+          <span>1.45s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;selector&quot;: {
+    &quot;idRegex&quot;: &quot;sum&quot;,
+    &quot;optional&quot;: false
+  },
+  &quot;retryIfNoChange&quot;: false,
+  &quot;waitUntilVisible&quot;: false,
+  &quot;longPress&quot;: false,
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+    <li>
+      <div class="step-head">
+        <div>
+          <span class="step-cmd">assertConditionCommand</span>
+        </div>
+        <div class="step-meta">
+          <span>1.08s</span> · 
+          <span class="badge badge-warn">COMPLETED</span>
+        </div>
+      </div>
+        <details class="step-details">
+          <summary class="muted" style="font-size: 12px;">Details</summary>
+          <pre>{
+  &quot;condition&quot;: {
+    &quot;visible&quot;: {
+      &quot;textRegex&quot;: &quot;15&quot;,
+      &quot;optional&quot;: false
+    }
+  },
+  &quot;optional&quot;: false
+}</pre>
+        </details>
+    </li>
+</ul>
+
+            </div>
+
+        </details>
+    </div>
+
+    <footer>
+      Generated by TestingBot · 2026-04-21 09:24 UTC
+    </footer>
+  </div>
+</body>
+</html>

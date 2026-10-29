@@ -1,0 +1,22 @@
+appId: com.example.myapp
+tags:
+  - admin
+---
+- runFlow: ../../screens/reset-app.yaml
+- runFlow: ../../screens/sign-up-or-reauth.yaml
+
+- tapOn: "Admin Panel"
+- assertVisible: "User Management"
+
+- tapOn: "Search Users"
+- inputText: "testuser"
+- assertVisible: "testuser@example.com"
+
+- tapOn: "testuser@example.com"
+- assertVisible: "User Details"
+- assertVisible: "Role: Member"
+
+- tapOn: "Edit Role"
+- tapOn: "Admin"
+- tapOn: "Save"
+- assertVisible: "Role updated"

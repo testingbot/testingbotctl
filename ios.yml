@@ -1,0 +1,36 @@
+appId: org.reactjs.native.example.SampleApp
+---
+
+- launchApp
+
+- tapOn:
+    id: inputA
+
+- longPressOn:
+    id: inputA
+
+- tapOn:
+    text: "Select All"
+
+- eraseText
+
+- inputText: "10"
+
+- tapOn:
+    id: inputB
+
+- longPressOn:
+    id: inputB
+
+- tapOn:
+    text: "Select All"
+
+- eraseText
+
+- inputText: "5"
+
+- tapOn:
+    id: sum
+
+- assertVisible:
+    text: "15"

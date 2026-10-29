@@ -1,0 +1,16 @@
+appId: com.example.myapp
+---
+- assertVisible: "Sign in with Browser"
+- tapOn: "Sign in with Browser"
+- waitForAnimationToEnd
+
+# iOS webview handling via Safari
+- tapOn:
+    point: "50%,40%"
+- inputText: ${TEST_USER}
+- tapOn:
+    point: "50%,50%"
+- inputText: ${TEST_PASSWORD}
+- tapOn: "Sign In"
+- waitForAnimationToEnd
+- assertVisible: "Home"

@@ -580,6 +580,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         );
       }
 
+      if (this.options.failFast && this.options.async) {
+        throw new TestingBotError(
+          'Cannot use --fail-fast with --async mode. Stopping on a failure requires waiting for results.',
+        );
+      }
+
       if (this.options.timeout && this.options.async) {
         throw new TestingBotError(
           'Cannot use --timeout with --async mode. The CLI does not wait for results in async mode.',
@@ -2652,7 +2658,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     retriedFrom: Set<number>,
     abandoned: Set<number>,
   ): Promise<void> {
-    if (this.isShuttingDown) return;
+    if (this.isShuttingDown || this.failFastStopped) return;
 
     for (const run of status.runs) {
       const flows = run.flows ?? [];
@@ -2835,6 +2841,31 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       flow.status === 'FAILED' ||
       flow.status === 'CANCELLED'
     );
+  }
+
+  /**
+   * --fail-fast: the first failure that will not be retried — a flow whose
+   * latest attempt failed with the --retry budget used up, or a run that
+   * ended without passing and without flows. Undefined while there is none.
+   */
+  private firstFinalFailure(status: MaestroStatusResponse): string | undefined {
+    for (const run of status.runs) {
+      const flows = run.flows ?? [];
+      if (flows.length === 0) {
+        if (TERMINAL_RUN_STATUSES.has(run.status) && !this.runPassed(run)) {
+          return `Run ${run.id} (${this.getRunDisplayName(run)})`;
+        }
+        continue;
+      }
+      const attempts = this.computeFlowAttempts(flows);
+      for (const latest of this.groupLatest(flows)) {
+        if (!this.isFlowFailed(latest)) continue;
+        if ((attempts.get(latest.id) ?? 1) > this.options.retry) {
+          return `Flow "${latest.name}" on ${this.getRunDisplayName(run)}`;
+        }
+      }
+    }
+    return undefined;
   }
 
   /** Failed flows/shards, considering only the latest attempt per group. */
@@ -3038,7 +3069,20 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         await onPoll(status);
       }
 
-      if (isComplete(status)) {
+      if (this.options.failFast && !this.failFastStopped) {
+        const failure = this.firstFinalFailure(status);
+        if (failure) {
+          this.stopFlowAnimation();
+          await this.stopAfterFailure(failure);
+        }
+      }
+
+      // After --fail-fast the cancelled flows look failed but are never
+      // retried, so the run states alone decide when we are done.
+      const done = this.failFastStopped
+        ? status.runs.every((run) => TERMINAL_RUN_STATUSES.has(run.status))
+        : isComplete(status);
+      if (done) {
         this.stopFlowAnimation();
         this.flowsTableDisplayed = flowsTableDisplayed;
         this.latestDisplayedLineCount = displayedLineCount;
@@ -3180,6 +3224,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return {
       success: allSucceeded,
       outcome: allSucceeded ? 'passed' : 'failed',
+      ...(this.failFastStopped && { error: this.failFastError }),
       runs: status.runs,
     };
   }

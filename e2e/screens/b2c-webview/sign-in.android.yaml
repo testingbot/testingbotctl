@@ -1,0 +1,18 @@
+appId: com.example.myapp
+---
+- assertVisible: "Sign in with Browser"
+- tapOn: "Sign in with Browser"
+- waitForAnimationToEnd
+
+# Android webview handling
+- evalScript: ${output} = document.querySelector('#email').value
+- tapOn:
+    id: "email"
+- inputText: ${TEST_USER}
+- tapOn:
+    id: "password"
+- inputText: ${TEST_PASSWORD}
+- tapOn:
+    id: "submit-btn"
+- waitForAnimationToEnd
+- assertVisible: "Home"

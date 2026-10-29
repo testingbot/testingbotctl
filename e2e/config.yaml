@@ -1,0 +1,21 @@
+appId: com.example.myapp
+name: MyApp E2E Tests
+tags:
+  - regression
+  - smoke
+
+onFlowStart:
+  - runFlow: screens/reset-app.yaml
+
+env:
+  BASE_URL: https://staging.example.com
+  TEST_USER: testuser@example.com
+  TEST_PASSWORD: ${TEST_PASSWORD}
+
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - flows/auth/ch-sign-up.yaml
+    - flows/auth/ch-sign-in-out.yaml
+    - flows/async/ch-push-notifications.yaml
+    - flows/admin/ch-user-management.yaml

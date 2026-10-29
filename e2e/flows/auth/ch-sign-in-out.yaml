@@ -1,0 +1,25 @@
+appId: com.example.myapp
+tags:
+  - auth
+  - smoke
+---
+- runFlow: ../../screens/reset-app.yaml
+- runFlow: ../../screens/country-language-screen.yaml
+
+# Sign in
+- assertVisible: "Welcome back"
+- tapOn: "Email"
+- inputText: ${TEST_USER}
+- tapOn: "Password"
+- inputText: ${TEST_PASSWORD}
+- tapOn: "Sign In"
+- assertVisible: "Home"
+
+# Sign out
+- tapOn: "Profile"
+- scrollUntilVisible:
+    element: "Sign Out"
+    direction: DOWN
+- tapOn: "Sign Out"
+- tapOn: "Confirm"
+- assertVisible: "Welcome back"

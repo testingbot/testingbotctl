@@ -1,0 +1,29 @@
+appId: com.example.myapp
+tags:
+  - auth
+  - smoke
+---
+- runFlow:
+    file: ../../screens/reset-app.yaml
+- runFlow:
+    file: ../../screens/country-language-screen.yaml
+- runFlow:
+    file: ../../screens/sign-up-or-reauth.yaml
+
+- assertVisible: "Welcome"
+- tapOn: "Create Account"
+
+- tapOn: "First Name"
+- inputText: "Test"
+
+- tapOn: "Last Name"
+- inputText: "User"
+
+- tapOn: "Email"
+- inputText: ${TEST_USER}
+
+- tapOn: "Password"
+- inputText: ${TEST_PASSWORD}
+
+- tapOn: "Sign Up"
+- assertVisible: "Account created successfully"

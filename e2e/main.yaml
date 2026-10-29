@@ -1,0 +1,9 @@
+appId: com.example.myapp
+name: Main Test Suite
+tags:
+  - full-suite
+
+flows:
+  - flows/auth/*
+  - flows/async/*
+  - flows/admin/*

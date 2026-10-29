@@ -150,6 +150,7 @@ export default class MaestroOptions {
   private _shardSplit?: number;
   private _retry: number;
   private _timeout: number | undefined;
+  private _failFast: boolean;
   private _cancelPrevious: boolean;
   private _debug: boolean;
   private _configFile?: string;
@@ -193,6 +194,7 @@ export default class MaestroOptions {
       shardSplit?: number;
       retry?: number;
       timeout?: number;
+      failFast?: boolean;
       cancelPrevious?: boolean;
       debug?: boolean;
       configFile?: string;
@@ -274,6 +276,7 @@ export default class MaestroOptions {
     }
     this._timeout = options?.timeout;
     validateTimeout(this._timeout);
+    this._failFast = options?.failFast ?? false;
     this._debug = options?.debug ?? false;
     this._configFile = options?.configFile;
     this._groups = options?.groups;
@@ -432,6 +435,10 @@ export default class MaestroOptions {
 
   public get timeout(): number | undefined {
     return this._timeout;
+  }
+
+  public get failFast(): boolean {
+    return this._failFast;
   }
 
   public get cancelPrevious(): boolean {
