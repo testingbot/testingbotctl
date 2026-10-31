@@ -6,6 +6,7 @@ import path from 'node:path';
 import axios from 'axios';
 import { Readable } from 'node:stream';
 import Credentials from '../../src/models/credentials';
+import * as proxyModule from '../../src/utils/proxy';
 
 jest.mock('axios');
 jest.mock('testingbot-tunnel-launcher', () => ({
@@ -1271,6 +1272,30 @@ describe('XCUITest', () => {
         apiSecret: 'testKey',
         tunnelIdentifier: 'my-tunnel',
       });
+    });
+
+    it('hands the proxy and its credentials to the tunnel', async () => {
+      const spy = jest
+        .spyOn(proxyModule, 'activeProxyFor')
+        .mockReturnValue('http://me:p%40ss@corp:3128');
+      const tunnelled = new XCUITest(
+        mockCredentials,
+        new XCUITestOptions('a.ipa', 'b.zip', 'iPhone 15', {
+          tunnel: true,
+          tunnelIdentifier: 'my-tunnel',
+        }),
+      );
+
+      await tunnelled['startTunnel']();
+
+      expect(tunnelLauncher.downloadAndRunAsync).toHaveBeenCalledWith({
+        apiKey: 'testUser',
+        apiSecret: 'testKey',
+        tunnelIdentifier: 'my-tunnel',
+        proxy: 'corp:3128',
+        'proxy-userpwd': 'me:p@ss',
+      });
+      spy.mockRestore();
     });
 
     it('should not start tunnel when --tunnel flag is absent', async () => {

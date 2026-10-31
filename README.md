@@ -708,6 +708,16 @@ testingbot xcuitest app.ipa app-test.zip \
 
 In GitHub Actions the results are added to the job summary (`$GITHUB_STEP_SUMMARY`) as a table per device with links to TestingBot, and each failed flow or run gets an `::error` annotation, shown on the workflow run and the pull request. In Azure Pipelines the same table is attached to the build (Extensions tab) and failures are logged as errors. Annotations are left out with `--json`, since stdout then holds the JSON document. Set `TESTINGBOT_CI_SUMMARY=0` to turn this off.
 
+### Proxy
+
+Behind a corporate proxy, the CLI follows the standard environment variables: `HTTPS_PROXY` (and `HTTP_PROXY` for http URLs, or `ALL_PROXY`), with `NO_PROXY` for hosts to reach directly. Or pass `--proxy` to any command:
+
+```sh
+testingbot maestro app.apk ./flows --device "Pixel 8" --proxy http://user:password@proxy.example.com:3128
+```
+
+API calls, uploads, live updates and the tunnel download all go through the proxy, and `--tunnel` hands it to the tunnel (`--proxy` / `--proxy-userpwd`). HTTP and HTTPS proxies are supported; HTTPS traffic is tunnelled with CONNECT. URL-encode special characters in the password (`@` as `%40`).
+
 ### Real-time Progress
 
 By default, the CLI shows real-time progress updates including:

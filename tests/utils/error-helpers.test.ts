@@ -63,6 +63,7 @@ describe('getStatusCodeMessage', () => {
     [401, 'Invalid TestingBot credentials'],
     [403, 'Access denied'],
     [404, 'Resource not found'],
+    [407, 'Proxy authentication required'],
     [429, 'credits are depleted'],
     [500, 'Server error occurred'],
     [502, 'Bad gateway'],

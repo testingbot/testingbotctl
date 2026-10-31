@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import pc from 'picocolors';
 import { io, Socket } from 'socket.io-client';
+import { proxyAgent } from '../utils/proxy';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import BaseProvider, { ProviderResult } from './base_provider';
@@ -687,6 +688,8 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         reconnectionAttempts: SOCKET.RECONNECTION_ATTEMPTS,
         reconnectionDelay: SOCKET.RECONNECTION_DELAY_MS,
         timeout: SOCKET.TIMEOUT_MS,
+        // The WebSocket bypasses the global agent that --proxy installs.
+        ...(proxyAgent() && { agent: proxyAgent() as unknown as string }),
       });
 
       this.socket.on('connect', () => {

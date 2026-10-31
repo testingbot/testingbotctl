@@ -22,6 +22,7 @@ import MaestroOptions, {
 } from './models/maestro_options';
 import Maestro from './providers/maestro';
 import { ciRepoMetadata } from './utils/ci_env';
+import { installProxy } from './utils/proxy';
 import { publishCiSummary } from './utils/ci_summary';
 import Login from './providers/login';
 import {
@@ -403,7 +404,23 @@ program
   .version(packageJson.version, '-v, --version', 'Show version number')
   .description(
     'CLI tool to run Espresso, XCUITest and Maestro tests on TestingBot cloud',
-  );
+  )
+  .option(
+    '--proxy <url>',
+    'Send all traffic through this HTTP(S) proxy (default: HTTPS_PROXY / HTTP_PROXY; NO_PROXY is honoured).',
+  )
+  .hook('preAction', (_program, action) => {
+    const opts = action.opts();
+    try {
+      const proxy = installProxy({ proxy: program.opts().proxy });
+      if (proxy && !opts.quiet && !opts.json) {
+        logger.info(`Using proxy ${proxy}`);
+      }
+    } catch (error) {
+      logger.error(error instanceof Error ? error.message : String(error));
+      process.exit(EXIT_ERROR);
+    }
+  });
 
 program
   .command('espresso')
