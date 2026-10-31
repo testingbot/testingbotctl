@@ -496,6 +496,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             shardSplit: this.options.shardSplit,
           }),
           ...(metadata && { metadata }),
+          ...(this.options.priority && { priority: this.options.priority }),
           ...(this.options.cancelPrevious && { cancelPrevious: true }),
           ...(otherApps.length > 0 && {
             otherApps: previewOtherAppUrls,
@@ -2486,6 +2487,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             shardSplit: this.options.shardSplit,
           }),
           ...(metadata && { metadata }),
+          ...(this.options.priority && { priority: this.options.priority }),
           ...(this.options.cancelPrevious && { cancelPrevious: true }),
           ...(this.otherAppUrls.length > 0 && {
             otherApps: this.otherAppUrls,

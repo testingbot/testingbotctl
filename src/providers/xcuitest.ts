@@ -165,6 +165,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           capabilities: [capabilities],
           ...(xcuitestOptions && { options: xcuitestOptions }),
           ...(metadata && { metadata }),
+          ...(this.options.priority && { priority: this.options.priority }),
         },
       });
 
@@ -310,6 +311,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
           capabilities: [capabilities],
           ...(xcuitestOptions && { options: xcuitestOptions }),
           ...(metadata && { metadata }),
+          ...(this.options.priority && { priority: this.options.priority }),
         },
         {
           headers: {

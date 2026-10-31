@@ -93,6 +93,27 @@ export function validateTimeout(timeout: number | undefined): void {
   }
 }
 
+/**
+ * --priority: where these runs go in your own queue while they wait for a free
+ * parallel slot. high starts before normal, normal before low, then oldest
+ * first. It does not take slots from other accounts or raise your limits.
+ */
+export const PRIORITIES = ['high', 'normal', 'low'] as const;
+export type Priority = (typeof PRIORITIES)[number];
+
+export function parsePriority(
+  priority: string | undefined,
+): Priority | undefined {
+  if (priority === undefined) return undefined;
+  const level = priority.trim().toLowerCase();
+  if (!(PRIORITIES as readonly string[]).includes(level)) {
+    throw new Error(
+      `Invalid --priority value (${priority}). Use one of: ${PRIORITIES.join(', ')}.`,
+    );
+  }
+  return level as Priority;
+}
+
 export default class MaestroOptions {
   private static isIpaFile(app?: string): boolean {
     return app?.toLowerCase().endsWith('.ipa') ?? false;
@@ -151,6 +172,7 @@ export default class MaestroOptions {
   private _retry: number;
   private _timeout: number | undefined;
   private _failFast: boolean;
+  private _priority?: Priority;
   private _cancelPrevious: boolean;
   private _debug: boolean;
   private _configFile?: string;
@@ -195,6 +217,7 @@ export default class MaestroOptions {
       retry?: number;
       timeout?: number;
       failFast?: boolean;
+      priority?: string;
       cancelPrevious?: boolean;
       debug?: boolean;
       configFile?: string;
@@ -277,6 +300,7 @@ export default class MaestroOptions {
     this._timeout = options?.timeout;
     validateTimeout(this._timeout);
     this._failFast = options?.failFast ?? false;
+    this._priority = parsePriority(options?.priority);
     this._debug = options?.debug ?? false;
     this._configFile = options?.configFile;
     this._groups = options?.groups;
@@ -439,6 +463,10 @@ export default class MaestroOptions {
 
   public get failFast(): boolean {
     return this._failFast;
+  }
+
+  public get priority(): Priority | undefined {
+    return this._priority;
   }
 
   public get cancelPrevious(): boolean {
