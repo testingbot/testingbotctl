@@ -551,6 +551,10 @@ program
     'Stop at the first failure that will not be retried: cancel the runs still queued or running.',
   )
   .option(
+    '--priority <level>',
+    'Queue priority among your own runs waiting for a free parallel slot: high, normal (default) or low.',
+  )
+  .option(
     '--download-artifacts [mode]',
     'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
     (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
@@ -660,6 +664,7 @@ program
         retry: args.retry,
         timeout: args.timeout,
         failFast: args.failFast,
+        priority: args.priority,
         downloadArtifacts:
           args.downloadArtifacts === true
             ? 'all'
@@ -837,6 +842,10 @@ program
   .option(
     '--fail-fast',
     'Stop at the first failure that will not be retried: cancel the runs still queued or running.',
+  )
+  .option(
+    '--priority <level>',
+    'Queue priority among your own runs waiting for a free parallel slot: high, normal (default) or low.',
   )
   .option(
     '--async',
@@ -1079,6 +1088,7 @@ program
         retry: args.retry,
         timeout: args.timeout,
         failFast: args.failFast,
+        priority: args.priority,
         cancelPrevious: args.cancelPrevious,
         debug: args.debug,
         googlePlayStore: args.googlePlay,
@@ -1190,6 +1200,10 @@ program
     'Stop at the first failure that will not be retried: cancel the runs still queued or running.',
   )
   .option(
+    '--priority <level>',
+    'Queue priority among your own runs waiting for a free parallel slot: high, normal (default) or low.',
+  )
+  .option(
     '--download-artifacts [mode]',
     'Download the video, logs and screenshots after completion. Mode: all (default) or failed.',
     (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
@@ -1292,6 +1306,7 @@ program
         retry: args.retry,
         timeout: args.timeout,
         failFast: args.failFast,
+        priority: args.priority,
         downloadArtifacts:
           args.downloadArtifacts === true
             ? 'all'

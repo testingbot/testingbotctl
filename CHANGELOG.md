@@ -15,6 +15,8 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - `--timeout <minutes>` for `testingbot maestro`, `espresso` and `xcuitest`: how long to wait for results, counted from when the tests start and shared by every `--retry` attempt. Default 60.
 - `--fail-fast` for `testingbot maestro`, `espresso` and `xcuitest`: at the first failure that will not be retried, the runs still queued or running are cancelled. The command waits for them to stop, then reports as usual and fails with exit code 2.
 
+- `--priority high|normal|low` for `testingbot maestro`, `espresso` and `xcuitest`: where the runs go in your own queue while they wait for a free parallel slot. High starts before normal, normal before low, then oldest first. It does not take slots from other accounts or raise your parallel limit. Needs the matching API change; older API versions ignore it.
+
 ### Changed
 
 - When the wait for results times out (after `--timeout`, or the default 60 minutes), the CLI now cancels the runs that are still queued or running, prints the results so far and exits with code 2 (`outcome: failed` with an `error` in `--json`). Before, it exited with code 1 and left the runs going. `testingbot status --wait` still only stops watching and leaves the runs alone.

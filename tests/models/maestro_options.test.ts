@@ -843,4 +843,27 @@ describe('MaestroOptions', () => {
       expect(caps).not.toHaveProperty('metadata');
     });
   });
+
+  describe('priority', () => {
+    it('accepts high, normal and low in any case', () => {
+      expect(
+        new MaestroOptions('app.apk', 'flows', 'Pixel 6', { priority: ' LOW ' })
+          .priority,
+      ).toBe('low');
+      expect(new MaestroOptions('app.apk', 'flows', 'Pixel 6').priority).toBe(
+        undefined,
+      );
+    });
+
+    it('rejects anything else', () => {
+      expect(
+        () =>
+          new MaestroOptions('app.apk', 'flows', 'Pixel 6', {
+            priority: 'urgent',
+          }),
+      ).toThrow(
+        'Invalid --priority value (urgent). Use one of: high, normal, low.',
+      );
+    });
+  });
 });
