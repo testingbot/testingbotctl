@@ -422,6 +422,10 @@ testingbot maestro app.apk ./flows --async --json | jq -r .appId
 testingbot status --id 1234
 testingbot status --id 1234 --wait
 
+# Re-run only what failed, on the same devices, without uploading again
+testingbot rerun --id 1234
+testingbot rerun --id 1234 --run 5678 --flow login.yaml
+
 # Fetch reports and artifacts once it finished
 testingbot artifacts --id 1234 --report junit --report-output-dir ./reports
 testingbot artifacts --id 1234 --download-artifacts failed --artifacts-output-dir ./artifacts
@@ -439,6 +443,23 @@ testingbot list --count 25 --offset 25 --json
 | `-q, --quiet` | Suppress progress output                                                                                                              |
 
 Exit code is `0` while the project is still running (JSON `outcome: "running"`), `0`/`2` once it completed, `1` on errors.
+
+**`rerun --id <projectId>`**
+
+Re-runs flows of an earlier project on the same devices, with the same options. Nothing is uploaded again, and flows that passed are not re-run. Each flow runs again as a new attempt inside its original run (shown with `↻` in the flow table), so the dashboard and reports show the latest result.
+
+| Option                          | Description                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `--run <runIds>`                | Only re-run flows of these runs (devices), comma-separated or repeatable. See `status` for run IDs |
+| `--flow <names>`                | Re-run these flows by name (`login` or `login.yaml`) or flow ID, even if they passed               |
+| `--async`                       | Queue the re-run and exit without waiting                                                          |
+| `--report <format>`             | Download report for the re-run runs: `html`, `html-detailed`, `junit` or `allure`                  |
+| `--report-output-dir <path>`    | Directory to save reports (required with `--report`)                                               |
+| `--download-artifacts [mode]`   | Download logs, screenshots and video. Mode: `all` (default) or `failed`                            |
+| `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory)                                |
+| `-q, --quiet`                   | Suppress progress output                                                                           |
+
+Without `--flow`, every failed flow is re-run. The live table, exit code (`0` passed, `2` failed, `1` error) and downloads cover only the runs that were re-run. Ctrl-C detaches without cancelling. Flows of a cancelled run cannot be re-run one by one; retry the whole run from the dashboard instead.
 
 **`artifacts --id <projectId>`**
 
