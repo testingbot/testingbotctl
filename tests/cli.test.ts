@@ -1268,6 +1268,75 @@ describe('TestingBotCTL CLI', () => {
       expect(process.exitCode).toBe(1);
     });
 
+    test('rerun forwards run and flow selection and exits 2 on failure', async () => {
+      const mockRerun = jest
+        .fn()
+        .mockResolvedValue({ success: false, outcome: 'failed', runs: [] });
+      Maestro.prototype.rerun = mockRerun;
+      await program.parseAsync([
+        'node',
+        'cli',
+        'rerun',
+        '--id',
+        '1234',
+        '--run',
+        '10,20',
+        '--flow',
+        'login.yaml',
+        '--flow',
+        'checkout',
+        '--async',
+      ]);
+      expect(mockRerun).toHaveBeenCalledWith(1234, {
+        runIds: [10, 20],
+        flows: ['login.yaml', 'checkout'],
+      });
+      expect(lastConstructorOptions<{ async: boolean }>(Maestro).async).toBe(
+        true,
+      );
+      expect(process.exitCode).toBe(2);
+    });
+
+    test('rerun without selection re-runs failed flows and exits 0 on pass', async () => {
+      const mockRerun = jest
+        .fn()
+        .mockResolvedValue({ success: true, outcome: 'passed', runs: [] });
+      Maestro.prototype.rerun = mockRerun;
+      await program.parseAsync(['node', 'cli', 'rerun', '--id', '1234']);
+      expect(mockRerun).toHaveBeenCalledWith(1234, {
+        runIds: [],
+        flows: undefined,
+      });
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('rerun rejects a non-numeric run id and --report without a dir', async () => {
+      const mockRerun = jest.fn();
+      Maestro.prototype.rerun = mockRerun;
+      await program.parseAsync([
+        'node',
+        'cli',
+        'rerun',
+        '--id',
+        '1234',
+        '--run',
+        'abc',
+      ]);
+      expect(process.exitCode).toBe(1);
+      process.exitCode = 0;
+      await program.parseAsync([
+        'node',
+        'cli',
+        'rerun',
+        '--id',
+        '1234',
+        '--report',
+        'junit',
+      ]);
+      expect(process.exitCode).toBe(1);
+      expect(mockRerun).not.toHaveBeenCalled();
+    });
+
     test('artifacts forwards report and artifact options', async () => {
       mockArtifacts.mockResolvedValue({
         success: true,

@@ -1461,6 +1461,104 @@ withFlags(
 withFlags(
   withFlags(
     program
+      .command('rerun')
+      .description(
+        'Re-run flows of an earlier Maestro project on the same devices: every failed flow by default, or the runs/flows you pick. Nothing is uploaded again.',
+      )
+      .requiredOption(
+        '--id <projectId>',
+        'Project ID printed when the run started.',
+        parseProjectId,
+      )
+      .option(
+        '--run <runIds>',
+        'Only re-run flows of these runs (devices), comma-separated or repeatable. Run IDs are shown by "testingbot status".',
+        collectCommaSeparated,
+      )
+      .option(
+        '--flow <names>',
+        'Re-run these flows by name or flow ID, even if they passed (comma-separated or repeatable). Without it, every failed flow is re-run.',
+        collectCommaSeparated,
+      )
+      .option(
+        '--async',
+        'Queue the re-run and exit without waiting for results.',
+      )
+      .option(
+        '--report <format>',
+        'Download test report: html, html-detailed, junit, or allure.',
+        (val) => val.toLowerCase() as ReportFormat,
+      )
+      .option(
+        '--report-output-dir <path>',
+        'Directory to save test reports (required when --report is used).',
+      )
+      .option(
+        '--download-artifacts [mode]',
+        'Download test artifacts. Mode: all (default) or failed.',
+        (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
+      )
+      .option(
+        '--artifacts-output-dir <path>',
+        'Directory to save artifacts zip (defaults to current directory).',
+      )
+      .option(
+        '-q, --quiet',
+        'Quieter console output without progress updates.',
+      ),
+    JSON_FLAGS,
+  ),
+  AUTH_FLAGS,
+)
+  .action(async (args) => {
+    let jsonOptions: JsonOutputOptions | undefined;
+    try {
+      jsonOptions = jsonOptionsFrom(args);
+      if (args.report && !args.reportOutputDir) {
+        throw new InvalidArgumentError(
+          '--report-output-dir is required when --report is specified',
+        );
+      }
+      const runIds = ((args.run as string[] | undefined) ?? []).map((v) => {
+        const id = Number(v);
+        if (!Number.isInteger(id) || id <= 0) {
+          throw new InvalidArgumentError(
+            `--run expects run IDs (positive integers), got "${v}".`,
+          );
+        }
+        return id;
+      });
+      const credentials = await requireCredentials(args);
+      if (args.debug) enableDebugLogging();
+      const maestro = new Maestro(
+        credentials,
+        MaestroOptions.forExistingProject({
+          quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,
+          async: args.async,
+          report: args.report,
+          reportOutputDir: args.reportOutputDir,
+          downloadArtifacts:
+            args.downloadArtifacts === true
+              ? 'all'
+              : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
+          artifactsOutputDir: args.artifactsOutputDir,
+          debug: args.debug,
+        }),
+      );
+      const result = await maestro.rerun(args.id, {
+        runIds,
+        flows: args.flow,
+      });
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+    } catch (err) {
+      await failCommand('maestro', 'Rerun', err, jsonOptions);
+    }
+  })
+  .showHelpAfterError(true);
+
+withFlags(
+  withFlags(
+    program
       .command('artifacts')
       .description(
         'Download reports and/or artifacts (logs, screenshots, video) for a finished Maestro project.',

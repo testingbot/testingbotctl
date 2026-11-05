@@ -110,6 +110,7 @@ export default class MaestroOptions {
     downloadArtifacts?: ArtifactDownloadMode;
     artifactsOutputDir?: string;
     debug?: boolean;
+    async?: boolean;
   }): MaestroOptions {
     return new MaestroOptions('', [], undefined, options);
   }

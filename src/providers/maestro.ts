@@ -170,6 +170,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private timeoutError: string | undefined;
   /** `status --wait`: watching a project this command did not start. */
   private watchOnly = false;
+  /** `rerun`: the runs being re-run; status polls are narrowed to these. */
+  private runScope: Set<number> | undefined;
   private latestFlows: MaestroFlowInfo[] = [];
   private latestDisplayedLineCount = 0;
   private flowsTableDisplayed = false;
@@ -2579,7 +2581,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           );
         }
 
-        return response.data;
+        return this.scopeRuns(response.data, this.runScope);
       });
     } catch (error) {
       throw await this.handleErrorWithDiagnostics(
@@ -3270,6 +3272,231 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       this.stopFlowAnimation();
       return this.errorResult(error);
     }
+  }
+
+  /**
+   * `testingbot rerun`: re-runs individual flows of an existing project —
+   * by default every failed flow, optionally narrowed to some runs (devices)
+   * and/or named flows — without re-uploading anything or re-running the
+   * flows that passed. Each flow is retried through the per-flow retry
+   * endpoint, which reproduces the original attempt (same device, options and
+   * shard) as a new attempt inside the same run.
+   *
+   * Unless `async`, it then waits with the live table. The table, summary,
+   * exit code, reports and artifacts cover only the runs that were re-run.
+   */
+  public async rerun(
+    appId: number,
+    selection: { runIds?: number[]; flows?: string[] } = {},
+  ): Promise<MaestroResult> {
+    this.appId = appId;
+    try {
+      if (this.options.reportOutputDir) {
+        await this.ensureOutputDirectory(this.options.reportOutputDir);
+      }
+      if (this.options.downloadArtifacts && this.options.artifactsOutputDir) {
+        await this.ensureOutputDirectory(this.options.artifactsOutputDir);
+      }
+      const status = await this.getStatus();
+      const targets = this.selectRerunTargets(status, selection);
+
+      if (targets.length === 0) {
+        if (!this.options.quiet) {
+          logger.info(`No failed flows to re-run in project ${appId}.`);
+        }
+        const runs = this.scopeRuns(status, selection.runIds).runs;
+        const passed = this.computeOverallSuccess(runs);
+        return { success: passed, outcome: passed ? 'passed' : 'failed', runs };
+      }
+
+      const rerunRunIds = new Set<number>();
+      const newAttemptIds = new Set<number>();
+      const failures: string[] = [];
+      for (const { run, flow } of targets) {
+        const where = `"${flow.name}" on ${this.getRunDisplayName(run)} (run ${run.id})`;
+        try {
+          const newId = await this.retryFlow(run.id, flow.id);
+          rerunRunIds.add(run.id);
+          if (newId != null) newAttemptIds.add(newId);
+          if (!this.options.quiet) logger.info(`Re-running ${where}`);
+        } catch (err) {
+          failures.push(`${where}: ${this.rerunErrorMessage(err)}`);
+        }
+      }
+      for (const failure of failures) {
+        logger.warn(`Could not re-run ${failure}`);
+      }
+      if (rerunRunIds.size === 0) {
+        throw new TestingBotError('None of the selected flows could be re-run');
+      }
+
+      this.runScope = rerunRunIds;
+      if (this.options.async) {
+        if (!this.options.quiet) {
+          logger.info(
+            `Check on it with: testingbot status --id ${appId} --wait`,
+          );
+        }
+        return {
+          success: true,
+          outcome: 'running',
+          runs: (await this.getStatus()).runs,
+        };
+      }
+
+      // Deliberately no signal handlers, as with `status --wait`: Ctrl-C
+      // detaches and leaves the re-run flows running.
+      if (!this.options.quiet) {
+        logger.info(
+          `Waiting for the re-run to complete (Ctrl-C detaches; the flows keep going)...`,
+        );
+      }
+      this.watchOnly = true;
+      const finalStatus = await this.pollOnce((s) =>
+        this.rerunComplete(s, newAttemptIds),
+      );
+      return await this.finalize(finalStatus);
+    } catch (error) {
+      this.spinner.stop();
+      this.stopFlowAnimation();
+      return this.errorResult(error);
+    }
+  }
+
+  /**
+   * The latest attempt of each flow/shard to re-run. Without `flows`, every
+   * failed one; with `flows`, those matching by name (with or without the
+   * .yaml/.yml extension) or by attempt id, whatever their outcome. A
+   * selection that names something unknown, or a flow that is still running,
+   * is an error rather than silently skipped.
+   */
+  private selectRerunTargets(
+    status: MaestroStatusResponse,
+    selection: { runIds?: number[]; flows?: string[] },
+  ): Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> {
+    const runs = this.scopeRuns(status, selection.runIds).runs;
+    if (selection.runIds?.length) {
+      const known = new Set(runs.map((r) => r.id));
+      const missing = selection.runIds.filter((id) => !known.has(id));
+      if (missing.length > 0) {
+        throw new TestingBotError(
+          `Run ${missing.join(', ')} is not part of project ${this.appId}. Its runs are: ${
+            status.runs.map((r) => r.id).join(', ') || 'none'
+          }`,
+        );
+      }
+    }
+
+    const stripExt = (name: string) => name.replace(/\.ya?ml$/i, '');
+    const wanted = selection.flows ?? [];
+    const matched = new Set<string>();
+    const targets: Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> = [];
+
+    for (const run of runs) {
+      const flows = run.flows ?? [];
+      const latest = this.groupLatest(flows);
+      for (const flow of latest) {
+        if (wanted.length === 0) {
+          if (this.isFlowFailed(flow)) targets.push({ run, flow });
+          continue;
+        }
+        const groupIds = new Set(
+          flows
+            .filter((f) => this.flowGroupKey(f) === this.flowGroupKey(flow))
+            .map((f) => String(f.id)),
+        );
+        const hits = wanted.filter(
+          (w) =>
+            w === flow.name ||
+            stripExt(w) === stripExt(flow.name) ||
+            groupIds.has(w),
+        );
+        if (hits.length === 0) continue;
+        hits.forEach((h) => matched.add(h));
+        if (flow.status === 'WAITING' || flow.status === 'READY') {
+          throw new TestingBotError(
+            `Flow "${flow.name}" on ${this.getRunDisplayName(run)} (run ${run.id}) is still running`,
+          );
+        }
+        targets.push({ run, flow });
+      }
+    }
+
+    const unknown = wanted.filter((w) => !matched.has(w));
+    if (unknown.length > 0) {
+      const names = [
+        ...new Set(runs.flatMap((r) => (r.flows ?? []).map((f) => f.name))),
+      ];
+      throw new TestingBotError(
+        `No flow named ${unknown.map((u) => `"${u}"`).join(', ')} in ${
+          selection.runIds?.length
+            ? 'the selected runs'
+            : `project ${this.appId}`
+        }. Flows: ${names.join(', ') || 'none'}`,
+      );
+    }
+
+    // A cancelled run cannot be retried flow by flow; say so up front instead
+    // of surfacing one 409 per flow.
+    const cancelled = targets.filter((t) => t.run.status === 'CANCELLED');
+    for (const runId of new Set(cancelled.map((t) => t.run.id))) {
+      logger.warn(
+        `Run ${runId} was cancelled and cannot be re-run flow by flow; retry the whole run from the dashboard instead.`,
+      );
+    }
+    return targets.filter((t) => t.run.status !== 'CANCELLED');
+  }
+
+  /** The status narrowed to the given runs (all runs when none are given). */
+  private scopeRuns(
+    status: MaestroStatusResponse,
+    runIds?: Iterable<number>,
+  ): MaestroStatusResponse {
+    const ids = runIds ? new Set(runIds) : undefined;
+    if (!ids || ids.size === 0) return status;
+    const runs = status.runs.filter((r) => ids.has(r.id));
+    return {
+      ...status,
+      runs,
+      completed: runs.every((r) => TERMINAL_RUN_STATUSES.has(r.status)),
+    };
+  }
+
+  /**
+   * Done once every new attempt has surfaced and settled and the re-run runs
+   * are terminal. Checking the new attempts too keeps a poll that lands
+   * before the server reopened a run from ending the wait early.
+   */
+  private rerunComplete(
+    status: MaestroStatusResponse,
+    newAttemptIds: Set<number>,
+  ): boolean {
+    if (!status.runs.every((r) => TERMINAL_RUN_STATUSES.has(r.status))) {
+      return false;
+    }
+    const settled = new Map<number, boolean>();
+    for (const run of status.runs) {
+      for (const flow of run.flows ?? []) {
+        settled.set(
+          flow.id,
+          flow.status !== 'WAITING' && flow.status !== 'READY',
+        );
+      }
+    }
+    return [...newAttemptIds].every((id) => settled.get(id) === true);
+  }
+
+  /** The API's own refusal text (e.g. the 409 for a removed flow) when present. */
+  private rerunErrorMessage(err: unknown): string {
+    if (axios.isAxiosError(err)) {
+      const data = err.response?.data as
+        | { error?: string; errors?: string[] }
+        | undefined;
+      const text = data?.error || data?.errors?.join('; ');
+      if (text) return text;
+    }
+    if (err instanceof TestingBotError && err.cause) return String(err.cause);
+    return err instanceof Error ? err.message : String(err);
   }
 
   /**
