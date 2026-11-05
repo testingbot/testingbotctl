@@ -577,6 +577,26 @@ describe('Espresso', () => {
       );
     });
 
+    it('sends --priority with the run', async () => {
+      const prioritized = new Espresso(
+        mockCredentials,
+        new EspressoOptions(
+          'path/to/app.apk',
+          'path/to/testApp.apk',
+          'Pixel 6',
+          {
+            priority: 'low',
+          },
+        ),
+      );
+      prioritized['appId'] = 1234;
+      axios.post = jest.fn().mockResolvedValueOnce({ data: { success: true } });
+
+      await prioritized['runTests']();
+
+      expect((axios.post as jest.Mock).mock.calls[0][1].priority).toBe('low');
+    });
+
     it('should not include metadata when not provided', async () => {
       espresso['appId'] = 1234;
 

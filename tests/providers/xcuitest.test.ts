@@ -526,6 +526,26 @@ describe('XCUITest', () => {
       );
     });
 
+    it('sends --priority with the run', async () => {
+      const prioritized = new XCUITest(
+        mockCredentials,
+        new XCUITestOptions(
+          'path/to/app.ipa',
+          'path/to/testApp.zip',
+          'iPhone 15',
+          {
+            priority: 'low',
+          },
+        ),
+      );
+      prioritized['appId'] = 1234;
+      axios.post = jest.fn().mockResolvedValueOnce({ data: { success: true } });
+
+      await prioritized['runTests']();
+
+      expect((axios.post as jest.Mock).mock.calls[0][1].priority).toBe('low');
+    });
+
     it('should not include metadata when not provided', async () => {
       xcuiTest['appId'] = 1234;
 

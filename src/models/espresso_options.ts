@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import TestingBotError from './testingbot_error';
 import {
   MAX_RETRY,
+  parsePriority,
   validateTimeout,
+  type Priority,
   type ArtifactDownloadMode,
   type RunMetadata,
 } from './maestro_options';
@@ -92,6 +94,7 @@ export default class EspressoOptions {
   private _retry: number;
   private _timeout: number | undefined;
   private _failFast: boolean;
+  private _priority?: Priority;
   private _downloadArtifacts?: ArtifactDownloadMode;
   private _artifactsOutputDir?: string;
   // Metadata
@@ -132,6 +135,7 @@ export default class EspressoOptions {
       retry?: number;
       timeout?: number;
       failFast?: boolean;
+      priority?: string;
       downloadArtifacts?: ArtifactDownloadMode;
       artifactsOutputDir?: string;
       metadata?: RunMetadata;
@@ -192,6 +196,7 @@ export default class EspressoOptions {
     this._timeout = options?.timeout;
     validateTimeout(this._timeout);
     this._failFast = options?.failFast ?? false;
+    this._priority = parsePriority(options?.priority);
     this._downloadArtifacts = options?.downloadArtifacts;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._metadata = options?.metadata;
@@ -330,6 +335,10 @@ export default class EspressoOptions {
 
   public get failFast(): boolean {
     return this._failFast;
+  }
+
+  public get priority(): Priority | undefined {
+    return this._priority;
   }
 
   public get downloadArtifacts(): ArtifactDownloadMode | undefined {

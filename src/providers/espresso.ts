@@ -169,6 +169,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           capabilities: [capabilities],
           ...(espressoOptions && { espressoOptions }),
           ...(metadata && { metadata }),
+          ...(this.options.priority && { priority: this.options.priority }),
         },
       });
 
@@ -314,6 +315,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           capabilities: [capabilities],
           ...(espressoOptions && { espressoOptions }),
           ...(metadata && { metadata }),
+          ...(this.options.priority && { priority: this.options.priority }),
         },
         {
           headers: {
