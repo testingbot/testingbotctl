@@ -99,6 +99,15 @@ testingbot devices --platform ios --real        # real devices, with live availa
 testingbot devices --json
 ```
 
+### Failed tests of a Selenium / Appium build
+
+Selenium and Appium sessions are started by your own test runner, so TestingBot cannot start them again. `testingbot failed-tests` prints the name of each failed test in a build (the `build` capability, or the numeric build ID), one per line, for your CI to pass to its runner's own filter. Tests without a `name` are listed on stderr by session ID.
+
+```sh
+testingbot failed-tests "nightly-$CI_PIPELINE_ID"          # one test name per line
+testingbot failed-tests 123456 --json                      # id, name, sessionId, browser, os, statusMessage
+```
+
 ## Commands
 
 ### Maestro

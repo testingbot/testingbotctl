@@ -228,3 +228,72 @@ export async function listDevices(options: {
       a.platform.localeCompare(b.platform) || a.name.localeCompare(b.name),
   );
 }
+
+export interface FailedTest {
+  id: number;
+  name: string | null;
+  sessionId: string;
+  browser?: string;
+  browserVersion?: string;
+  os?: string;
+  statusMessage?: string | null;
+}
+
+interface BuildTestsResponse {
+  data: Array<{
+    id: number;
+    name?: string | null;
+    session_id: string;
+    status_id?: number;
+    browser?: string;
+    browser_version?: string;
+    os?: string;
+    status_message?: string | null;
+  }>;
+  meta?: { total?: number };
+}
+
+const FAILED_TESTS_PAGE_SIZE = 500;
+const FAILED_TESTS_MAX_PAGES = 20;
+
+/**
+ * The failed tests of a Selenium/Appium build (GET /v1/builds/:id?status=failed),
+ * for CI to run again: TestingBot cannot restart sessions your own runner
+ * started. The build is its name or numeric id; names may contain slashes
+ * (the API route is a wildcard), so each segment is encoded on its own.
+ */
+export async function listFailedTests(
+  credentials: Credentials,
+  build: string,
+): Promise<FailedTest[]> {
+  const trimmed = build.trim();
+  if (!trimmed) throw new TestingBotError('A build name or id is required.');
+  const path = trimmed.split('/').map(encodeURIComponent).join('/');
+  const failed: FailedTest[] = [];
+  for (let page = 0; page < FAILED_TESTS_MAX_PAGES; page++) {
+    const offset = page * FAILED_TESTS_PAGE_SIZE;
+    const response = await get<BuildTestsResponse>(
+      `${API_URL}/builds/${path}?status=failed&count=${FAILED_TESTS_PAGE_SIZE}&offset=${offset}&skip_fields=logs,thumbs`,
+      'Listing failed tests',
+      credentials,
+    );
+    const rows = response.data ?? [];
+    // Filtered here too: an API without the status filter returns every test.
+    for (const row of rows) {
+      if (row.status_id !== 0) continue;
+      failed.push({
+        id: row.id,
+        name: row.name ?? null,
+        sessionId: row.session_id,
+        browser: row.browser,
+        browserVersion: row.browser_version,
+        os: row.os,
+        statusMessage: row.status_message ?? null,
+      });
+    }
+    const total = response.meta?.total;
+    if (rows.length < FAILED_TESTS_PAGE_SIZE) break;
+    if (total !== undefined && offset + rows.length >= total) break;
+  }
+  return failed;
+}
