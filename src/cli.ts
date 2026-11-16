@@ -890,6 +890,11 @@ program
     'Number of chunks to split flows into (by default each flow runs on its own session).',
     (val) => parseInt(val, 10),
   )
+  .option(
+    '--max-failures <number>',
+    'Let TestingBot stop each run once this many flows (shards, when sharded) have failed; the rest are not run. Works with --async.',
+    (val) => Number(val),
+  )
   // CI/CD metadata
   .option('--branch <name>', 'Git branch this upload was built from.')
   .option('--commit-sha <sha>', 'The commit SHA of this upload.')
@@ -1085,6 +1090,7 @@ program
         artifactsOutputDir: args.artifactsOutputDir,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
+        maxFailures: args.maxFailures,
         retry: args.retry,
         timeout: args.timeout,
         failFast: args.failFast,

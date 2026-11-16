@@ -866,4 +866,27 @@ describe('MaestroOptions', () => {
       );
     });
   });
+
+  describe('maxFailures', () => {
+    it('keeps a whole number from 1 to 1000', () => {
+      expect(
+        new MaestroOptions('app.apk', 'flows', 'Pixel 6', { maxFailures: 3 })
+          .maxFailures,
+      ).toBe(3);
+      expect(
+        new MaestroOptions('app.apk', 'flows', 'Pixel 6').maxFailures,
+      ).toBeUndefined();
+    });
+
+    it('rejects anything else', () => {
+      for (const value of [0, -1, 1.5, 1001, NaN]) {
+        expect(
+          () =>
+            new MaestroOptions('app.apk', 'flows', 'Pixel 6', {
+              maxFailures: value,
+            }),
+        ).toThrow('Invalid --max-failures value');
+      }
+    });
+  });
 });

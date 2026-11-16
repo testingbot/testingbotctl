@@ -993,6 +993,38 @@ describe('Maestro', () => {
       });
     });
 
+    describe('--max-failures', () => {
+      it("sends it as the run's failFast", async () => {
+        const provider = new Maestro(
+          mockCredentials,
+          new MaestroOptions('path/to/app.apk', 'path/to/flows', 'Pixel 6', {
+            maxFailures: 2,
+          }),
+        );
+        provider['appId'] = 1234;
+        axios.post = jest
+          .fn()
+          .mockResolvedValueOnce({ data: { success: true }, headers: {} });
+
+        await provider['runTests']();
+
+        expect((axios.post as jest.Mock).mock.calls[0][1].failFast).toBe(2);
+      });
+
+      it('is not sent unless asked', async () => {
+        maestro['appId'] = 1234;
+        axios.post = jest
+          .fn()
+          .mockResolvedValueOnce({ data: { success: true }, headers: {} });
+
+        await maestro['runTests']();
+
+        expect((axios.post as jest.Mock).mock.calls[0][1]).not.toHaveProperty(
+          'failFast',
+        );
+      });
+    });
+
     describe('--priority', () => {
       it('sends the priority with the run', async () => {
         const provider = new Maestro(
