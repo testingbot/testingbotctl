@@ -5,6 +5,7 @@ import {
   CREDENTIALS_FILE,
   fetchAccount,
   listDevices,
+  listFailedTests,
   removeSavedCredentials,
 } from '../../src/providers/account';
 
@@ -217,5 +218,92 @@ describe('account', () => {
       );
       await expect(removeSavedCredentials()).rejects.toThrow('EACCES');
     });
+  });
+});
+
+describe('listFailedTests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (axios.isAxiosError as unknown as jest.Mock) = jest
+      .fn()
+      .mockReturnValue(false);
+  });
+
+  const row = (
+    id: number,
+    statusId: number,
+    name: string | null = `test ${id}`,
+  ) => ({
+    id,
+    name,
+    session_id: `s${id}`,
+    status_id: statusId,
+    browser: 'chrome',
+    browser_version: '150',
+    os: 'WIN11',
+    status_message: null,
+  });
+
+  it('asks for the failed tests of the build and maps them', async () => {
+    mockGet.mockResolvedValue({
+      data: { data: [row(1, 0)], meta: { total: 1 } },
+    });
+
+    const tests = await listFailedTests(credentials, 'nightly-42');
+
+    expect(mockGet).toHaveBeenCalledTimes(1);
+    expect(mockGet.mock.calls[0][0]).toBe(
+      'https://api.testingbot.com/v1/builds/nightly-42?status=failed&count=500&offset=0&skip_fields=logs,thumbs',
+    );
+    expect(tests).toEqual([
+      {
+        id: 1,
+        name: 'test 1',
+        sessionId: 's1',
+        browser: 'chrome',
+        browserVersion: '150',
+        os: 'WIN11',
+        statusMessage: null,
+      },
+    ]);
+  });
+
+  it('keeps the slashes of a build name and encodes the rest', async () => {
+    mockGet.mockResolvedValue({ data: { data: [], meta: { total: 0 } } });
+
+    await listFailedTests(credentials, 'ci/main #7');
+
+    expect(mockGet.mock.calls[0][0]).toContain('/v1/builds/ci/main%20%237?');
+  });
+
+  it('drops tests that did not fail, for an API without the status filter', async () => {
+    mockGet.mockResolvedValue({
+      data: { data: [row(1, 1), row(2, 0), row(3, 2)], meta: { total: 3 } },
+    });
+
+    const tests = await listFailedTests(credentials, '9');
+
+    expect(tests.map((t) => t.id)).toEqual([2]);
+  });
+
+  it('pages until the total is reached', async () => {
+    const page = Array.from({ length: 500 }, (_, i) => row(i + 1, 0));
+    mockGet
+      .mockResolvedValueOnce({ data: { data: page, meta: { total: 501 } } })
+      .mockResolvedValueOnce({
+        data: { data: [row(501, 0)], meta: { total: 501 } },
+      });
+
+    const tests = await listFailedTests(credentials, 'big');
+
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    expect(mockGet.mock.calls[1][0]).toContain('offset=500');
+    expect(tests).toHaveLength(501);
+  });
+
+  it('refuses an empty build', async () => {
+    await expect(listFailedTests(credentials, '  ')).rejects.toThrow(
+      'A build name or id is required.',
+    );
   });
 });

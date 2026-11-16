@@ -31,6 +31,7 @@ import {
   DevicePlatform,
   CatalogDevice,
   fetchAccount,
+  listFailedTests,
   listDevices,
   removeSavedCredentials,
 } from './providers/account';
@@ -1886,6 +1887,48 @@ function parsePlatform(value: string): DevicePlatform {
   if (v === 'ios') return 'iOS';
   throw new InvalidArgumentError('expected android or ios.');
 }
+
+withFlags(
+  program
+    .command('failed-tests')
+    .description(
+      'List the failed tests of a Selenium/Appium build (one name per line), so CI can run just those again.',
+    )
+    .argument(
+      '<build>',
+      'Build name (the "build" capability) or numeric build ID.',
+    )
+    .option('--json', 'Print the failed tests as JSON on stdout.'),
+  AUTH_FLAGS,
+)
+  .action(async (build: string, args) => {
+    try {
+      // stdout carries the test names (or JSON) for the next CI step.
+      redirectLogsToStderr();
+      if (args.debug) enableDebugLogging();
+      const credentials = await requireCredentials(args);
+      const tests = await listFailedTests(credentials, build);
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify(tests, null, 2)}\n`);
+        return;
+      }
+      const unnamed = tests.filter((t) => !t.name);
+      for (const t of tests) {
+        if (t.name) console.log(t.name);
+      }
+      if (unnamed.length > 0) {
+        logger.warn(
+          `${unnamed.length} failed test(s) have no name (set the "name" capability): ${unnamed.map((t) => t.sessionId).join(', ')}`,
+        );
+      }
+    } catch (err) {
+      logger.error(
+        `Failed tests error: ${err instanceof Error ? err.message : err}`,
+      );
+      process.exitCode = EXIT_ERROR;
+    }
+  })
+  .showHelpAfterError(true);
 
 withFlags(
   program

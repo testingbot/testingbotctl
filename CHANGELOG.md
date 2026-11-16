@@ -8,6 +8,8 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 
 - `testingbot xcuitest`: `--only-testing` and `--skip-testing` choose which tests run (`TestClass` or `TestClass/testMethod`, comma-separated, repeatable). `--test-env KEY=VALUE` / `--test-arg` pass environment variables and launch arguments to the test runner process, `--app-env KEY=VALUE` / `--app-arg` to the app under test. Invalid identifiers or variable names fail before anything is uploaded.
 
+- `testingbot failed-tests <build>`: prints the names of the failed tests of a Selenium/Appium build, one per line (`--json` for id, session ID, browser and OS), so CI can run only those again. Builds are addressed by name or numeric ID.
+
 ## 1.5.0 - 2026-11-05
 
 ### Added
