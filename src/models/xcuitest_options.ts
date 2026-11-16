@@ -45,6 +45,52 @@ export interface XCUITestRunOptions {
   timeZone?: string;
   // Network throttling
   throttle_network?: ThrottleNetwork | CustomNetworkProfile;
+  // Test selection: TestClass or TestClass/testMethod
+  onlyTesting?: string[];
+  skipTesting?: string[];
+  // Environment variables / launch arguments for the test runner process
+  testEnv?: Record<string, string>;
+  testArgs?: string[];
+  // Environment variables / launch arguments for the app under test
+  appEnv?: Record<string, string>;
+  appArgs?: string[];
+}
+
+// TestClass, TestClass/testMethod or TestTarget/TestClass/testMethod (the
+// xcodebuild -only-testing form; the server drops the target).
+const TEST_IDENTIFIER =
+  /^[A-Za-z_][A-Za-z0-9_]*(\/[A-Za-z_][A-Za-z0-9_]*){0,2}$/;
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function validateTestIdentifiers(
+  list: string[] | undefined,
+  flag: string,
+): string[] | undefined {
+  if (!list) return undefined;
+  const cleaned = list.map((t) => t.trim()).filter(Boolean);
+  for (const id of cleaned) {
+    if (!TEST_IDENTIFIER.test(id)) {
+      throw new TestingBotError(
+        `Invalid ${flag} entry "${id}": use TestClass or TestClass/testMethod.`,
+      );
+    }
+  }
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function validateEnvNames(
+  env: Record<string, string> | undefined,
+  flag: string,
+): Record<string, string> | undefined {
+  if (!env) return undefined;
+  for (const name of Object.keys(env)) {
+    if (!ENV_NAME.test(name)) {
+      throw new TestingBotError(
+        `Invalid ${flag} name "${name}": use letters, digits and underscores, not starting with a digit.`,
+      );
+    }
+  }
+  return Object.keys(env).length > 0 ? env : undefined;
 }
 
 export default class XCUITestOptions {
@@ -67,6 +113,13 @@ export default class XCUITestOptions {
   private _geoCountryCode?: string;
   // Network throttling
   private _throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
+  // Test selection and environment
+  private _onlyTesting?: string[];
+  private _skipTesting?: string[];
+  private _testEnv?: Record<string, string>;
+  private _testArgs?: string[];
+  private _appEnv?: Record<string, string>;
+  private _appArgs?: string[];
   // Tunnel
   private _tunnel: boolean;
   private _tunnelIdentifier?: string;
@@ -104,6 +157,12 @@ export default class XCUITestOptions {
       timeZone?: string;
       geoCountryCode?: string;
       throttleNetwork?: ThrottleNetwork | CustomNetworkProfile;
+      onlyTesting?: string[];
+      skipTesting?: string[];
+      testEnv?: Record<string, string>;
+      testArgs?: string[];
+      appEnv?: Record<string, string>;
+      appArgs?: string[];
       tunnel?: boolean;
       tunnelIdentifier?: string;
       quiet?: boolean;
@@ -144,6 +203,18 @@ export default class XCUITestOptions {
     this._timeZone = options?.timeZone;
     this._geoCountryCode = options?.geoCountryCode;
     this._throttleNetwork = options?.throttleNetwork;
+    this._onlyTesting = validateTestIdentifiers(
+      options?.onlyTesting,
+      '--only-testing',
+    );
+    this._skipTesting = validateTestIdentifiers(
+      options?.skipTesting,
+      '--skip-testing',
+    );
+    this._testEnv = validateEnvNames(options?.testEnv, '--test-env');
+    this._appEnv = validateEnvNames(options?.appEnv, '--app-env');
+    this._testArgs = options?.testArgs?.length ? options.testArgs : undefined;
+    this._appArgs = options?.appArgs?.length ? options.appArgs : undefined;
     this._tunnel = options?.tunnel ?? false;
     this._tunnelIdentifier =
       options?.tunnelIdentifier ??
@@ -238,6 +309,30 @@ export default class XCUITestOptions {
     return this._throttleNetwork;
   }
 
+  public get onlyTesting(): string[] | undefined {
+    return this._onlyTesting;
+  }
+
+  public get skipTesting(): string[] | undefined {
+    return this._skipTesting;
+  }
+
+  public get testEnv(): Record<string, string> | undefined {
+    return this._testEnv;
+  }
+
+  public get testArgs(): string[] | undefined {
+    return this._testArgs;
+  }
+
+  public get appEnv(): Record<string, string> | undefined {
+    return this._appEnv;
+  }
+
+  public get appArgs(): string[] | undefined {
+    return this._appArgs;
+  }
+
   public get tunnel(): boolean {
     return this._tunnel;
   }
@@ -328,6 +423,13 @@ export default class XCUITestOptions {
     if (this._timeZone) opts.timeZone = this._timeZone;
     // Network throttling
     if (this._throttleNetwork) opts.throttle_network = this._throttleNetwork;
+    // Test selection and environment
+    if (this._onlyTesting) opts.onlyTesting = this._onlyTesting;
+    if (this._skipTesting) opts.skipTesting = this._skipTesting;
+    if (this._testEnv) opts.testEnv = this._testEnv;
+    if (this._testArgs) opts.testArgs = this._testArgs;
+    if (this._appEnv) opts.appEnv = this._appEnv;
+    if (this._appArgs) opts.appArgs = this._appArgs;
 
     return Object.keys(opts).length > 0 ? opts : undefined;
   }

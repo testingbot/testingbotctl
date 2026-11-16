@@ -338,6 +338,74 @@ describe('XCUITest', () => {
       );
     });
 
+    it('should send test selection, environment and launch arguments when provided', async () => {
+      const opts = new XCUITestOptions(
+        'path/to/app.ipa',
+        'path/to/testApp.zip',
+        'iPhone 15',
+        {
+          onlyTesting: ['LoginTests', ' CartTests/testCheckout ', ''],
+          skipTesting: ['MyAppUITests/LoginTests/testSlow'],
+          testEnv: { API_URL: 'https://staging.example.com' },
+          testArgs: ['-verbose'],
+          appEnv: { FEATURE_X: 'on' },
+          appArgs: ['-UITestMode', 'YES'],
+        },
+      );
+      const xcuiTest = new XCUITest(mockCredentials, opts);
+      xcuiTest['appId'] = 1234;
+
+      const mockResponse = { data: { success: true } };
+      axios.post = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await xcuiTest['runTests']();
+
+      expect(axios.post).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          options: {
+            onlyTesting: ['LoginTests', 'CartTests/testCheckout'],
+            skipTesting: ['MyAppUITests/LoginTests/testSlow'],
+            testEnv: { API_URL: 'https://staging.example.com' },
+            testArgs: ['-verbose'],
+            appEnv: { FEATURE_X: 'on' },
+            appArgs: ['-UITestMode', 'YES'],
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('should reject invalid test identifiers and environment names', () => {
+      expect(
+        () =>
+          new XCUITestOptions('a.ipa', 't.zip', 'iPhone 15', {
+            onlyTesting: ['Login Tests'],
+          }),
+      ).toThrow('Invalid --only-testing entry "Login Tests"');
+      expect(
+        () =>
+          new XCUITestOptions('a.ipa', 't.zip', 'iPhone 15', {
+            skipTesting: ['A/b/c/d'],
+          }),
+      ).toThrow('Invalid --skip-testing entry');
+      expect(
+        () =>
+          new XCUITestOptions('a.ipa', 't.zip', 'iPhone 15', {
+            appEnv: { 'BAD-NAME': '1' },
+          }),
+      ).toThrow('Invalid --app-env name "BAD-NAME"');
+    });
+
+    it('should omit empty test selection and environment options', () => {
+      const opts = new XCUITestOptions('a.ipa', 't.zip', 'iPhone 15', {
+        onlyTesting: [],
+        testEnv: {},
+        appArgs: [],
+      });
+      expect(opts.getXCUITestOptions()).toBeUndefined();
+    });
+
     it('should send localization options when provided', async () => {
       const optionsWithLocalization = new XCUITestOptions(
         'path/to/app.ipa',

@@ -640,6 +640,17 @@ testingbot xcuitest [appFile] [testAppFile] [options]
 | `--build <build>`   | Build identifier for grouping test runs               |
 | `--language <lang>` | App language (ISO 639-1 code, e.g., "en", "fr", "de") |
 
+**Test Selection & Environment:**
+
+| Option | Description |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `--only-testing <tests>` | Run only these tests: `TestClass` or `TestClass/testMethod` (comma-separated, repeatable) |
+| `--skip-testing <tests>` | Skip these tests: `TestClass` or `TestClass/testMethod` (comma-separated, repeatable) |
+| `--test-env <KEY=VALUE>` | Environment variable for the test runner process (repeatable) |
+| `--test-arg <arg>` | Launch argument for the test runner process (repeatable). Use `--test-arg=-flag` for a value that starts with `-` |
+| `--app-env <KEY=VALUE>` | Environment variable for the app under test, when a test launches it (repeatable) |
+| `--app-arg <arg>` | Launch argument for the app under test (repeatable). Use `--app-arg=-flag` for a value that starts with `-` |
+
 **Network & Location:**
 
 | Option                       | Description                                                 |
@@ -705,6 +716,13 @@ testingbot xcuitest app.ipa app-test.zip \
   --device "iPhone 16" \
   --throttle-network "3G" \
   --geo-location "DE"
+
+# Run one test class and one test method, against a staging backend
+testingbot xcuitest app.ipa app-test.zip \
+  --device "iPhone 16" \
+  --only-testing "LoginTests,CartTests/testCheckout" \
+  --test-env API_URL=https://staging.example.com \
+  --app-arg=-UITestMode
 
 # Download HTML report
 testingbot xcuitest app.ipa app-test.zip \

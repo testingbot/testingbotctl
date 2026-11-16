@@ -1158,6 +1158,38 @@ program
     'Network throttling: 4G, 3G, Edge, or airplane.',
     (val) => val as XCUITestThrottleNetwork,
   )
+  // Test selection
+  .option(
+    '--only-testing <tests>',
+    'Run only these tests: TestClass or TestClass/testMethod (comma-separated, repeatable).',
+    collectCommaSeparated,
+  )
+  .option(
+    '--skip-testing <tests>',
+    'Skip these tests: TestClass or TestClass/testMethod (comma-separated, repeatable).',
+    collectCommaSeparated,
+  )
+  // Environment variables and launch arguments
+  .option(
+    '--test-env <KEY=VALUE>',
+    'Environment variable for the test runner process (repeatable).',
+    collectRepeatable,
+  )
+  .option(
+    '--test-arg <arg>',
+    'Launch argument for the test runner process (repeatable; use --test-arg=-flag for values starting with "-").',
+    collectRepeatable,
+  )
+  .option(
+    '--app-env <KEY=VALUE>',
+    'Environment variable for the app under test (repeatable).',
+    collectRepeatable,
+  )
+  .option(
+    '--app-arg <arg>',
+    'Launch argument for the app under test (repeatable; use --app-arg=-flag for values starting with "-").',
+    collectRepeatable,
+  )
   // Execution mode
   .option('-q, --quiet', 'Quieter console output without progress updates.')
   .option(
@@ -1296,6 +1328,12 @@ program
         timeZone: args.timezone,
         geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
+        onlyTesting: args.onlyTesting,
+        skipTesting: args.skipTesting,
+        testEnv: parseKeyValues(args.testEnv, '--test-env'),
+        testArgs: args.testArg,
+        appEnv: parseKeyValues(args.appEnv, '--app-env'),
+        appArgs: args.appArg,
         tunnel: args.tunnel,
         tunnelIdentifier: args.tunnelIdentifier,
         quiet: args.quiet || jsonOptions.json || jsonOptions.jsonFile,

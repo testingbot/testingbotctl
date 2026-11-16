@@ -2,6 +2,12 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
+## Unreleased
+
+### Added
+
+- `testingbot xcuitest`: `--only-testing` and `--skip-testing` choose which tests run (`TestClass` or `TestClass/testMethod`, comma-separated, repeatable). `--test-env KEY=VALUE` / `--test-arg` pass environment variables and launch arguments to the test runner process, `--app-env KEY=VALUE` / `--app-arg` to the app under test. Invalid identifiers or variable names fail before anything is uploaded.
+
 ## 1.5.0 - 2026-11-05
 
 ### Added
