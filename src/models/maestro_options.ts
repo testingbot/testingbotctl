@@ -170,6 +170,7 @@ export default class MaestroOptions {
   private _artifactsOutputDir?: string;
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
+  private _maxFailures?: number;
   private _retry: number;
   private _timeout: number | undefined;
   private _failFast: boolean;
@@ -215,6 +216,7 @@ export default class MaestroOptions {
       artifactsOutputDir?: string;
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
+      maxFailures?: number;
       retry?: number;
       timeout?: number;
       failFast?: boolean;
@@ -287,6 +289,17 @@ export default class MaestroOptions {
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
+    if (
+      options?.maxFailures !== undefined &&
+      (!Number.isInteger(options.maxFailures) ||
+        options.maxFailures < 1 ||
+        options.maxFailures > 1000)
+    ) {
+      throw new Error(
+        `Invalid --max-failures value (${options.maxFailures}). Use a whole number from 1 to 1000.`,
+      );
+    }
+    this._maxFailures = options?.maxFailures;
     this._cancelPrevious = options?.cancelPrevious ?? false;
     this._retry = options?.retry ?? 0;
     if (
@@ -452,6 +465,15 @@ export default class MaestroOptions {
 
   public get shardSplit(): number | undefined {
     return this._shardSplit;
+  }
+
+  /**
+   * --max-failures: sent as the run's `failFast`, so TestingBot itself stops
+   * each run once this many flows (shards, when sharded) have failed. Unlike
+   * --fail-fast it needs no running CLI, so it works with --async too.
+   */
+  public get maxFailures(): number | undefined {
+    return this._maxFailures;
   }
 
   public get retry(): number {
