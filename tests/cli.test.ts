@@ -760,6 +760,48 @@ describe('TestingBotCTL CLI', () => {
     },
   );
 
+  test('xcuitest command should pass test selection, environment and launch arguments', async () => {
+    mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+
+    await program.parseAsync([
+      'node',
+      'cli',
+      'xcuitest',
+      'app.ipa',
+      'test-app.zip',
+      '--only-testing',
+      'LoginTests,CartTests/testCheckout',
+      '--only-testing',
+      'ProfileTests',
+      '--skip-testing',
+      'LoginTests/testSlow',
+      '--test-env',
+      'API_URL=https://staging.example.com/?a=b',
+      '--test-env',
+      'RETRIES=2',
+      // A value that starts with "-" needs the = form.
+      '--test-arg=-verbose',
+      '--app-env',
+      'FEATURE_X=on',
+      '--app-arg=-UITestMode',
+      '--app-arg',
+      'YES',
+    ]);
+
+    expect(mockXCUITestRun).toHaveBeenCalledTimes(1);
+    const opts = lastConstructorOptions<{
+      getXCUITestOptions: () => Record<string, unknown> | undefined;
+    }>(XCUITest);
+    expect(opts.getXCUITestOptions()).toEqual({
+      onlyTesting: ['LoginTests', 'CartTests/testCheckout', 'ProfileTests'],
+      skipTesting: ['LoginTests/testSlow'],
+      testEnv: { API_URL: 'https://staging.example.com/?a=b', RETRIES: '2' },
+      testArgs: ['-verbose'],
+      appEnv: { FEATURE_X: 'on' },
+      appArgs: ['-UITestMode', 'YES'],
+    });
+  });
+
   test('xcuitest command should call xcuitest.run() with valid options', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
 
