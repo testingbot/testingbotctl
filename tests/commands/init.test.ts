@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import yaml from 'js-yaml';
 import {
   detectProject,
@@ -171,7 +172,7 @@ describe('runInit', () => {
 
   it('summarises what it found and what to do next', async () => {
     const result = await runInit({ cwd: dir, framework: 'maestro' });
-    const text = initSummary(result, dir).join('\n');
+    const text = stripVTControlCharacters(initSummary(result, dir).join('\n'));
     expect(text).toContain('Detected a maestro project');
     expect(text).toContain('not found');
     expect(text).toContain('Wrote .testingbot.yml');
