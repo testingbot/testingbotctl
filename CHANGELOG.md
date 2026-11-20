@@ -13,6 +13,9 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - `--device` / `--device-matrix` names and versions are checked against the device catalog before uploading, with "did you mean" suggestions. Wildcards and regexes are not checked; `TESTINGBOT_SKIP_DEVICE_CHECK=1` skips it.
 - End-of-run summary for every framework: verdict, a row per device, flaky flows (passed on retry), slowest flows, and the next commands (`testingbot rerun`, `testingbot artifacts`, dashboard links). Espresso and XCUITest now link to their dashboard pages, also in `--json` (`url`).
 - Clickable links (OSC 8) where the terminal supports them, and a desktop notification or bell when a run of over a minute ends (`TESTINGBOT_NOTIFY=0` turns it off).
+- Keys during a live run: `o` opens the dashboard, `d` detaches and leaves the runs going.
+- Tab/taskbar progress (OSC 9;4) in Windows Terminal, Ghostty and iTerm2.
+- `testingbot whoami` shows concurrency meters; `testingbot list` shows relative times and colours running projects; `testingbot devices --real` colours availability.
 - Grouped `--help` (App & tests, Device, Choosing tests, Running, Reports & artifacts, CI, Output, Authentication) with examples; root commands grouped by purpose.
 - Hidden flag aliases so a flag learned on one command works on the others: `--device-version`, `--platform-version` and `--locale` for `maestro`; `--device-version` and `--device-locale` for `espresso` and `xcuitest`.
 
@@ -23,6 +26,8 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 
 ### Changed
 
+- The full banner shows once per new version; after that a one-line header (`TESTINGBOT_BANNER` overrides). It mentions `.testingbot.yml` when one is in use.
+- Reusing an unchanged app is shown as "✔ App unchanged since its last upload: reusing it (skipped 48 MB)".
 - The update notice is one line at the end of the command, at most once a day, and the CLI also checks npm in the background once a day (`TESTINGBOT_NO_UPDATE_CHECK=1` turns it off). It no longer interrupts a running test.
 - Errors and warnings are printed without a timestamp and start with `✘` / `⚠`; multi-line messages are indented. Our own errors no longer repeat the command name (`Maestro error: …`).
 

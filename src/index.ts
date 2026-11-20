@@ -14,6 +14,8 @@ if (process.argv[2] === '__complete') {
     // A broken completion must never print an error into the prompt.
   }
 } else {
-  printBanner();
-  program.parse(process.argv);
+  // The banner may animate briefly; parse once it is drawn.
+  void printBanner()
+    .catch(() => undefined)
+    .then(() => program.parse(process.argv));
 }

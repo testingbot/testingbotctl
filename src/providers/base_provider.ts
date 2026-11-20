@@ -7,6 +7,9 @@ import Upload from '../upload';
 import platform from '../utils/platform';
 import logger from '../logger';
 import Spinner from '../ui/spinner';
+import { keyControlsAvailable, keyHint, startKeyControls } from '../ui/keys';
+import { linkUrl, setProgress } from '../ui/terminal';
+import { openUrl } from '../utils/open_url';
 import {
   downloadAndRunAsync,
   killAsync,
@@ -322,12 +325,88 @@ export default abstract class BaseProvider<
     };
 
     platform.setupSignalHandlers(this.signalHandler);
+    this.startLiveKeys();
+  }
+
+  private stopKeys: (() => void) | null = null;
+
+  /**
+   * o / d / Ctrl-C while waiting for results (interactive terminals only).
+   * Detaching is not offered with --tunnel: the tunnel lives in this process.
+   */
+  private startLiveKeys(): void {
+    if (this.options.quiet || !keyControlsAvailable()) return;
+    const url = this.dashboardUrl();
+    const actions = {
+      ...(url && { open: () => void openUrl(url) }),
+      ...(!this.options.tunnel && { detach: () => this.detach() }),
+      interrupt: () => this.signalHandler?.(),
+    };
+    this.pendingKeyHint = keyHint(actions, 'stop the runs');
+    this.stopKeys = startKeyControls(actions);
+  }
+
+  private pendingKeyHint: string | null = null;
+
+  /**
+   * Prints the key hint once, right under the run's dashboard links (which
+   * is what `o` opens). Providers call it after printing those links.
+   */
+  protected printKeyHint(): void {
+    if (!this.pendingKeyHint) return;
+    console.log(this.pendingKeyHint);
+    this.pendingKeyHint = null;
+  }
+
+  private stopLiveKeys(): void {
+    this.stopKeys?.();
+    this.stopKeys = null;
+  }
+
+  /**
+   * `d`: stop watching and exit, leaving the runs going on TestingBot (like
+   * --async). Reports and artifacts are not downloaded.
+   */
+  protected detach(): void {
+    this.stopLiveKeys();
+    this.removeSignalHandlers();
+    this.spinner.stop();
+    this.stopAnimations();
+    this.clearLine();
+    const follow = this.followCommand();
+    console.log();
+    logger.info(
+      `Detached. The runs keep going on TestingBot${follow ? `: ${follow}` : '.'}`,
+    );
+    const url = this.dashboardUrl();
+    if (url) logger.info(`Dashboard: ${linkUrl(url)}`);
+    process.exit(0);
+  }
+
+  /**
+   * Tab / taskbar progress (OSC 9;4) where the terminal shows it: the share of
+   * finished tests, or an indeterminate bar while nothing is countable yet.
+   * Turns red once something failed. Cleared when the process exits.
+   */
+  protected showProgress(done: number, total: number, failed = 0): void {
+    if (this.options.quiet) return;
+    if (total <= 0) {
+      setProgress('indeterminate');
+      return;
+    }
+    setProgress(failed > 0 ? 'error' : 'normal', (done / total) * 100);
+  }
+
+  /** How to pick up a detached run again, when the CLI can. */
+  protected followCommand(): string | undefined {
+    return undefined;
   }
 
   /**
    * Removes signal handlers
    */
   protected removeSignalHandlers(): void {
+    this.stopLiveKeys();
     if (this.signalHandler) {
       platform.removeSignalHandlers(this.signalHandler);
       this.signalHandler = null;
@@ -350,6 +429,7 @@ export default abstract class BaseProvider<
     }
 
     this.isShuttingDown = true;
+    this.stopLiveKeys();
     this.spinner.stop();
     this.stopAnimations();
     this.clearLine();

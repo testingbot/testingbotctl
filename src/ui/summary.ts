@@ -240,3 +240,43 @@ export function notificationText(output: JsonOutput): string {
     ? `TestingBot: ${failed} of ${plural(allFlows.length, 'flow')} failed`
     : `TestingBot: ${output.runs.filter((r) => !r.passed).length} run(s) failed`;
 }
+
+const ANSI = /\x1b\[[0-9;]*m/g; // eslint-disable-line no-control-regex
+
+/** Visible text of a line, without colour codes. */
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI, '');
+}
+
+/**
+ * Prints the verdict line with a short left-to-right sweep (about 0.4s) on an
+ * all-green run: the plain text fills with green, then the final, styled line
+ * replaces it. Instant everywhere else (failures, pipes, CI, no colour).
+ */
+export async function printVerdict(
+  line: string,
+  {
+    animate,
+    write = (s: string) => process.stdout.write(s),
+    frameMs = 30,
+  }: {
+    animate: boolean;
+    write?: (s: string) => unknown;
+    frameMs?: number;
+  },
+): Promise<void> {
+  const chars = Array.from(stripAnsi(line));
+  if (!animate || chars.length === 0) {
+    write(`${line}\n`);
+    return;
+  }
+  const frames = 14;
+  for (let f = 1; f <= frames; f++) {
+    const cut = Math.round((chars.length * f) / frames);
+    write(
+      `\r${pc.bold(pc.green(chars.slice(0, cut).join('')))}${pc.dim(chars.slice(cut).join(''))}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, frameMs));
+  }
+  write(`\r\x1b[2K${line}\n`);
+}
