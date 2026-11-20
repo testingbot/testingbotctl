@@ -131,12 +131,13 @@ export default abstract class BaseProvider<
   protected abstract readonly jsonProvider: JsonOutput['provider'];
 
   /**
-   * Dashboard URL for the current app, or for one of its runs. Providers that
-   * expose a members page override this; the default omits the field.
+   * Dashboard URL for the current project, or for one of its runs. Every
+   * provider's project lives at /members/<provider>/<id> on testingbot.com.
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected dashboardUrl(runId?: number): string | undefined {
-    return undefined;
+  public dashboardUrl(runId?: number): string | undefined {
+    if (!this.appId) return undefined;
+    const base = `https://testingbot.com/members/${this.jsonProvider}/${this.appId}`;
+    return runId == null ? base : `${base}/runs/${runId}`;
   }
 
   /**

@@ -772,11 +772,7 @@ API calls, uploads, live updates and the tunnel download all go through the prox
 
 ### Real-time Progress
 
-By default, the CLI shows real-time progress updates including:
-
-- Test status updates with actual device names (even when using wildcards)
-- Device allocation status
-- Live output from Maestro flows
+In a terminal the CLI shows a live table of flows (Maestro) or runs (Espresso, XCUITest), links to watch each run in realtime, and a summary at the end: the verdict, a row per device, flaky flows (passed on retry), the slowest flows, and the commands to re-run failures or download their videos and logs. In CI and other non-interactive output the table is printed as a plain log, one line per finished flow, without cursor movement.
 
 Use `--quiet` to suppress progress output.
 
@@ -789,6 +785,16 @@ Press `Ctrl+C` to gracefully stop running tests. The CLI will:
 3. Exit with appropriate status code
 
 Press `Ctrl+C` twice to force exit immediately.
+
+### Terminal features
+
+Where the terminal supports them, links are clickable (iTerm2, WezTerm, Ghostty, kitty, Windows Terminal, VS Code, GNOME Terminal…), and a run that took longer than a minute ends with a desktop notification (iTerm2, Ghostty, WezTerm, kitty) or the terminal bell. None of this is written in CI or when output is piped. Settings:
+
+| Variable | Effect |
+|---|---|
+| `TESTINGBOT_NOTIFY=0` | No notification or bell when a long run finishes |
+| `FORCE_HYPERLINK=0` / `1` | Turn clickable links off / on |
+| `NO_COLOR=1` | No colours |
 
 ### Report Downloads
 

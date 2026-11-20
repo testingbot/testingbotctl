@@ -11,6 +11,7 @@ import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
 import BaseProvider, { ProviderResult } from './base_provider';
 import { setTitle } from '../ui/terminal-title';
+import { linkUrl } from '../ui/terminal';
 import { HTTP, SOCKET } from '../config/constants';
 import { downloadSessionArtifacts } from '../utils/session_artifacts';
 
@@ -210,6 +211,9 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       if (this.options.async) {
         if (!this.options.quiet) {
           logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
+          logger.info(
+            `View realtime results: ${linkUrl(this.dashboardUrl() as string)}`,
+          );
         }
         return { success: true, outcome: 'started', runs: [] };
       }
@@ -222,6 +226,9 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
 
       if (!this.options.quiet) {
         logger.info('Waiting for test results...');
+        logger.info(
+          `Watch in realtime: ${linkUrl(this.dashboardUrl() as string)}`,
+        );
       }
       const result = await this.retryFailedRuns(await this.waitForCompletion());
 
@@ -453,20 +460,8 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       }
 
       if (completed) {
-        // Stop the spinner and print final status
-        if (!this.options.quiet) {
-          this.spinner.stop();
-          for (const run of runs) {
-            const passed = this.isRunSuccessful(run.success);
-            const symbol = passed ? pc.green('✔') : pc.red('✘');
-            const statusText = passed
-              ? pc.green('Test completed successfully')
-              : pc.red('Test failed');
-            console.log(
-              `  ${symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusText}`,
-            );
-          }
-        }
+        // The CLI prints the verdict as its summary card.
+        this.spinner.stop();
 
         const allSucceeded = runs.every((run) =>
           this.isRunSuccessful(run.success),
@@ -474,9 +469,6 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
 
         if (allSucceeded) {
           setTitle('espresso · ✔ passed');
-          if (!this.options.quiet) {
-            logger.info('All tests completed successfully!');
-          }
         } else {
           const failedRuns = runs.filter(
             (run) => !this.isRunSuccessful(run.success),

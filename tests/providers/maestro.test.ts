@@ -5785,7 +5785,12 @@ flows:
       };
       axios.get = jest.fn().mockResolvedValue(responseWithMultipleFailedFlows);
 
+      // Without --quiet the CLI's summary card reports the verdict.
+      const quietSpy = jest
+        .spyOn(maestro['options'], 'quiet', 'get')
+        .mockReturnValue(true);
       await maestro['waitForCompletion']();
+      quietSpy.mockRestore();
 
       expect(errorSpy).toHaveBeenCalledWith('3 flow(s) failed across 1 run(s)');
 
@@ -5827,7 +5832,12 @@ flows:
       };
       axios.get = jest.fn().mockResolvedValue(responseMultipleFailingRuns);
 
+      // Without --quiet the CLI's summary card reports the verdict.
+      const quietSpy = jest
+        .spyOn(maestro['options'], 'quiet', 'get')
+        .mockReturnValue(true);
       await maestro['waitForCompletion']();
+      quietSpy.mockRestore();
 
       expect(errorSpy).toHaveBeenCalledWith('3 flow(s) failed across 2 run(s)');
 
@@ -5855,7 +5865,12 @@ flows:
       };
       axios.get = jest.fn().mockResolvedValue(responseRunFailedNoFlows);
 
+      // Without --quiet the CLI's summary card reports the verdict.
+      const quietSpy = jest
+        .spyOn(maestro['options'], 'quiet', 'get')
+        .mockReturnValue(true);
       await maestro['waitForCompletion']();
+      quietSpy.mockRestore();
 
       expect(errorSpy).toHaveBeenCalledWith('1 test run(s) failed');
 
