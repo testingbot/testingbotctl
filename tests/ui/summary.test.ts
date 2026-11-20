@@ -2,7 +2,9 @@ import {
   flakyFlows,
   formatDuration,
   notificationText,
+  printVerdict,
   renderSummary,
+  stripAnsi,
   slowestFlows,
   testDurationMs,
 } from '../../src/ui/summary';
@@ -268,5 +270,28 @@ describe('notificationText', () => {
     expect(notificationText(maestroOutput())).toBe(
       'TestingBot: 1 of 4 flows failed',
     );
+  });
+});
+
+describe('printVerdict', () => {
+  it('prints the line once when not animating', async () => {
+    const out: string[] = [];
+    await printVerdict('\x1b[32m PASSED \x1b[39m 3 flows', {
+      animate: false,
+      write: (s) => out.push(s),
+    });
+    expect(out).toEqual(['\x1b[32m PASSED \x1b[39m 3 flows\n']);
+  });
+
+  it('sweeps the plain text, then replaces it with the styled line', async () => {
+    const out: string[] = [];
+    await printVerdict('\x1b[32mPASSED\x1b[39m ok', {
+      animate: true,
+      frameMs: 0,
+      write: (s) => out.push(s),
+    });
+    expect(out.length).toBe(15);
+    expect(stripAnsi(out[0])).toBe('\rPASSED ok');
+    expect(out[out.length - 1]).toBe('\r\x1b[2K\x1b[32mPASSED\x1b[39m ok\n');
   });
 });

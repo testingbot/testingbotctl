@@ -42,8 +42,10 @@ import { isAppUrl } from './utils/app_source';
 import type { DeviceMatrixCell, RunMetadata } from './models/maestro_options';
 import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
-import { notificationText, renderSummary } from './ui/summary';
-import { notifyFinished } from './ui/terminal';
+import { notificationText, printVerdict, renderSummary } from './ui/summary';
+import utils from './utils';
+import { link, notifyFinished, supportsHyperlinks } from './ui/terminal';
+import { meter, relativeTime } from './ui/format';
 import { cacheDevices, verifyDevices } from './utils/device_check';
 import { completionScript, detectShell } from './commands/completion';
 import { initSummary, runInit } from './commands/init';
@@ -381,22 +383,27 @@ interface FinishOptions {
 }
 
 /** Prints the summary card and, after a long run, notifies the user. */
-function printRunSummary(
+async function printRunSummary(
   output: JsonOutput,
   options: NonNullable<FinishOptions['summary']>,
   stdoutReserved: boolean,
-): void {
+): Promise<void> {
   if (output.outcome !== 'passed' && output.outcome !== 'failed') return;
   const elapsedMs = Math.round(process.uptime() * 1000);
   if (!options.quiet) {
-    console.log();
-    for (const line of renderSummary(output, {
+    const [verdict, ...rest] = renderSummary(output, {
       elapsedMs,
       artifactsDownloaded: options.artifactsDownloaded,
       columns: process.stdout.columns,
-    })) {
-      console.log(line);
-    }
+    });
+    console.log();
+    await printVerdict(verdict, {
+      animate:
+        output.outcome === 'passed' &&
+        utils.isInteractive() &&
+        pc.isColorSupported,
+    });
+    for (const line of rest) console.log(line);
     console.log();
   }
   // Notification escapes go to stdout, which --json reserves for the document.
@@ -442,7 +449,7 @@ async function finishCommand(
   { ciSummary = true, summary }: FinishOptions = {},
 ): Promise<void> {
   if (summary) {
-    printRunSummary(
+    await printRunSummary(
       output,
       {
         ...summary,
@@ -1929,13 +1936,22 @@ function printProjectList(
     Math.max(4, ...projects.map((p) => p.name.length)),
   );
   const header = `${'ID'.padEnd(idWidth)}  ${'NAME'.padEnd(nameWidth)}  ${'STATE'.padEnd(9)}  ${'RUNS'.padEnd(4)}  ${'FLOWS'.padEnd(5)}  CREATED`;
-  console.log(header);
-  console.log('-'.repeat(header.length));
+  console.log(pc.dim(header));
+  console.log(pc.dim('─'.repeat(header.length)));
   for (const p of projects) {
     const name =
       p.name.length > nameWidth ? `${p.name.slice(0, nameWidth - 1)}…` : p.name;
+    // Pad the plain text first: colour and link escapes have no width. The
+    // ID links to the project where the terminal supports links.
+    const idText = String(p.id);
+    const idCell =
+      (supportsHyperlinks() ? link(idText, p.url, true) : idText) +
+      ' '.repeat(Math.max(0, idWidth - idText.length));
+    const state = p.completed
+      ? pc.dim('completed'.padEnd(9))
+      : pc.cyan('running'.padEnd(9));
     console.log(
-      `${String(p.id).padEnd(idWidth)}  ${name.padEnd(nameWidth)}  ${(p.completed ? 'completed' : 'running').padEnd(9)}  ${String(p.runs.length).padEnd(4)}  ${String(p.flows.length).padEnd(5)}  ${p.createdAt}`,
+      `${idCell}  ${name.padEnd(nameWidth)}  ${state}  ${String(p.runs.length).padEnd(4)}  ${String(p.flows.length).padEnd(5)}  ${pc.dim(relativeTime(p.createdAt))}`,
     );
   }
   const shownTo = meta.offset + projects.length;
@@ -2033,6 +2049,18 @@ withFlags(
       console.log(
         `Concurrency:  ${c.runningVirtual ?? 0}/${c.virtual ?? '?'} virtual, ${c.runningPhysical ?? 0}/${c.physical ?? '?'} physical in use`,
       );
+      // At a glance: how much of each pool is busy right now.
+      for (const [label, used, total] of [
+        ['virtual', c.runningVirtual ?? 0, c.virtual],
+        ['physical', c.runningPhysical ?? 0, c.physical],
+      ] as const) {
+        const bar = total ? meter(used, total) : '';
+        if (bar) {
+          console.log(
+            `              ${pc.cyan(bar)} ${pc.dim(`${label} ${used}/${total}`)}`,
+          );
+        }
+      }
     } catch (err) {
       logger.error(`Whoami error: ${err instanceof Error ? err.message : err}`);
       process.exitCode = EXIT_ERROR;
@@ -2158,12 +2186,15 @@ function printDevices(
   );
   const last = real ? 'AVAILABLE' : 'TYPE';
   const header = `${'PLATFORM'.padEnd(8)}  ${'DEVICE'.padEnd(nameWidth)}  ${last.padEnd(9)}  VERSIONS`;
-  console.log(header);
-  console.log('-'.repeat(header.length + 10));
+  console.log(pc.dim(header));
+  console.log(pc.dim('─'.repeat(header.length + 10)));
   for (const d of devices) {
     const extra = real ? (d.available ? 'yes' : 'no') : (d.type ?? '');
+    const extraCell = real
+      ? (d.available ? pc.green : pc.red)(extra.padEnd(9))
+      : pc.dim(extra.padEnd(9));
     console.log(
-      `${d.platform.padEnd(8)}  ${d.name.padEnd(nameWidth)}  ${extra.padEnd(9)}  ${d.versions.join(', ')}`,
+      `${d.platform.padEnd(8)}  ${d.name.padEnd(nameWidth)}  ${extraCell}  ${d.versions.join(', ')}`,
     );
   }
   const example =

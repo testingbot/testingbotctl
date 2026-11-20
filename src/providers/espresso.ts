@@ -229,6 +229,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
         logger.info(
           `Watch in realtime: ${linkUrl(this.dashboardUrl() as string)}`,
         );
+        this.printKeyHint();
       }
       const result = await this.retryFailedRuns(await this.waitForCompletion());
 
@@ -452,6 +453,17 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       }
 
       // Terminal-tab title reflects the coarse phase, regardless of quiet.
+      // Runs are the only unit these APIs report: show runs finished.
+      this.showProgress(
+        runs.filter((r) => r.status === 'DONE' || r.status === 'FAILED').length,
+        runs.length > 1 ? runs.length : 0,
+        runs.filter(
+          (r) =>
+            (r.status === 'DONE' || r.status === 'FAILED') &&
+            !this.isRunSuccessful(r.success),
+        ).length,
+      );
+
       const running = runs.find((r) => r.status === 'READY');
       if (running) {
         const device =

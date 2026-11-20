@@ -224,7 +224,7 @@ export default class Upload {
   /**
    * Format file size in human-readable format (KB for small files, MB for larger)
    */
-  private formatFileSize(bytes: number): string {
+  public formatFileSize(bytes: number): string {
     if (bytes < 1024) {
       return `${Math.round(bytes)} B`;
     } else if (bytes < 1024 * 1024) {

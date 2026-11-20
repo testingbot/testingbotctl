@@ -225,6 +225,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
         logger.info(
           `Watch in realtime: ${linkUrl(this.dashboardUrl() as string)}`,
         );
+        this.printKeyHint();
       }
       const result = await this.retryFailedRuns(await this.waitForCompletion());
 
@@ -446,6 +447,17 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       if (!this.options.quiet) {
         this.displayRunStatus(runs, startTime, previousStatus);
       }
+
+      // Runs are the only unit these APIs report: show runs finished.
+      this.showProgress(
+        runs.filter((r) => r.status === 'DONE' || r.status === 'FAILED').length,
+        runs.length > 1 ? runs.length : 0,
+        runs.filter(
+          (r) =>
+            (r.status === 'DONE' || r.status === 'FAILED') &&
+            !this.isRunSuccessful(r.success),
+        ).length,
+      );
 
       const running = runs.find((r) => r.status === 'READY');
       if (running) {

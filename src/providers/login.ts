@@ -3,12 +3,9 @@ import { URL } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { execFile } from 'node:child_process';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
 import logger from '../logger';
-
-const execFileAsync = promisify(execFile);
+import { openUrl } from '../utils/open_url';
 
 const AUTH_URL = 'https://testingbot.com/auth';
 
@@ -326,20 +323,7 @@ export default class Login {
   }
 
   private async openBrowser(url: string): Promise<void> {
-    const platform = process.platform;
-
-    try {
-      if (platform === 'darwin') {
-        await execFileAsync('open', [url]);
-      } else if (platform === 'win32') {
-        await execFileAsync('cmd', ['/c', 'start', '', url]);
-      } else {
-        // Linux and others
-        await execFileAsync('xdg-open', [url]);
-      }
-    } catch {
-      // Browser open failed, user will need to open manually
-      // Message already displayed in run()
-    }
+    // When it fails the URL printed in run() is the way in.
+    await openUrl(url);
   }
 }

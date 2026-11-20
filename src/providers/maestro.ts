@@ -793,7 +793,13 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         if (existingApp) {
           this.appId = existingApp.id;
           if (!this.options.quiet) {
-            logger.info('  App already uploaded, skipping upload');
+            const size = await fs.promises
+              .stat(appPath)
+              .then((st) => this.upload.formatFileSize(st.size))
+              .catch(() => undefined);
+            logger.info(
+              `  ${pc.green('✔')} App unchanged since its last upload: reusing it${size ? pc.dim(` (skipped ${size})`) : ''}`,
+            );
           }
           return true;
         }
@@ -2936,6 +2942,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return runs.every((run) => this.runPassed(run));
   }
 
+  protected override followCommand(): string | undefined {
+    return this.appId
+      ? `testingbot status --id ${this.appId} --wait`
+      : undefined;
+  }
+
   /**
    * Adds per-flow rows to the JSON run. Every attempt is listed so retries
    * are visible; `latest` marks the attempt whose verdict counts, and the run's
@@ -3032,6 +3044,16 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         .filter((run) => !TERMINAL_RUN_STATUSES.has(run.status))
         .map((run) => run.id);
 
+      const counted = this.currentRuns(status.runs).flatMap((run) =>
+        this.groupLatest(run.flows ?? []),
+      );
+      this.showProgress(
+        counted.filter((f) => f.status !== 'WAITING' && f.status !== 'READY')
+          .length,
+        counted.length,
+        counted.filter((f) => this.isFlowFailed(f)).length,
+      );
+
       const running = status.runs.find((r) => r.status === 'READY');
       if (running) {
         const device =
@@ -3062,6 +3084,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             urlDisplayed.add(run.id);
           }
         }
+        if (urlDisplayed.size > 0) this.printKeyHint();
 
         if (allFlows.length > 0 && !utils.isInteractive()) {
           // CI logs and pipes: append-only, no cursor movement or spinner

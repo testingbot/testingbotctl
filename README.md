@@ -813,28 +813,26 @@ API calls, uploads, live updates and the tunnel download all go through the prox
 
 In a terminal the CLI shows a live table of flows (Maestro) or runs (Espresso, XCUITest), links to watch each run in realtime, and a summary at the end: the verdict, a row per device, flaky flows (passed on retry), the slowest flows, and the commands to re-run failures or download their videos and logs. In CI and other non-interactive output the table is printed as a plain log, one line per finished flow, without cursor movement.
 
+While a run is live you can press:
+
+- `o` to open the dashboard in your browser
+- `d` to detach: the CLI exits and the runs keep going (pick them up with `testingbot status --id <id> --wait`)
+- `Ctrl+C` to stop the runs on TestingBot (press it twice to force exit)
+
 Use `--quiet` to suppress progress output.
 
 Before uploading, `--device` and `--device-matrix` names are checked against the device catalog, so a typo fails right away with a suggestion ("Did you mean "Pixel 9"?"). Wildcards and regular expressions are not checked. Set `TESTINGBOT_SKIP_DEVICE_CHECK=1` to skip the check.
 
-### Graceful Shutdown
-
-Press `Ctrl+C` to gracefully stop running tests. The CLI will:
-
-1. Stop all active test runs on TestingBot
-2. Clean up resources
-3. Exit with appropriate status code
-
-Press `Ctrl+C` twice to force exit immediately.
-
 ### Terminal features
 
-Where the terminal supports them, links are clickable (iTerm2, WezTerm, Ghostty, kitty, Windows Terminal, VS Code, GNOME Terminal…), and a run that took longer than a minute ends with a desktop notification (iTerm2, Ghostty, WezTerm, kitty) or the terminal bell. None of this is written in CI or when output is piped. Settings:
+Where the terminal supports them, links are clickable (iTerm2, WezTerm, Ghostty, kitty, Windows Terminal, VS Code, GNOME Terminal…), progress shows on the tab or taskbar (Windows Terminal, Ghostty, iTerm2), and a run that took longer than a minute ends with a desktop notification (iTerm2, Ghostty, WezTerm, kitty) or the terminal bell. None of this is written in CI or when output is piped. Settings:
 
 | Variable | Effect |
 |---|---|
 | `TESTINGBOT_NOTIFY=0` | No notification or bell when a long run finishes |
 | `FORCE_HYPERLINK=0` / `1` | Turn clickable links off / on |
+| `TESTINGBOT_TERM_PROGRESS=0` / `1` | Turn tab/taskbar progress off / on |
+| `TESTINGBOT_BANNER=full` / `compact` / `off` | The banner: full once per version, then one line |
 | `NO_COLOR=1` | No colours |
 | `TESTINGBOT_NO_UPDATE_CHECK=1` | Don't check npm for a newer CLI (also `NO_UPDATE_NOTIFIER`) |
 
