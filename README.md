@@ -108,6 +108,45 @@ testingbot failed-tests "nightly-$CI_PIPELINE_ID"          # one test name per l
 testingbot failed-tests 123456 --json                      # id, name, sessionId, browser, os, statusMessage
 ```
 
+## Project setup
+
+### `testingbot init` and `.testingbot.yml`
+
+`testingbot init` looks at your project (Maestro flows, APKs, IPAs, Xcode projects) and writes `.testingbot.yml` with the app, the flows or test app, and a device. After that, a plain `testingbot maestro` (or `espresso` / `xcuitest`) runs with those defaults:
+
+```sh
+testingbot init                 # detect and write .testingbot.yml
+testingbot init --ci github     # also write .github/workflows/testingbot.yml
+testingbot maestro              # runs with the defaults
+testingbot maestro --device "Galaxy S24" smoke/   # the command line always wins
+```
+
+```yaml
+# .testingbot.yml
+maestro:
+  app: app/build/outputs/apk/debug/app-debug.apk
+  flows:
+    - .maestro
+  device: Pixel 9
+  deviceVersion: "15"
+  retry: 1
+```
+
+Keys are option names, in camelCase or as the flag (`device-version`). Relative paths are relative to the file, which is found in the current directory or any parent, so it works from subdirectories. An app or flows given on the command line replace the configured ones. Credentials are refused: the file is meant to be committed. `TESTINGBOT_CONFIG=path/to/file.yml` uses another file, `TESTINGBOT_CONFIG=none` none at all.
+
+### Shell completion
+
+Tab-completes commands, options, fixed values and **device names and OS versions** (from the catalog cached by your last run or `testingbot devices`):
+
+```sh
+echo 'eval "$(testingbot completion zsh)"' >> ~/.zshrc     # or bash: ~/.bashrc
+testingbot completion fish > ~/.config/fish/completions/testingbot.fish
+```
+
+### `testingbot doctor`
+
+Checks your setup and says what to fix: CLI and Node.js versions, credentials, account and minutes left, whether `api.testingbot.com` is reachable (and through which proxy), `.testingbot.yml`, and shell completion. `testingbot doctor --json` is handy for support tickets.
+
 ## Commands
 
 ### Maestro
@@ -776,6 +815,8 @@ In a terminal the CLI shows a live table of flows (Maestro) or runs (Espresso, X
 
 Use `--quiet` to suppress progress output.
 
+Before uploading, `--device` and `--device-matrix` names are checked against the device catalog, so a typo fails right away with a suggestion ("Did you mean "Pixel 9"?"). Wildcards and regular expressions are not checked. Set `TESTINGBOT_SKIP_DEVICE_CHECK=1` to skip the check.
+
 ### Graceful Shutdown
 
 Press `Ctrl+C` to gracefully stop running tests. The CLI will:
@@ -795,6 +836,7 @@ Where the terminal supports them, links are clickable (iTerm2, WezTerm, Ghostty,
 | `TESTINGBOT_NOTIFY=0` | No notification or bell when a long run finishes |
 | `FORCE_HYPERLINK=0` / `1` | Turn clickable links off / on |
 | `NO_COLOR=1` | No colours |
+| `TESTINGBOT_NO_UPDATE_CHECK=1` | Don't check npm for a newer CLI (also `NO_UPDATE_NOTIFIER`) |
 
 ### Report Downloads
 

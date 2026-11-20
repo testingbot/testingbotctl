@@ -5,6 +5,7 @@ module.exports = {
     '^.+\\.(ts|tsx)$': ['ts-jest', {}],
   },
   testMatch: ['**/tests/**/*.test.ts'],
+  setupFiles: ['<rootDir>/tests/setup-env.ts'],
   moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   collectCoverageFrom: [
     'src/**/*.ts',

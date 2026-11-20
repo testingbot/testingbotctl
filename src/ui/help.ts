@@ -294,6 +294,7 @@ export function applyHelpLayout(program: Command): void {
     [
       '',
       `Run ${pc.cyan('testingbot <command> --help')} for the options of a command.`,
+      `New here? ${pc.cyan('testingbot login')}, then ${pc.cyan('testingbot init')} in your project.`,
     ].join('\n'),
   );
 }

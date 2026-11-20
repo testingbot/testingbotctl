@@ -1,4 +1,5 @@
 import { Command, InvalidArgumentError, Option } from 'commander';
+import pc from 'picocolors';
 import logger, { enableDebugLogging } from './logger';
 import Auth from './auth';
 import Espresso from './providers/espresso';
@@ -43,7 +44,18 @@ import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
 import { notificationText, renderSummary } from './ui/summary';
 import { notifyFinished } from './ui/terminal';
+import { cacheDevices, verifyDevices } from './utils/device_check';
+import { completionScript, detectShell } from './commands/completion';
+import { initSummary, runInit } from './commands/init';
+import { renderChecks, runChecks, terminalSummary } from './commands/doctor';
+import {
+  applyProjectConfig,
+  CONFIGURABLE_COMMANDS,
+  findConfigFile,
+  loadProjectConfig,
+} from './config/project_config';
 import { applyHelpLayout } from './ui/help';
+import { installUpdateNotifier } from './utils/update_check';
 import {
   EXIT_ERROR,
   JsonOutput,
@@ -391,6 +403,38 @@ function printRunSummary(
   if (!stdoutReserved) notifyFinished(notificationText(output), elapsedMs);
 }
 
+/**
+ * The devices a run asks for, checked against the catalog before uploading
+ * (see utils/device_check). Skipped for --dry-run, which makes no requests.
+ */
+async function checkRequestedDevices(
+  framework: DeviceFramework,
+  options: {
+    device?: string;
+    version?: string;
+    realDevice: boolean;
+    dryRun: boolean;
+    deviceMatrix?: DeviceMatrixCell[];
+  },
+  credentials: Credentials,
+): Promise<void> {
+  if (options.dryRun) return;
+  const requests = options.deviceMatrix?.length
+    ? options.deviceMatrix.map((cell) => ({
+        device: cell.device,
+        version: cell.version,
+        real: Boolean(cell.realDevice),
+      }))
+    : [
+        {
+          device: options.device,
+          version: options.version,
+          real: options.realDevice,
+        },
+      ];
+  await verifyDevices(framework, requests, credentials);
+}
+
 /** Emits JSON output (if requested) and sets the exit code for a finished run. */
 async function finishCommand(
   output: JsonOutput,
@@ -447,6 +491,29 @@ async function failCommand(
   }
 }
 
+/**
+ * Applies `.testingbot.yml` defaults to a run command (see
+ * config/project_config) and says which ones, unless output is quiet or JSON.
+ */
+function applyConfigFile(action: Command): void {
+  const file = findConfigFile();
+  if (!file) return;
+  const applied = applyProjectConfig(action, loadProjectConfig(file));
+  if (!applied) return;
+  const opts = action.opts();
+  const silent = opts.quiet || opts.json || opts.jsonFile;
+  for (const warning of applied.warnings) logger.warn(warning);
+  if (applied.keys.length > 0 && !silent) {
+    const where = path.relative(process.cwd(), applied.file) || applied.file;
+    logger.info(
+      `Using ${applied.keys.join(', ')} from ${where.startsWith('..') ? applied.file : where}`,
+    );
+  }
+}
+
+/** Commands whose stdout a shell consumes: no notices, no banner. */
+const COMPLETION_COMMANDS = new Set(['completion', '__complete']);
+
 const program = new Command();
 
 program
@@ -461,6 +528,23 @@ program
   )
   .hook('preAction', (_program, action) => {
     const opts = action.opts();
+    // A shell reads the completion commands' output; nothing else may print.
+    // doctor reports the version itself.
+    if (
+      !opts.quiet &&
+      !COMPLETION_COMMANDS.has(action.name()) &&
+      action.name() !== 'doctor'
+    ) {
+      installUpdateNotifier();
+    }
+    if (CONFIGURABLE_COMMANDS.includes(action.name())) {
+      try {
+        applyConfigFile(action);
+      } catch (error) {
+        logger.error(error instanceof Error ? error.message : String(error));
+        process.exit(EXIT_ERROR);
+      }
+    }
     try {
       const proxy = installProxy({ proxy: program.opts().proxy });
       if (proxy && !opts.quiet && !opts.json) {
@@ -726,6 +810,7 @@ program
       if (args.debug) {
         enableDebugLogging();
       }
+      await checkRequestedDevices('espresso', options, credentials);
       const espresso = new Espresso(credentials, options);
       const result = await espresso.run();
       await finishCommand(espresso.toJsonOutput(result), jsonOptions, {
@@ -1164,6 +1249,7 @@ program
       if (args.debug) {
         enableDebugLogging();
       }
+      await checkRequestedDevices('maestro', options, credentials);
       const maestro = new Maestro(credentials, options);
       const result = await maestro.run();
       await finishCommand(maestro.toJsonOutput(result), jsonOptions, {
@@ -1422,6 +1508,7 @@ program
       if (args.debug) {
         enableDebugLogging();
       }
+      await checkRequestedDevices('xcuitest', options, credentials);
       const xcuitest = new XCUITest(credentials, options);
       const result = await xcuitest.run();
       await finishCommand(xcuitest.toJsonOutput(result), jsonOptions, {
@@ -2038,6 +2125,10 @@ withFlags(
         real: Boolean(args.real),
         credentials: args.real ? await requireCredentials(args) : undefined,
       });
+      // Unfiltered lists feed shell completion and the device-name check.
+      if (!args.platform) {
+        cacheDevices(args.framework, Boolean(args.real), devices);
+      }
       if (args.json) {
         process.stdout.write(`${JSON.stringify(devices, null, 2)}\n`);
         return;
@@ -2095,6 +2186,88 @@ function printDevices(
     );
   }
 }
+
+program
+  .command('init')
+  .description(
+    'Set up this project: detect the app, tests and a device, and write .testingbot.yml so "testingbot <framework>" runs with no arguments.',
+  )
+  .option(
+    '--framework <name>',
+    'maestro, espresso or xcuitest (default: detected).',
+    parseFramework,
+  )
+  .option('--ci <provider>', 'Also write a CI workflow. Supported: github.')
+  .option('--force', 'Overwrite existing files.')
+  .action(async (args) => {
+    try {
+      const result = await runInit({
+        framework: args.framework,
+        ci: args.ci,
+        force: args.force,
+      });
+      for (const line of initSummary(result)) console.log(line);
+    } catch (err) {
+      logger.error(err instanceof Error ? err.message : String(err));
+      process.exitCode = EXIT_ERROR;
+    }
+  });
+
+program
+  .command('doctor')
+  .description(
+    'Check your setup: CLI and Node.js versions, credentials, account, network and proxy, project config and shell completion.',
+  )
+  .option('--json', 'Print the checks as JSON on stdout.')
+  .action(async (args) => {
+    try {
+      const results = await runChecks();
+      if (args.json) {
+        process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+      } else {
+        for (const line of renderChecks(results)) console.log(line);
+        console.log(`  ${pc.dim(`Terminal: ${terminalSummary()}`)}`);
+      }
+      if (results.some((r) => r.status === 'fail')) {
+        process.exitCode = EXIT_ERROR;
+      }
+    } catch (err) {
+      logger.error(err instanceof Error ? err.message : String(err));
+      process.exitCode = EXIT_ERROR;
+    }
+  });
+
+program
+  .command('completion')
+  .description(
+    'Print the shell completion script for bash, zsh or fish (Tab-completes commands, options, device names and versions).',
+  )
+  .argument('[shell]', 'bash, zsh or fish (default: from $SHELL)')
+  .addHelpText(
+    'after',
+    [
+      '',
+      'Install:',
+      `  bash  echo 'eval "$(testingbot completion bash)"' >> ~/.bashrc`,
+      `  zsh   echo 'eval "$(testingbot completion zsh)"' >> ~/.zshrc`,
+      '  fish  testingbot completion fish > ~/.config/fish/completions/testingbot.fish',
+      '',
+      'Device names come from the catalog cached by your last run or "testingbot devices".',
+    ].join('\n'),
+  )
+  .action((shellArg?: string) => {
+    const shell = (shellArg ?? detectShell())?.toLowerCase();
+    if (shell !== 'bash' && shell !== 'zsh' && shell !== 'fish') {
+      logger.error(
+        shellArg
+          ? `Unsupported shell "${shellArg}": expected bash, zsh or fish.`
+          : 'Could not tell your shell from $SHELL: pass bash, zsh or fish.',
+      );
+      process.exitCode = EXIT_ERROR;
+      return;
+    }
+    process.stdout.write(completionScript(shell));
+  });
 
 /**
  * Hidden alternative spellings, so a flag learned on one command works on the

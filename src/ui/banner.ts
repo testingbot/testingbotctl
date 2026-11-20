@@ -36,6 +36,8 @@ function visibleLen(s: string): number {
 
 function shouldSkipBanner(argv: string[]): boolean {
   if (!utils.isInteractive()) return true;
+  // Output a shell or a script reads.
+  if (argv[0] === 'completion' || argv[0] === '__complete') return true;
   for (const arg of argv) {
     if (
       arg === '--help' ||
