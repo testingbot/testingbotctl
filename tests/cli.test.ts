@@ -277,6 +277,100 @@ describe('TestingBotCTL CLI', () => {
     expect(opts.locale).toBe('en_US');
   });
 
+  describe('flag aliases across commands', () => {
+    type VersionLocale = { version?: string; locale?: string };
+
+    test('maestro accepts --device-version / --platform-version and --locale', async () => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'k' });
+      mockMaestroRun.mockResolvedValue({ success: true, runs: [] });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--device-version',
+        '15',
+        '--locale',
+        'de_DE',
+      ]);
+      let opts = lastConstructorOptions<VersionLocale>(Maestro);
+      expect(opts.version).toBe('15');
+      expect(opts.locale).toBe('de_DE');
+
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--platform-version',
+        '14',
+      ]);
+      opts = lastConstructorOptions<VersionLocale>(Maestro);
+      expect(opts.version).toBe('14');
+    });
+
+    test('the canonical flag wins over an alias', async () => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'k' });
+      mockMaestroRun.mockResolvedValue({ success: true, runs: [] });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--deviceVersion',
+        '16',
+        '--platform-version',
+        '14',
+      ]);
+      expect(lastConstructorOptions<VersionLocale>(Maestro).version).toBe('16');
+    });
+
+    test('espresso and xcuitest accept --device-version and --device-locale', async () => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'k' });
+      mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
+      mockXCUITestRun.mockResolvedValue({ success: true, runs: [] });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'espresso',
+        'a.apk',
+        't.apk',
+        '--device-version',
+        '14',
+        '--device-locale',
+        'fr_FR',
+      ]);
+      let opts = lastConstructorOptions<VersionLocale>(Espresso);
+      expect(opts.version).toBe('14');
+      expect(opts.locale).toBe('fr_FR');
+
+      await program.parseAsync([
+        'node',
+        'cli',
+        'xcuitest',
+        'a.ipa',
+        't.zip',
+        '--device-version',
+        '18.2',
+        '--device-locale',
+        'DE',
+      ]);
+      opts = lastConstructorOptions<VersionLocale>(XCUITest);
+      expect(opts.version).toBe('18.2');
+      expect(opts.locale).toBe('DE');
+    });
+
+    test('aliases stay out of --help', () => {
+      const maestro = program.commands.find((c) => c.name() === 'maestro');
+      const help = maestro?.helpInformation() ?? '';
+      expect(help).not.toContain('--device-version');
+      expect(help).toContain('--deviceVersion');
+    });
+  });
+
   test('espresso command should accept async and quiet modes', async () => {
     mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
     mockEspressoRun.mockResolvedValue({ success: true, runs: [] });
@@ -847,7 +941,7 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'Espresso error: No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+      'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
         '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
         '  2. Use --api-key and --api-secret options\n' +
         '  3. Set TB_KEY and TB_SECRET environment variables\n' +
@@ -872,7 +966,7 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'Maestro error: No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+      'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
         '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
         '  2. Use --api-key and --api-secret options\n' +
         '  3. Set TB_KEY and TB_SECRET environment variables\n' +
@@ -899,7 +993,7 @@ describe('TestingBotCTL CLI', () => {
     ]);
 
     expect(mockError).toHaveBeenCalledWith(
-      'XCUITest error: No TestingBot credentials found. Please authenticate using one of these methods:\n' +
+      'No TestingBot credentials found. Please authenticate using one of these methods:\n' +
         '  1. Run "testingbot login" to authenticate via browser (recommended)\n' +
         '  2. Use --api-key and --api-secret options\n' +
         '  3. Set TB_KEY and TB_SECRET environment variables\n' +
@@ -1017,7 +1111,9 @@ describe('TestingBotCTL CLI', () => {
       run.mockResolvedValue({ success: false, outcome: 'failed', runs: [] });
       await program.parseAsync(['node', 'cli', ...argv]);
       expect(process.exitCode).toBe(2);
-      expect(stdoutSpy).not.toHaveBeenCalled();
+      // Without --json, stdout carries the summary card but no JSON document.
+      const written = stdoutSpy.mock.calls.map((c) => String(c[0]));
+      expect(written.some((w) => w.trimStart().startsWith('{'))).toBe(false);
     });
 
     test('exits 1 when the provider reports a CLI/infrastructure error', async () => {

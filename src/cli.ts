@@ -41,6 +41,9 @@ import { isAppUrl } from './utils/app_source';
 import type { DeviceMatrixCell, RunMetadata } from './models/maestro_options';
 import TestingBotError from './models/testingbot_error';
 import { redirectLogsToStderr } from './logger';
+import { notificationText, renderSummary } from './ui/summary';
+import { notifyFinished } from './ui/terminal';
+import { applyHelpLayout } from './ui/help';
 import {
   EXIT_ERROR,
   JsonOutput,
@@ -356,12 +359,54 @@ function applyMaestroCloudAliases(args: MaestroCloudAliasArgs): string[] {
   return extraFlows;
 }
 
+interface FinishOptions {
+  ciSummary?: boolean;
+  /**
+   * Print the end-of-run summary card. Only for commands that waited for the
+   * tests (not --quiet, not --json, which own the output themselves).
+   */
+  summary?: { quiet?: boolean; artifactsDownloaded?: boolean };
+}
+
+/** Prints the summary card and, after a long run, notifies the user. */
+function printRunSummary(
+  output: JsonOutput,
+  options: NonNullable<FinishOptions['summary']>,
+  stdoutReserved: boolean,
+): void {
+  if (output.outcome !== 'passed' && output.outcome !== 'failed') return;
+  const elapsedMs = Math.round(process.uptime() * 1000);
+  if (!options.quiet) {
+    console.log();
+    for (const line of renderSummary(output, {
+      elapsedMs,
+      artifactsDownloaded: options.artifactsDownloaded,
+      columns: process.stdout.columns,
+    })) {
+      console.log(line);
+    }
+    console.log();
+  }
+  // Notification escapes go to stdout, which --json reserves for the document.
+  if (!stdoutReserved) notifyFinished(notificationText(output), elapsedMs);
+}
+
 /** Emits JSON output (if requested) and sets the exit code for a finished run. */
 async function finishCommand(
   output: JsonOutput,
   jsonOptions: JsonOutputOptions,
-  { ciSummary = true }: { ciSummary?: boolean } = {},
+  { ciSummary = true, summary }: FinishOptions = {},
 ): Promise<void> {
+  if (summary) {
+    printRunSummary(
+      output,
+      {
+        ...summary,
+        quiet: summary.quiet || jsonOptions.json || jsonOptions.jsonFile,
+      },
+      Boolean(jsonOptions.json),
+    );
+  }
   const written = await writeJsonOutput(output, jsonOptions);
   if (written && !jsonOptions.json) {
     logger.info(`JSON results written to ${written}`);
@@ -383,7 +428,11 @@ async function failCommand(
   jsonOptions: JsonOutputOptions | undefined,
 ): Promise<void> {
   const message = err instanceof Error ? err.message : String(err);
-  logger.error(`${label} error: ${message}`);
+  // Our own errors are written as complete, user-facing sentences; anything
+  // else (a Node or library error) keeps the command label for context.
+  const userFacing =
+    err instanceof TestingBotError || err instanceof InvalidArgumentError;
+  logger.error(userFacing ? message : `${label} error: ${message}`);
   process.exitCode = EXIT_ERROR;
   if (!jsonOptions || (!jsonOptions.json && !jsonOptions.jsonFile)) return;
   try {
@@ -679,7 +728,12 @@ program
       }
       const espresso = new Espresso(credentials, options);
       const result = await espresso.run();
-      await finishCommand(espresso.toJsonOutput(result), jsonOptions);
+      await finishCommand(espresso.toJsonOutput(result), jsonOptions, {
+        summary: {
+          quiet: args.quiet,
+          artifactsDownloaded: Boolean(args.downloadArtifacts),
+        },
+      });
     } catch (err) {
       await failCommand('espresso', 'Espresso', err, jsonOptions);
     }
@@ -1112,7 +1166,12 @@ program
       }
       const maestro = new Maestro(credentials, options);
       const result = await maestro.run();
-      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions, {
+        summary: {
+          quiet: args.quiet,
+          artifactsDownloaded: Boolean(args.downloadArtifacts),
+        },
+      });
     } catch (err) {
       await failCommand('maestro', 'Maestro', err, jsonOptions);
     }
@@ -1365,7 +1424,12 @@ program
       }
       const xcuitest = new XCUITest(credentials, options);
       const result = await xcuitest.run();
-      await finishCommand(xcuitest.toJsonOutput(result), jsonOptions);
+      await finishCommand(xcuitest.toJsonOutput(result), jsonOptions, {
+        summary: {
+          quiet: args.quiet,
+          artifactsDownloaded: Boolean(args.downloadArtifacts),
+        },
+      });
     } catch (err) {
       await failCommand('xcuitest', 'XCUITest', err, jsonOptions);
     }
@@ -1511,7 +1575,10 @@ withFlags(
         }),
       );
       const result = await maestro.status(args.id, { wait: args.wait });
-      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions, {
+        // Without --wait the snapshot printed by status() is the summary.
+        ...(args.wait && { summary: { quiet: args.quiet } }),
+      });
     } catch (err) {
       await failCommand('maestro', 'Status', err, jsonOptions);
     }
@@ -1609,7 +1676,12 @@ withFlags(
         runIds,
         flows: args.flow,
       });
-      await finishCommand(maestro.toJsonOutput(result), jsonOptions);
+      await finishCommand(maestro.toJsonOutput(result), jsonOptions, {
+        summary: {
+          quiet: args.quiet,
+          artifactsDownloaded: Boolean(args.downloadArtifacts),
+        },
+      });
     } catch (err) {
       await failCommand('maestro', 'Rerun', err, jsonOptions);
     }
@@ -2023,5 +2095,53 @@ function printDevices(
     );
   }
 }
+
+/**
+ * Hidden alternative spellings, so a flag learned on one command works on the
+ * others: Maestro's --deviceVersion / --device-locale versus Espresso's and
+ * XCUITest's --platform-version / --locale. The alias fills the canonical
+ * option unless that was given too.
+ */
+const FLAG_ALIASES: Record<string, Array<[string, string]>> = {
+  maestro: [
+    ['--device-version <version>', 'deviceVersion'],
+    ['--platform-version <version>', 'deviceVersion'],
+    ['--locale <locale>', 'deviceLocale'],
+  ],
+  espresso: [
+    ['--device-version <version>', 'platformVersion'],
+    ['--device-locale <locale>', 'locale'],
+  ],
+  xcuitest: [
+    ['--device-version <version>', 'platformVersion'],
+    ['--device-locale <locale>', 'locale'],
+  ],
+};
+
+for (const [name, aliases] of Object.entries(FLAG_ALIASES)) {
+  const command = program.commands.find((c) => c.name() === name);
+  if (!command) continue;
+  const options = aliases.map(([flags]) => new Option(flags).hideHelp());
+  for (const option of options) command.addOption(option);
+  command.hook('preAction', (_cmd, action) => {
+    aliases.forEach(([, target], i) => {
+      const attribute = options[i].attributeName();
+      const value = action.getOptionValue(attribute);
+      // The canonical flag wins over an alias; an alias wins over config.
+      const targetSource = action.getOptionValueSource(target);
+      if (
+        attribute !== target &&
+        value !== undefined &&
+        (targetSource === undefined ||
+          targetSource === 'default' ||
+          targetSource === 'config')
+      ) {
+        action.setOptionValue(target, value);
+      }
+    });
+  });
+}
+
+applyHelpLayout(program);
 
 export default program;

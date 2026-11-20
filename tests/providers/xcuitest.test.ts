@@ -769,8 +769,10 @@ describe('XCUITest', () => {
       const result = await xcuiTest['waitForCompletion']();
 
       expect(result.success).toBe(true);
+      expect(result.outcome).toBe('passed');
+      // The verdict feeds the CLI summary card through the JSON document.
+      expect(xcuiTest.toJsonOutput(result).runs[0].passed).toBe(true);
       const output = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
-      expect(output).toContain('Test completed successfully');
       expect(output).not.toContain('Test failed');
       logSpy.mockRestore();
     });

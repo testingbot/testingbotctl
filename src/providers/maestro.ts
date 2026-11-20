@@ -26,6 +26,7 @@ import {
   isSupportedAppExtension,
 } from '../utils/app_source';
 import { setTitle } from '../ui/terminal-title';
+import { linkUrl } from '../ui/terminal';
 import { HTTP, SOCKET } from '../config/constants';
 import { maskSecretEnv } from '../utils/secret_env';
 
@@ -622,7 +623,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         if (!this.options.quiet) {
           logger.info(`Tests started in async mode. Project ID: ${this.appId}`);
           logger.info(
-            `View realtime results: https://testingbot.com/members/maestro/${this.appId}`,
+            `View realtime results: ${linkUrl(this.dashboardUrl() as string)}`,
           );
         }
         return { success: true, outcome: 'started', runs: [] };
@@ -2331,9 +2332,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       return;
     }
 
-    logger.warn(
-      `Warning: ${missingReferences.length} referenced file(s) not found:`,
-    );
+    logger.warn(`${missingReferences.length} referenced file(s) not found:`);
 
     for (const ref of missingReferences) {
       const flowRelative = baseDir
@@ -2937,12 +2936,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return runs.every((run) => this.runPassed(run));
   }
 
-  protected override dashboardUrl(runId?: number): string | undefined {
-    if (!this.appId) return undefined;
-    const base = `https://testingbot.com/members/maestro/${this.appId}`;
-    return runId == null ? base : `${base}/runs/${runId}`;
-  }
-
   /**
    * Adds per-flow rows to the JSON run. Every attempt is listed so retries
    * are visible; `latest` marks the attempt whose verdict counts, and the run's
@@ -3065,9 +3058,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
             console.log(
               `  🔗 Run ${run.id} (${this.getRunDisplayName(run)}): Watch in realtime:`,
             );
-            console.log(
-              `     https://testingbot.com/members/maestro/${this.appId}/runs/${run.id}`,
-            );
+            console.log(`     ${linkUrl(this.dashboardUrl(run.id) as string)}`);
             urlDisplayed.add(run.id);
           }
         }
@@ -3218,41 +3209,28 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
-    // Print final summary (last-attempt-wins per run)
-    if (!this.options.quiet) {
-      this.spinner.stop();
-      console.log(); // Empty line before summary
-
-      for (const run of status.runs) {
-        const passed = this.runPassed(run);
-        const symbol = passed ? pc.green('✔') : pc.red('✘');
-        const statusText = passed
-          ? pc.green('Test completed successfully')
-          : pc.red('Test failed');
-        console.log(
-          `  ${symbol} Run ${run.id} ${pc.dim(`(${this.getRunDisplayName(run)})`)}: ${statusText}`,
-        );
-      }
-    }
-
+    // The verdict itself is the CLI's summary card (last-attempt-wins per
+    // run); --quiet, which has no card, still gets a one-line failure count.
+    this.spinner.stop();
     const allSucceeded = this.computeOverallSuccess(status.runs);
 
     if (allSucceeded) {
       setTitle('maestro · ✔ passed');
-      if (!this.options.quiet) {
-        logger.info('All tests completed successfully!');
-      }
     } else {
       const failedRuns = status.runs.filter((run) => !this.runPassed(run));
       const failedFlows = this.failedLatestAttempts(status.runs);
       if (failedFlows.length > 0) {
         setTitle(`maestro · ✘ ${failedFlows.length} failed`);
-        logger.error(
-          `${failedFlows.length} flow(s) failed across ${failedRuns.length} run(s)`,
-        );
+        if (this.options.quiet) {
+          logger.error(
+            `${failedFlows.length} flow(s) failed across ${failedRuns.length} run(s)`,
+          );
+        }
       } else {
         setTitle(`maestro · ✘ ${failedRuns.length} failed`);
-        logger.error(`${failedRuns.length} test run(s) failed`);
+        if (this.options.quiet) {
+          logger.error(`${failedRuns.length} test run(s) failed`);
+        }
       }
     }
 
@@ -3648,7 +3626,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private printStatusSummary(status: MaestroStatusResponse): void {
     const url = this.dashboardUrl();
     console.log(
-      `  Project ${this.appId}: ${status.completed ? 'completed' : pc.cyan('running')}${url ? pc.dim(`  ${url}`) : ''}`,
+      `  Project ${this.appId}: ${status.completed ? 'completed' : pc.cyan('running')}${url ? `  ${pc.dim(linkUrl(url))}` : ''}`,
     );
     for (const run of status.runs) {
       const info = this.getStatusInfo(run.status);

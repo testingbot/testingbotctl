@@ -6,10 +6,19 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 
 ### Added
 
+- End-of-run summary for every framework: verdict, a row per device, flaky flows (passed on retry), slowest flows, and the next commands (`testingbot rerun`, `testingbot artifacts`, dashboard links). Espresso and XCUITest now link to their dashboard pages, also in `--json` (`url`).
+- Clickable links (OSC 8) where the terminal supports them, and a desktop notification or bell when a run of over a minute ends (`TESTINGBOT_NOTIFY=0` turns it off).
+- Grouped `--help` (App & tests, Device, Choosing tests, Running, Reports & artifacts, CI, Output, Authentication) with examples; root commands grouped by purpose.
+- Hidden flag aliases so a flag learned on one command works on the others: `--device-version`, `--platform-version` and `--locale` for `maestro`; `--device-version` and `--device-locale` for `espresso` and `xcuitest`.
+
 - `testingbot maestro --max-failures <n>`: TestingBot stops each run once n flows (shards, when sharded) have failed and does not run the rest (the run's `failFast` API parameter). Enforced server-side, so it works with `--async`.
 - `testingbot xcuitest`: `--only-testing` and `--skip-testing` choose which tests run (`TestClass` or `TestClass/testMethod`, comma-separated, repeatable). `--test-env KEY=VALUE` / `--test-arg` pass environment variables and launch arguments to the test runner process, `--app-env KEY=VALUE` / `--app-arg` to the app under test. Invalid identifiers or variable names fail before anything is uploaded.
 
 - `testingbot failed-tests <build>`: prints the names of the failed tests of a Selenium/Appium build, one per line (`--json` for id, session ID, browser and OS), so CI can run only those again. Builds are addressed by name or numeric ID.
+
+### Changed
+
+- Errors and warnings are printed without a timestamp and start with `✘` / `⚠`; multi-line messages are indented. Our own errors no longer repeat the command name (`Maestro error: …`).
 
 ### Fixed
 
