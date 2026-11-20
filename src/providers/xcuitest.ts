@@ -567,7 +567,7 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       const statusChanged = prevStatus !== run.status;
       previousStatus.set(run.id, run.status);
 
-      const statusInfo = this.getStatusInfo(run.status);
+      const statusInfo = this.getStatusInfo(run.status, run.success);
 
       if (run.status === 'WAITING' || run.status === 'READY') {
         const label =
@@ -600,7 +600,10 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
     return run.environment?.name || run.capabilities.deviceName;
   }
 
-  private getStatusInfo(status: XCUITestRunInfo['status']): {
+  private getStatusInfo(
+    status: XCUITestRunInfo['status'],
+    success?: number | boolean,
+  ): {
     symbol: string;
     text: string;
   } {
@@ -610,7 +613,10 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       case 'READY':
         return { symbol: pc.cyan('◑'), text: 'Running test' };
       case 'DONE':
-        return { symbol: pc.green('✔'), text: 'Test has finished running' };
+        // DONE only means finished: the verdict is in `success`.
+        return this.isRunSuccessful(success)
+          ? { symbol: pc.green('✔'), text: 'Test passed' }
+          : { symbol: pc.red('✘'), text: 'Test failed' };
       case 'FAILED':
         return { symbol: pc.red('✘'), text: 'Test failed' };
       default:

@@ -563,7 +563,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       const statusChanged = prevStatus !== run.status;
       previousStatus.set(run.id, run.status);
 
-      const statusInfo = this.getStatusInfo(run.status);
+      const statusInfo = this.getStatusInfo(run.status, run.success);
 
       if (run.status === 'WAITING' || run.status === 'READY') {
         const label =
@@ -598,7 +598,10 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
     return run.environment?.name || run.capabilities.deviceName;
   }
 
-  private getStatusInfo(status: EspressoRunInfo['status']): {
+  private getStatusInfo(
+    status: EspressoRunInfo['status'],
+    success?: number | boolean,
+  ): {
     symbol: string;
     text: string;
   } {
@@ -608,7 +611,10 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
       case 'READY':
         return { symbol: pc.cyan('◑'), text: 'Running test' };
       case 'DONE':
-        return { symbol: pc.green('✔'), text: 'Test has finished running' };
+        // DONE only means finished: the verdict is in `success`.
+        return this.isRunSuccessful(success)
+          ? { symbol: pc.green('✔'), text: 'Test passed' }
+          : { symbol: pc.red('✘'), text: 'Test failed' };
       case 'FAILED':
         return { symbol: pc.red('✘'), text: 'Test failed' };
       default:

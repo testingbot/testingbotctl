@@ -11,6 +11,13 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 
 - `testingbot failed-tests <build>`: prints the names of the failed tests of a Selenium/Appium build, one per line (`--json` for id, session ID, browser and OS), so CI can run only those again. Builds are addressed by name or numeric ID.
 
+### Fixed
+
+- Maestro: the live table no longer duplicates its header and loses rows when a failure adds the "Fail reason" column on terminals narrower than ~135 columns; fail reasons are cut to fit the line.
+- Maestro: flows reported as `FAILED` (not only `DONE` without success) show their fail reason in the table.
+- Maestro: in CI and other non-interactive output the flow table is an append-only log (one line per finished flow, every flow listed) instead of cursor movements and spinner frames.
+- Espresso / XCUITest: a finished run that failed was shown as "✔ Test has finished running"; it now shows ✘ / ✔ by its result.
+
 ## 1.5.0 - 2026-11-05
 
 ### Added

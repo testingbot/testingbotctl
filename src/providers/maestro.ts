@@ -3072,7 +3072,12 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           }
         }
 
-        if (allFlows.length > 0) {
+        if (allFlows.length > 0 && !utils.isInteractive()) {
+          // CI logs and pipes: append-only, no cursor movement or spinner
+          // frames, every flow listed (no terminal height to fit).
+          this.spinner.stop();
+          this.appendFinishedFlows(allFlows, previousFlowStatus);
+        } else if (allFlows.length > 0) {
           // Check if any flow has failed (for showing error column)
           const hasFailures = this.hasAnyFlowFailed(allFlows);
 
@@ -3832,6 +3837,15 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     return name.slice(0, max - 1) + '…';
   }
 
+  /** Width of the "Fail reason" column: whatever the 53-column table leaves. */
+  private getFailReasonWidth(): number {
+    return Math.max(10, this.getTerminalWidth() - 54 - 1);
+  }
+
+  private singleLine(text: string): string {
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
   private getRemainingSummary(
     flows: MaestroFlowInfo[],
     displayedCount: number,
@@ -3920,7 +3934,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
     if (hasFailures) {
       header += '                              Fail reason';
-      separator += ` ${'─'.repeat(80)}`;
+      separator += ` ${'─'.repeat(Math.min(80, this.getFailReasonWidth()))}`;
     }
 
     return { header: pc.dim(header), separator: pc.dim(separator) };
@@ -3951,14 +3965,23 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       statusDisplay.colored +
       ' '.repeat(Math.max(0, 10 - statusDisplay.text.length));
 
-    const isFailed = flow.status === 'DONE' && flow.success !== 1;
+    // Same rule as the status column: FAILED, or DONE without success.
+    const isFailed = this.isFlowFailed(flow);
     const errorMessages = flow.error_messages || [];
-    const firstError =
+    const rawError =
       hasFailures && isFailed && errorMessages.length > 0
-        ? errorMessages[0]
+        ? this.singleLine(errorMessages[0])
         : '';
-    const errorReserve = firstError ? firstError.length + 1 : 0;
-    const maxName = this.getMaxNameLength(errorReserve);
+    // With a fail reason the name keeps its 30-column slot (so the reason
+    // lines up under its header) and the reason is cut to what is left of the
+    // line: a wrapped row breaks the cursor-up math of the in-place updates.
+    // Without one, a long name may use the whole line.
+    const firstError = rawError
+      ? this.truncateForRow(rawError, this.getFailReasonWidth())
+      : '';
+    const maxName = firstError
+      ? Math.min(30, this.getMaxNameLength(0))
+      : this.getMaxNameLength(0);
     const name = this.truncateForRow(this.flowRowName(flow), maxName).padEnd(
       Math.min(30, maxName),
     );
@@ -3983,7 +4006,7 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     const row = this.buildFlowRowLine(flow, hasFailures);
 
     let linesWritten = 0;
-    const isFailed = flow.status === 'DONE' && flow.success !== 1;
+    const isFailed = this.isFlowFailed(flow);
     const errorMessages = flow.error_messages || [];
 
     if (isUpdate) {
@@ -3998,7 +4021,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       // Indent to align with the Fail reason column: Duration(11) + Status(11) + Test(31) = 53 chars
       const indent = ' '.repeat(53);
       for (let i = 1; i < errorMessages.length; i++) {
-        console.log(`${indent} ${pc.red(errorMessages[i])}`);
+        const message = this.truncateForRow(
+          this.singleLine(errorMessages[i]),
+          this.getFailReasonWidth(),
+        );
+        console.log(`${indent} ${pc.red(message)}`);
         linesWritten++;
       }
     }
@@ -4066,6 +4093,34 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   protected stopAnimations(): void {
     this.stopFlowAnimation();
+  }
+
+  private appendHeaderPrinted = false;
+
+  /**
+   * Non-interactive output: prints the table header once, then one row per
+   * flow attempt as it finishes (with its fail reason), never rewriting a
+   * line. Readable as a plain log, e.g. in CI.
+   */
+  private appendFinishedFlows(
+    flows: MaestroFlowInfo[],
+    previousFlowStatus: Map<number, MaestroFlowStatus>,
+  ): void {
+    this.flowAttempts = this.computeFlowAttempts(flows);
+    const terminal = (s: MaestroFlowStatus | undefined) =>
+      s === 'DONE' || s === 'FAILED' || s === 'CANCELLED';
+    for (const flow of flows) {
+      const before = previousFlowStatus.get(flow.id);
+      previousFlowStatus.set(flow.id, flow.status);
+      if (!terminal(flow.status) || terminal(before)) continue;
+      if (!this.appendHeaderPrinted) {
+        const { header, separator } = this.buildFlowsTableHeader(true);
+        console.log(header);
+        console.log(separator);
+        this.appendHeaderPrinted = true;
+      }
+      console.log(this.buildFlowRowLine(flow, true));
+    }
   }
 
   private updateFlowsInPlace(
