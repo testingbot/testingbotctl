@@ -43,6 +43,15 @@ function maestroLike(file: string) {
       ...(acc ?? []),
       v,
     ])
+    .option(
+      '-e, --env <KEY=VALUE>',
+      'pushes onto its default, like the real --env',
+      (val: string, acc: string[]) => {
+        acc.push(val);
+        return acc;
+      },
+      [] as string[],
+    )
     .option('--real-device')
     .option('--disable-animations')
     .option('--no-disable-animations')
@@ -185,6 +194,13 @@ describe('applyProjectConfig', () => {
   it('rejects a list for an on/off option', () => {
     const file = writeConfig('maestro:\n  real-device: [true]\n');
     expect(() => maestroLike(file).run([])).toThrow(/use true or false/);
+  });
+
+  it('fills list options whose parser pushes onto the default', () => {
+    const file = writeConfig('maestro:\n  env: [A=1, B=2]\n');
+    expect(maestroLike(file).run([]).opts.env).toEqual(['A=1', 'B=2']);
+    // The default array itself is not mutated.
+    expect(maestroLike(file).run([]).opts.env).toEqual(['A=1', 'B=2']);
   });
 
   it('keeps URLs as they are', () => {

@@ -141,7 +141,11 @@ function coerce(option: Option, value: unknown, key: string): unknown {
     }
     if (option.parseArg) {
       // Repeatable options accumulate; others keep the last value.
-      let acc: unknown = undefined;
+      // Start from a copy of the default so list options (--env) get the
+      // array their parser pushes onto.
+      let acc: unknown = Array.isArray(option.defaultValue)
+        ? [...(option.defaultValue as unknown[])]
+        : undefined;
       for (const v of values) acc = option.parseArg(String(v), acc);
       return acc;
     }

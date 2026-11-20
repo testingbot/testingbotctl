@@ -54,6 +54,16 @@ describe('checkDevice', () => {
   it('never checks wildcards or regexes', () => {
     expect(checkDevice({ device: 'Nokia.*' }, catalog)).toBeUndefined();
     expect(checkDevice({ device: '*' }, catalog)).toBeUndefined();
+    for (const device of [
+      'iPhone (8|11)',
+      '.*Galaxy.*|.*Pixel.*',
+      'Galaxy S2[34]',
+      '^Pixel 9$',
+      'Pixel.+',
+      'Pixel 9|Nokia',
+    ]) {
+      expect(checkDevice({ device }, catalog)).toBeUndefined();
+    }
   });
 
   it('reports an unknown name with suggestions', () => {
@@ -78,6 +88,18 @@ describe('checkDevice', () => {
     expect(
       checkDevice({ device: 'Pixel 9', version: '1*' }, catalog),
     ).toBeUndefined();
+    expect(
+      checkDevice({ device: 'iPhone 16', version: '18.2.0' }, catalog),
+    ).toBeUndefined();
+    expect(
+      checkDevice({ device: 'Pixel 9', version: '15.0' }, catalog),
+    ).toBeUndefined();
+    // Ranges and keywords are left to the API.
+    for (const version of ['>= 18', 'latest', '18.x']) {
+      expect(
+        checkDevice({ device: 'iPhone 16', version }, catalog),
+      ).toBeUndefined();
+    }
     // Partial names may span devices: the version is not checked.
     expect(checkDevice({ device: 'Pixel', version: '99' }, catalog)).toBe(
       undefined,

@@ -11,6 +11,7 @@ import { JsonOutput } from './../src/utils/json_output';
 import * as account from './../src/providers/account';
 import Credentials from './../src/models/credentials';
 import { ciRepoMetadata } from './../src/utils/ci_env';
+import * as deviceCheck from './../src/utils/device_check';
 
 jest.mock('./../src/logger');
 jest.mock('./../src/auth');
@@ -2193,6 +2194,31 @@ describe('TestingBotCTL CLI', () => {
       expect(
         lastConstructorOptions<Opts>(Maestro).deviceMatrix,
       ).toBeUndefined();
+    });
+
+    test('checks every cell against the real-device catalog with --real-device', async () => {
+      const spy = jest
+        .spyOn(deviceCheck, 'verifyDevices')
+        .mockResolvedValue(undefined);
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--real-device',
+        '--device-matrix',
+        'Galaxy S24:14, Pixel 9',
+      ]);
+      expect(spy).toHaveBeenCalledWith(
+        'maestro',
+        [
+          { device: 'Galaxy S24', version: '14', real: true },
+          { device: 'Pixel 9', version: undefined, real: true },
+        ],
+        expect.anything(),
+      );
+      spy.mockRestore();
     });
 
     test('rejects malformed cells', async () => {

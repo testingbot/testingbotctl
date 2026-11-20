@@ -116,6 +116,22 @@ export function suggestDevices(
     .map((s) => s.candidate);
 }
 
+/**
+ * True when the name is a wildcard or regex ("iPhone (8|11)", ".*Pixel.*",
+ * "Galaxy S2[34]"): the API matches those itself, so they are not checked.
+ */
+export function isDevicePattern(device: string): boolean {
+  return utils.isWildcardDevice(device) || /[|()[\]^$+\\{}]/.test(device);
+}
+
+/** "18", "18.2", "18.2.0": a literal version the catalog can confirm. */
+const LITERAL_VERSION = /^\d+(\.\d+)*$/;
+
+/** Drops trailing ".0" parts so "18.0.0", "18.0" and "18" compare equal. */
+function trimVersion(v: string): string {
+  return v.replace(/(\.0+)+$/, '');
+}
+
 export interface DeviceRequest {
   device?: string;
   version?: string;
@@ -128,7 +144,7 @@ export function checkDevice(
   devices: CatalogDevice[],
 ): string | undefined {
   const { device, version } = request;
-  if (!device || utils.isWildcardDevice(device) || devices.length === 0) {
+  if (!device || isDevicePattern(device) || devices.length === 0) {
     return undefined;
   }
   const target = normalize(device);
@@ -147,13 +163,16 @@ export function checkDevice(
   if (
     version &&
     exact.length > 0 &&
-    !utils.isWildcardVersion(version) &&
+    // Ranges (">= 18"), "latest" and patterns are left to the API.
+    LITERAL_VERSION.test(version.trim()) &&
     exact.every((d) => d.versions.length > 0)
   ) {
     const versions = [...new Set(exact.flatMap((d) => d.versions))];
-    const ok = versions.some(
-      (v) => v === version || v.startsWith(`${version}.`),
-    );
+    const wanted = trimVersion(version.trim());
+    const ok = versions.some((raw) => {
+      const v = trimVersion(raw);
+      return v === wanted || v.startsWith(`${wanted}.`);
+    });
     if (!ok) {
       return `"${exact[0].name}" has no OS version ${version}. Available: ${versions.join(', ')}.`;
     }
@@ -173,7 +192,7 @@ export async function verifyDevices(
 ): Promise<void> {
   if (env.TESTINGBOT_SKIP_DEVICE_CHECK) return;
   const checked = requests.filter(
-    (r) => r.device && !utils.isWildcardDevice(r.device),
+    (r) => r.device && !isDevicePattern(r.device),
   );
   if (checked.length === 0) return;
 

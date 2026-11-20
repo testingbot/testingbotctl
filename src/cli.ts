@@ -430,7 +430,8 @@ async function checkRequestedDevices(
     ? options.deviceMatrix.map((cell) => ({
         device: cell.device,
         version: cell.version,
-        real: Boolean(cell.realDevice),
+        // --real-device (or an .ipa app) applies to every cell.
+        real: options.realDevice || Boolean(cell.realDevice),
       }))
     : [
         {
