@@ -5,6 +5,8 @@ import Espresso from './../src/providers/espresso';
 import XCUITest from './../src/providers/xcuitest';
 import Maestro from './../src/providers/maestro';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { JsonOutput } from './../src/utils/json_output';
 import * as account from './../src/providers/account';
 import Credentials from './../src/models/credentials';
@@ -275,6 +277,63 @@ describe('TestingBotCTL CLI', () => {
     }>(Espresso);
     expect(opts.realDevice).toBe(true);
     expect(opts.locale).toBe('en_US');
+  });
+
+  describe('.testingbot.yml', () => {
+    let dir: string;
+    beforeEach(() => {
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tb-cli-config-'));
+      process.env.TESTINGBOT_CONFIG = path.join(dir, '.testingbot.yml');
+    });
+    afterEach(() => {
+      process.env.TESTINGBOT_CONFIG = 'none';
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('a bare "testingbot maestro" runs with the configured app, flows and device', async () => {
+      fs.writeFileSync(
+        path.join(dir, '.testingbot.yml'),
+        'maestro:\n  app: app.apk\n  flows: [.maestro]\n  device: Pixel 9\n  platform-version: "15"\n',
+      );
+      mockGetCredentials.mockResolvedValue({ apiKey: 'k' });
+      mockMaestroRun.mockResolvedValue({ success: true, runs: [] });
+      await program.parseAsync(['node', 'cli', 'maestro']);
+      expect(mockMaestroRun).toHaveBeenCalledTimes(1);
+      const opts = lastConstructorOptions<{
+        app: string;
+        flows: string[];
+        device?: string;
+      }>(Maestro);
+      expect(opts.app).toBe(path.join(dir, 'app.apk'));
+      expect(opts.flows).toEqual([path.join(dir, '.maestro')]);
+      expect(opts.device).toBe('Pixel 9');
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^Using app, flows, device, platformVersion from /,
+        ),
+      );
+    });
+
+    test('an alias on the command line beats the config value', async () => {
+      fs.writeFileSync(
+        path.join(dir, '.testingbot.yml'),
+        'maestro:\n  deviceVersion: "15"\n',
+      );
+      mockGetCredentials.mockResolvedValue({ apiKey: 'k' });
+      mockMaestroRun.mockResolvedValue({ success: true, runs: [] });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'a.apk',
+        'f',
+        '--platform-version',
+        '14',
+      ]);
+      expect(
+        lastConstructorOptions<{ version?: string }>(Maestro).version,
+      ).toBe('14');
+    });
   });
 
   describe('flag aliases across commands', () => {

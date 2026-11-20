@@ -1,8 +1,8 @@
 import packageJson from '../package.json';
 import logger from './logger';
 import pc from 'picocolors';
+import { recordLatestVersion } from './utils/update_check';
 
-let versionCheckDisplayed = false;
 let realDeviceFlowsInfoDisplayed = false;
 
 export default {
@@ -139,29 +139,8 @@ export default {
    * Check if a newer version is available and display update notice
    */
   checkForUpdate(latestVersion: string | undefined): void {
-    if (!latestVersion || versionCheckDisplayed) {
-      return;
-    }
-
-    const currentVersion = this.getCurrentVersion();
-    if (this.compareVersions(currentVersion, latestVersion) < 0) {
-      versionCheckDisplayed = true;
-      const border = '─'.repeat(80);
-
-      logger.info(`\nCLI Version: ${pc.cyan(currentVersion)}\n`);
-      logger.warn(pc.yellow(border));
-      logger.warn(pc.yellow('⚠  Update Available'));
-      logger.warn(
-        pc.yellow(
-          `   A new version of the TestingBot CLI is available: ${pc.green(latestVersion)}`,
-        ),
-      );
-      logger.warn(
-        pc.yellow(
-          `   Run: ${pc.cyan('npm install -g @testingbot/cli@latest')}`,
-        ),
-      );
-      logger.warn(pc.yellow(border) + '\n');
-    }
+    // Remembered, not printed: the notice appears once the command is done
+    // (see utils/update_check), so it never interrupts a live run.
+    recordLatestVersion(latestVersion);
   },
 };
