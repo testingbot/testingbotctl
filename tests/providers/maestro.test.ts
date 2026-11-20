@@ -4002,18 +4002,80 @@ flows:
 
       const files = await maestro['discoverFlows'](projectDir);
 
-      expect(glob).toHaveBeenCalledWith(
-        path.join(projectDir, 'app', 'flows', '**'),
-      );
-      expect(glob).toHaveBeenCalledWith(
-        path.join(projectDir, 'web', 'flows', '**'),
-      );
+      const globOpts = {
+        cwd: projectDir,
+        ignore: [],
+        absolute: true,
+        nodir: true,
+      };
+      expect(glob).toHaveBeenCalledWith('app/flows/**', globOpts);
+      expect(glob).toHaveBeenCalledWith('web/flows/**', globOpts);
       expect(files).toContain(path.join(projectDir, 'config.yaml'));
       expect(files).toContain(
         path.join(projectDir, 'app', 'flows', 'test.yaml'),
       );
       expect(files).toContain(
         path.join(projectDir, 'web', 'flows', 'test.yaml'),
+      );
+    });
+
+    it('applies "!" patterns from config.yaml flows as exclusions and keeps only flow YAML', async () => {
+      const configContent = `
+flows:
+  - "calculator/*"
+  - "!calculator/wip_*.yaml"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      fs.promises.readFile = jest.fn().mockResolvedValue(configContent);
+      fs.promises.readdir = jest.fn().mockResolvedValue([]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      (glob as jest.Mock).mockResolvedValueOnce([
+        path.join(projectDir, 'calculator', 'add_numbers.yaml'),
+        path.join(projectDir, 'calculator', 'helper.js'),
+      ]);
+
+      const files = await maestro['discoverFlows'](projectDir);
+
+      expect(glob).toHaveBeenCalledTimes(1);
+      expect(glob).toHaveBeenCalledWith('calculator/*', {
+        cwd: projectDir,
+        ignore: ['calculator/wip_*.yaml'],
+        absolute: true,
+        nodir: true,
+      });
+      expect(files).toContain(
+        path.join(projectDir, 'calculator', 'add_numbers.yaml'),
+      );
+      expect(files).not.toContain(
+        path.join(projectDir, 'calculator', 'helper.js'),
+      );
+    });
+
+    it('returns only top-level flows, not the subflows they call', async () => {
+      const configContent = `
+flows:
+  - "calculator/*"
+`;
+      const projectDir = path.resolve(path.sep, 'project');
+      const table = path.join(projectDir, 'calculator', 'table.yaml');
+      fs.promises.readFile = jest
+        .fn()
+        .mockImplementation((f: string) =>
+          Promise.resolve(
+            f === table
+              ? 'appId: x\n---\n- runFlow:\n    file: ../subflows/enter_numbers.yaml\n'
+              : configContent,
+          ),
+        );
+      fs.promises.readdir = jest.fn().mockResolvedValue([]);
+      fs.promises.access = jest.fn().mockResolvedValue(undefined);
+      (glob as jest.Mock).mockResolvedValueOnce([table]);
+
+      const files = await maestro['discoverFlows'](projectDir);
+
+      expect(files).toContain(table);
+      expect(files).not.toContain(
+        path.join(projectDir, 'subflows', 'enter_numbers.yaml'),
       );
     });
 
@@ -7224,6 +7286,34 @@ onFlowStart:
       expect(maestro['flowRowName'](flows[1] as MaestroFlowInfo)).toBe(
         '↻ login (retry 1)',
       );
+    });
+
+    it('device matrix: the same flow on another device is not a retry, and rows name the device', () => {
+      const run1 = {
+        id: 10,
+        status: 'DONE',
+        capabilities: { deviceName: 'Pixel 9', platformName: 'Android' },
+        environment: { name: 'Pixel 9 - 15.0' },
+        flows: [{ id: 1, name: 'Table', status: 'DONE', success: 1 }],
+      };
+      const run2 = {
+        id: 11,
+        status: 'DONE',
+        capabilities: { deviceName: 'Pixel 8', platformName: 'Android' },
+        environment: { name: 'Pixel 8 - 14.0' },
+        flows: [{ id: 2, name: 'Table', status: 'DONE', success: 1 }],
+      };
+      for (const run of [run1, run2]) {
+        for (const flow of run.flows) {
+          maestro['flowRuns'].set(flow.id, run as unknown as MaestroRunInfo);
+        }
+      }
+      maestro['flowTableHasSeveralRuns'] = true;
+      const flows = [...run1.flows, ...run2.flows] as MaestroFlowInfo[];
+      maestro['flowAttempts'] = maestro['computeFlowAttempts'](flows);
+      expect(maestro['flowAttempts'].get(2)).toBe(1);
+      expect(maestro['flowRowName'](flows[0])).toBe('Table · Pixel 9 - 15.0');
+      expect(maestro['flowRowName'](flows[1])).toBe('Table · Pixel 8 - 14.0');
     });
 
     it('flowRowName groups sharded retries by shard_index', () => {

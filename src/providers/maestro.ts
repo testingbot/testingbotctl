@@ -184,6 +184,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   // Maps a flow's MaestroRunTest id to its 1-based attempt number within its
   // logical group. Attempt > 1 means the row is a retry. Recomputed on render.
   private flowAttempts: Map<number, number> = new Map();
+  // Run each flow row belongs to. With a device matrix the same flow name
+  // appears once per run: attempts are counted per run (otherwise the second
+  // device's rows read as retries) and each row names its device.
+  private flowRuns: Map<number, MaestroRunInfo> = new Map();
+  private flowTableHasSeveralRuns = false;
 
   public constructor(credentials: Credentials, options: MaestroOptions) {
     super(credentials, options);
@@ -1324,11 +1329,32 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
-    // If config specifies flows, use those
+    // If config specifies flows, use those. As in Maestro, a leading "!"
+    // excludes (e.g. "!calculator/wip_*.yaml"), and only flow YAML counts:
+    // "calculator/*" also matches scripts and media, which are bundled as
+    // dependencies below but never run on their own.
     if (config?.flows && config.flows.length > 0) {
-      for (const flowPattern of config.flows) {
-        const matches = await glob(path.join(directory, flowPattern));
-        flowFiles.push(...matches);
+      const include = config.flows.filter((p) => !p.startsWith('!'));
+      const ignore = config.flows
+        .filter((p) => p.startsWith('!'))
+        .map((p) => p.slice(1));
+      for (const flowPattern of include) {
+        const matches = await glob(flowPattern, {
+          cwd: directory,
+          ignore,
+          absolute: true,
+          nodir: true,
+        });
+        for (const match of matches.sort()) {
+          const ext = path.extname(match).toLowerCase();
+          if (
+            (ext === '.yaml' || ext === '.yml') &&
+            !this.isConfigFile(match) &&
+            !flowFiles.includes(match)
+          ) {
+            flowFiles.push(match);
+          }
+        }
       }
     } else {
       // Otherwise, get all yaml files in the directory (not subdirectories)
@@ -1345,12 +1371,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
-    // Also discover dependencies (runFlow, runScript, addMedia)
+    // Only the flows that run on their own. Their runFlow / runScript /
+    // addMedia dependencies are added by the caller after it has taken the
+    // top-level snapshot; adding them here made every subflow count as a
+    // "flow that will run" and set off the duplicate-flow warning.
     const allFiles = new Set(flowFiles);
-    for (const flowFile of flowFiles) {
-      const dependencies = await this.discoverDependencies(flowFile, directory);
-      dependencies.forEach((dep) => allFiles.add(dep));
-    }
 
     // Include config file if it exists
     if (configPath) {
@@ -2780,9 +2805,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   /** Stable key identifying the logical flow/shard a flow attempt belongs to. */
   private flowGroupKey(flow: MaestroFlowInfo): string {
+    const run = this.flowRuns.get(flow.id);
+    const scope = run ? `run:${run.id}:` : '';
     return flow.shard_index != null
-      ? `shard:${flow.shard_index}`
-      : `name:${flow.name}`;
+      ? `${scope}shard:${flow.shard_index}`
+      : `${scope}name:${flow.name}`;
   }
 
   /** Latest attempt per logical flow/shard (highest id wins). */
@@ -2825,10 +2852,15 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    */
   private flowRowName(flow: MaestroFlowInfo): string {
     const attempt = this.flowAttempts.get(flow.id) ?? 1;
+    const run = this.flowRuns.get(flow.id);
+    const name =
+      this.flowTableHasSeveralRuns && run
+        ? `${flow.name} · ${this.getRunDisplayName(run)}`
+        : flow.name;
     if (attempt > 1) {
-      return `${RETRY_ICON} ${flow.name} (retry ${attempt - 1})`;
+      return `${RETRY_ICON} ${name} (retry ${attempt - 1})`;
     }
-    return flow.name;
+    return name;
   }
 
   /**
@@ -3021,8 +3053,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         for (const run of status.runs) {
           if (run.flows && run.flows.length > 0) {
             allFlows.push(...run.flows);
+            for (const flow of run.flows) this.flowRuns.set(flow.id, run);
           }
         }
+        this.flowTableHasSeveralRuns =
+          status.runs.filter((r) => (r.flows?.length ?? 0) > 0).length > 1;
 
         // Show realtime URL once per run (before any in-place updates)
         for (const run of status.runs) {
@@ -3147,8 +3182,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       for (const run of status.runs) {
         if (run.flows && run.flows.length > 0) {
           allFlows.push(...run.flows);
+          for (const flow of run.flows) this.flowRuns.set(flow.id, run);
         }
       }
+      this.flowTableHasSeveralRuns =
+        status.runs.filter((r) => (r.flows?.length ?? 0) > 0).length > 1;
 
       this.flowAttempts = this.computeFlowAttempts(allFlows);
       const hasFailures = this.hasAnyFlowFailed(allFlows);
