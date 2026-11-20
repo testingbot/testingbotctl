@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {
   compareVersions,
@@ -78,10 +79,20 @@ describe('update notice', () => {
 
 describe('state store', () => {
   it('survives an unwritable location without throwing', () => {
+    // A regular file as the config dir: creating a directory under it fails
+    // on every platform (a made-up absolute path is writable on Windows).
     const original = process.env.XDG_CONFIG_HOME;
-    process.env.XDG_CONFIG_HOME = '/proc/definitely/not/writable';
-    expect(() => writeState('x.json', { a: 1 })).not.toThrow();
-    expect(readState('x.json')).toBeUndefined();
-    process.env.XDG_CONFIG_HOME = original;
+    const blocker = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'tb-state-')),
+      'not-a-dir',
+    );
+    fs.writeFileSync(blocker, '');
+    process.env.XDG_CONFIG_HOME = blocker;
+    try {
+      expect(() => writeState('x.json', { a: 1 })).not.toThrow();
+      expect(readState('x.json')).toBeUndefined();
+    } finally {
+      process.env.XDG_CONFIG_HOME = original;
+    }
   });
 });
