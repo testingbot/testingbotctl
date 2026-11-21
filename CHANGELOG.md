@@ -24,6 +24,10 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 
 - `testingbot failed-tests <build>`: prints the names of the failed tests of a Selenium/Appium build, one per line (`--json` for id, session ID, browser and OS), so CI can run only those again. Builds are addressed by name or numeric ID.
 
+- `testingbot upgrade`: updates the CLI the way it was installed (npm, pnpm, yarn or bun). For a project dependency, npx or a source checkout it prints the command to run instead; `--dry-run` only shows it. The update notice and `doctor` now point to it.
+- Short locale codes: `--locale` / `--device-locale` accept `de`, `de-DE`, `de_de` or the three-letter `deu` and send `de_DE` (Maestro, Espresso). For XCUITest, `de_AT` becomes region `AT` with language `de`, unless `--language` is given.
+- Starting a run survives a lost answer: when the start request gets no response (dropped connection, timeout, or a 502/503/504), the CLI checks whether the runs started before sending it again, so a network blip neither fails the job nor starts the runs twice. Every attempt carries the same `Idempotency-Key` header.
+
 ### Changed
 
 - The full banner shows once per new version; after that a one-line header (`TESTINGBOT_BANNER` overrides). It mentions `.testingbot.yml` when one is in use.

@@ -609,6 +609,87 @@ describe('Espresso', () => {
       expect(callArgs[1]).not.toHaveProperty('metadata');
     });
 
+    describe('when the answer to the start request is lost', () => {
+      const lost = (code = 'ECONNRESET') =>
+        Object.assign(new Error('socket hang up'), {
+          isAxiosError: true,
+          code,
+        });
+      const status = (runs: number) => ({
+        data: {
+          runs: Array.from({ length: runs }, (_, i) => ({ id: i + 1 })),
+          success: false,
+          completed: false,
+        },
+      });
+
+      beforeEach(() => {
+        espresso['appId'] = 1234;
+        (
+          axios as unknown as { isAxiosError: (e: unknown) => boolean }
+        ).isAxiosError = jest.fn(
+          (e: unknown) =>
+            (e as { isAxiosError?: boolean })?.isAxiosError === true,
+        );
+        jest
+          .spyOn(espresso as never, 'sleep')
+          .mockResolvedValue(undefined as never);
+      });
+
+      it('follows runs that did start instead of starting them again', async () => {
+        axios.post = jest.fn().mockRejectedValueOnce(lost());
+        axios.get = jest.fn().mockResolvedValueOnce(status(1));
+
+        await expect(espresso['runTests']()).resolves.toBe(true);
+        expect(axios.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('starts again with the same Idempotency-Key when nothing started', async () => {
+        axios.post = jest
+          .fn()
+          .mockRejectedValueOnce(lost('ECONNABORTED'))
+          .mockResolvedValueOnce({ data: { success: true } });
+        axios.get = jest.fn().mockResolvedValueOnce(status(0));
+
+        await expect(espresso['runTests']()).resolves.toBe(true);
+        const calls = (axios.post as jest.Mock).mock.calls;
+        expect(calls).toHaveLength(2);
+        const key = calls[0][2].headers['Idempotency-Key'];
+        expect(key).toMatch(/^[0-9a-f-]{36}$/);
+        expect(calls[1][2].headers['Idempotency-Key']).toBe(key);
+      });
+
+      it('counts runs started earlier, so a --retry round is not mistaken for started', async () => {
+        axios.post = jest
+          .fn()
+          .mockResolvedValueOnce({ data: { success: true } });
+        await espresso['runTests']();
+
+        // Second start: its answer is lost and the project still has 1 run.
+        axios.post = jest
+          .fn()
+          .mockRejectedValueOnce(lost())
+          .mockResolvedValueOnce({ data: { success: true } });
+        axios.get = jest.fn().mockResolvedValueOnce(status(1));
+        await espresso['runTests']();
+        expect(axios.post).toHaveBeenCalledTimes(2);
+      });
+
+      it('does not retry an answer from the API, such as a 500', async () => {
+        axios.post = jest.fn().mockRejectedValueOnce(
+          Object.assign(new Error('boom'), {
+            isAxiosError: true,
+            response: { status: 500, data: { error: 'boom' } },
+          }),
+        );
+        axios.get = jest.fn();
+
+        await expect(espresso['runTests']()).rejects.toThrow();
+        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(axios.get).not.toHaveBeenCalled();
+      });
+    });
+
     it('should throw an error if running tests fails', async () => {
       const mockError = new Error('Test failed');
       axios.post = jest.fn().mockRejectedValueOnce(mockError);

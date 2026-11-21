@@ -119,7 +119,7 @@ export function updateNotice(
     return undefined;
   }
   updateState<UpdateState>(STATE_FILE, { lastNoticeAt: now });
-  return `${pc.yellow('⬆')} Update available ${pc.dim(current)} → ${pc.green(latest)}  ${pc.dim('·')}  ${pc.cyan('npm install -g @testingbot/cli')}`;
+  return `${pc.yellow('⬆')} Update available ${pc.dim(current)} → ${pc.green(latest)}  ${pc.dim('·')}  ${pc.cyan('testingbot upgrade')}`;
 }
 
 let installed = false;

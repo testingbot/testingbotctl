@@ -2147,6 +2147,69 @@ describe('TestingBotCTL CLI', () => {
     });
   });
 
+  describe('short locale codes', () => {
+    beforeEach(() => {
+      mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });
+      const done = { success: true, outcome: 'passed', runs: [] };
+      mockMaestroRun.mockResolvedValue(done);
+      mockEspressoRun.mockResolvedValue(done);
+      mockXCUITestRun.mockResolvedValue(done);
+    });
+    type Opts = { locale?: string; language?: string };
+
+    test('become language_REGION for Maestro and Espresso', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'maestro',
+        'app.apk',
+        './flows',
+        '--device-locale',
+        'de',
+      ]);
+      expect(lastConstructorOptions<Opts>(Maestro).locale).toBe('de_DE');
+
+      await program.parseAsync([
+        'node',
+        'cli',
+        'espresso',
+        'app.apk',
+        'test.apk',
+        '--locale',
+        'fr-ca',
+      ]);
+      expect(lastConstructorOptions<Opts>(Espresso).locale).toBe('fr_CA');
+    });
+
+    test('become a region and a language for XCUITest', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'xcuitest',
+        'app.ipa',
+        'test.zip',
+        '--locale',
+        'de_AT',
+      ]);
+      const opts = lastConstructorOptions<Opts>(XCUITest);
+      expect(opts.locale).toBe('AT');
+      expect(opts.language).toBe('de');
+
+      await program.parseAsync([
+        'node',
+        'cli',
+        'xcuitest',
+        'app.ipa',
+        'test.zip',
+        '--locale',
+        'de_AT',
+        '--language',
+        'en',
+      ]);
+      expect(lastConstructorOptions<Opts>(XCUITest).language).toBe('en');
+    });
+  });
+
   describe('--device-matrix', () => {
     beforeEach(() => {
       mockGetCredentials.mockResolvedValue({ apiKey: 'test-api-key' });

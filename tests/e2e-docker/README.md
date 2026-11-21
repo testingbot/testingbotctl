@@ -18,5 +18,6 @@ tests/e2e-docker/run.sh plain pass -- testingbot maestro app.apk flows   # no TT
 final screen plus scrollback; `--env TERM_PROGRAM=WezTerm` and the like make
 the CLI believe it runs in a given terminal. Scenarios: `pass`, `fail`,
 `flaky` (a flow passes on retry), `matrix`. `MOCK_SLOW=3` stretches runs,
-`MOCK_LATEST_CLI=9.9.9` announces a newer CLI. Fixtures in `/work`: `app.apk`,
+`MOCK_LATEST_CLI=9.9.9` announces a newer CLI, `MOCK_DROP_RUN=before|after`
+drops the answer to the first run start (runs not started / started). Fixtures in `/work`: `app.apk`,
 `test.apk`, `flows/`.

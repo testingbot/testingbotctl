@@ -313,26 +313,35 @@ export default class XCUITest extends BaseProvider<XCUITestOptions> {
       const xcuitestOptions = this.options.getXCUITestOptions();
       const metadata = this.options.metadata;
 
-      const response = await axios.post(
-        `${this.URL}/${this.appId}/run`,
-        {
-          capabilities: [capabilities],
-          ...(xcuitestOptions && { options: xcuitestOptions }),
-          ...(metadata && { metadata }),
-          ...(this.options.priority && { priority: this.options.priority }),
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': utils.getUserAgent(),
-          },
-          auth: {
-            username: this.credentials.userName,
-            password: this.credentials.accessKey,
-          },
-          timeout: HTTP.TIMEOUT_MS,
-        },
+      const response = await this.startRunsOnce(
+        'Starting the XCUITest run',
+        1,
+        (idempotency) =>
+          axios.post(
+            `${this.URL}/${this.appId}/run`,
+            {
+              capabilities: [capabilities],
+              ...(xcuitestOptions && { options: xcuitestOptions }),
+              ...(metadata && { metadata }),
+              ...(this.options.priority && { priority: this.options.priority }),
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': utils.getUserAgent(),
+                ...idempotency,
+              },
+              auth: {
+                username: this.credentials.userName,
+                password: this.credentials.accessKey,
+              },
+              timeout: HTTP.TIMEOUT_MS,
+            },
+          ),
+        async () => (await this.getStatus()).runs?.length ?? 0,
       );
+      // The answer was lost, but the runs exist: follow them.
+      if (!response) return true;
 
       // Check for version update notification
       const latestVersion = response.headers?.['x-testingbotctl-version'];
