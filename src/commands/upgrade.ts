@@ -116,7 +116,12 @@ export function detectInstall(script: string = process.argv[1] ?? ''): Install {
       yarn: ['yarn', 'add', '-D', latest],
       bun: ['bun', 'add', '-d', latest],
     }[manager];
-    return { kind: 'project', command, runnable: false, cwd: projectDir };
+    return {
+      kind: 'project',
+      command,
+      runnable: false,
+      cwd: path.normalize(projectDir),
+    };
   }
   return {
     kind: 'npm',
