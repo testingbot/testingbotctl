@@ -7,13 +7,13 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 ### Added
 
 - `testingbot init`: detects the app, Maestro flows or test app and a device, and writes `.testingbot.yml` so `testingbot maestro` (or `espresso` / `xcuitest`) runs with no arguments. `--ci github` also writes a GitHub Actions workflow.
-- `.testingbot.yml`: per-project defaults for any `maestro`, `espresso` and `xcuitest` option, found in the current or a parent directory. The command line always wins; credentials are refused. `TESTINGBOT_CONFIG` selects another file or `none`.
+- `.testingbot.yml`: per-project defaults for any `maestro`, `espresso` and `xcuitest` option, found in the current or a parent directory. The command line always wins, also over related keys (`--app-url` replaces a configured `app`, `--device-matrix` a configured `device`); credentials are refused. `TESTINGBOT_CONFIG` selects another file or `none`.
 - `testingbot doctor`: checks CLI and Node.js versions, credentials, account, API reachability and proxy, `.testingbot.yml` and shell completion, and says what to fix (`--json` for support).
 - `testingbot completion bash|zsh|fish`: Tab-completes commands, options, values, and device names and OS versions from the cached device catalog.
 - `--device` / `--device-matrix` names and versions are checked against the device catalog before uploading, with "did you mean" suggestions. Wildcards and regexes are not checked; `TESTINGBOT_SKIP_DEVICE_CHECK=1` skips it.
 - End-of-run summary for every framework: verdict, a row per device, flaky flows (passed on retry), slowest flows, and the next commands (`testingbot rerun`, `testingbot artifacts`, dashboard links). Espresso and XCUITest now link to their dashboard pages, also in `--json` (`url`).
 - Clickable links (OSC 8) where the terminal supports them, and a desktop notification or bell when a run of over a minute ends (`TESTINGBOT_NOTIFY=0` turns it off).
-- Keys during a live run: `o` opens the dashboard, `d` detaches and leaves the runs going.
+- Keys during a live run: `o` opens the dashboard, `d` detaches and leaves the runs going; off in the background (`&`) and with `TESTINGBOT_KEYS=0`.
 - Tab/taskbar progress (OSC 9;4) in Windows Terminal, Ghostty and iTerm2.
 - `testingbot whoami` shows concurrency meters; `testingbot list` shows relative times and colours running projects; `testingbot devices --real` colours availability.
 - Grouped `--help` (App & tests, Device, Choosing tests, Running, Reports & artifacts, CI, Output, Authentication) with examples; root commands grouped by purpose.

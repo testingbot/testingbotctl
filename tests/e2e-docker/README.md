@@ -20,3 +20,11 @@ the CLI believe it runs in a given terminal. Scenarios: `pass`, `fail`,
 `flaky` (a flow passes on retry), `matrix`. `MOCK_SLOW=3` stretches runs,
 `MOCK_LATEST_CLI=9.9.9` announces a newer CLI. Fixtures in `/work`: `app.apk`,
 `test.apk`, `flows/`.
+
+Scripted pty checks (pexpect), each run as
+`tests/e2e-docker/run.sh plain pass -- python3 /harness/<script>`:
+
+- `keys-test.py`: `o`, `d` and Ctrl-C during a live run.
+- `background-test.py`: a run started with `&` in zsh and bash finishes
+  instead of being stopped by the shell.
+- `completion-shells.py`: Tab completion in bash, zsh and fish.

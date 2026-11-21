@@ -37,6 +37,11 @@ function maestroLike(file: string) {
     .argument('[flows...]')
     .option('--app <path>')
     .option('--device <device>')
+    .option('--device-matrix <cells>')
+    .option('--app-url <url>')
+    .option('--app-binary-id <id>')
+    .addOption(new Option('--app-file <path>').hideHelp())
+    .addOption(new Option('--device-model <model>').hideHelp())
     .option('--deviceVersion <version>')
     .option('--retry <count>', 'retries', (v) => parseInt(v, 10), 0)
     .option('--other-app <path>', 'repeatable', (v: string, acc?: string[]) => [
@@ -194,6 +199,51 @@ describe('applyProjectConfig', () => {
   it('rejects a list for an on/off option', () => {
     const file = writeConfig('maestro:\n  real-device: [true]\n');
     expect(() => maestroLike(file).run([])).toThrow(/use true or false/);
+  });
+
+  it('lets another app source on the command line replace the configured app', () => {
+    const file = writeConfig(
+      'maestro:\n  app: ./app.apk\n  appUrl: https://example.com/a.apk\n',
+    );
+    for (const argv of [
+      ['--app-binary-id', '42', 'flows'],
+      ['--app-url', 'https://example.com/b.apk', 'flows'],
+      ['--app-file', 'other.apk', 'flows'],
+    ]) {
+      const { opts } = maestroLike(file).run(argv);
+      const sources = ['app', 'appUrl', 'appBinaryId', 'appFile'].filter(
+        (k) => opts[k] !== undefined,
+      );
+      expect(sources).toHaveLength(1);
+    }
+    // A positional app drops every configured app source.
+    const { opts } = maestroLike(file).run(['other.apk', 'flows']);
+    expect(opts.app).toBeUndefined();
+    expect(opts.appUrl).toBeUndefined();
+  });
+
+  it('lets a device matrix on the command line replace the configured device', () => {
+    const file = writeConfig(
+      'maestro:\n  device: Pixel 9\n  deviceVersion: "15"\n',
+    );
+    const { opts } = maestroLike(file).run(['--device-matrix', 'Pixel 8:14']);
+    expect(opts.deviceMatrix).toBe('Pixel 8:14');
+    expect(opts.device).toBeUndefined();
+    expect(opts.deviceVersion).toBeUndefined();
+  });
+
+  it('lets a device on the command line replace a configured matrix', () => {
+    const file = writeConfig('maestro:\n  deviceMatrix: Pixel 8:14\n');
+    const { opts } = maestroLike(file).run(['--device', 'Pixel 9']);
+    expect(opts.device).toBe('Pixel 9');
+    expect(opts.deviceMatrix).toBeUndefined();
+  });
+
+  it('lets an alias on the command line win over the configured flag', () => {
+    const file = writeConfig('maestro:\n  device: Pixel 9\n');
+    const { opts } = maestroLike(file).run(['--device-model', 'iPhone-16']);
+    expect(opts.deviceModel).toBe('iPhone-16');
+    expect(opts.device).toBeUndefined();
   });
 
   it('fills list options whose parser pushes onto the default', () => {

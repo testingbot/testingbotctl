@@ -819,6 +819,8 @@ While a run is live you can press:
 - `d` to detach: the CLI exits and the runs keep going (pick them up with `testingbot status --id <id> --wait`)
 - `Ctrl+C` to stop the runs on TestingBot (press it twice to force exit)
 
+The keys are off when the CLI runs in the background (`testingbot maestro … &`) or with `TESTINGBOT_KEYS=0`.
+
 Use `--quiet` to suppress progress output.
 
 Before uploading, `--device` and `--device-matrix` names are checked against the device catalog, so a typo fails right away with a suggestion ("Did you mean "Pixel 9"?"). Wildcards and regular expressions are not checked. Set `TESTINGBOT_SKIP_DEVICE_CHECK=1` to skip the check.
@@ -830,6 +832,7 @@ Where the terminal supports them, links are clickable (iTerm2, WezTerm, Ghostty,
 | Variable | Effect |
 |---|---|
 | `TESTINGBOT_NOTIFY=0` | No notification or bell when a long run finishes |
+| `TESTINGBOT_KEYS=0` | No single-key controls (`o`, `d`) during a live run |
 | `FORCE_HYPERLINK=0` / `1` | Turn clickable links off / on |
 | `TESTINGBOT_TERM_PROGRESS=0` / `1` | Turn tab/taskbar progress off / on |
 | `TESTINGBOT_BANNER=full` / `compact` / `off` | The banner: full once per version, then one line |

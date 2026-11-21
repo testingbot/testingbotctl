@@ -40,6 +40,23 @@ const PATH_KEYS = new Set([
 
 const SECRET_KEYS = new Set(['apiKey', 'apiSecret']);
 
+/**
+ * Options that set the same thing (an alias and its flag, or alternatives
+ * that cannot be combined). Setting any of them on the command line drops the
+ * others from the config file, so the command line always wins instead of
+ * clashing with a configured value ("Pass only one app source") or losing to
+ * it (an alias the config's canonical key would override).
+ */
+const OVERLAPPING_OPTIONS: string[][] = [
+  ['app', 'appFile', 'appUrl', 'appBinaryId'],
+  ['device', 'deviceModel', 'deviceMatrix'],
+  ['deviceVersion', 'platformVersion', 'deviceOs', 'deviceMatrix'],
+  ['deviceLocale', 'locale'],
+  ['report', 'format'],
+  ['reportOutputDir', 'output'],
+  ['name', 'testSuiteName'],
+];
+
 /** File extensions of an app (as opposed to a flow) given on the command line. */
 const APP_EXTENSION = /\.(apk|aab|ipa|app|tar\.gz)$/i;
 
@@ -201,6 +218,23 @@ export function applyProjectConfig(
   }
 
   const positional = command.args.length;
+  // Maestro takes the app as its first positional argument.
+  const firstIsApp =
+    name === 'maestro' &&
+    positional > 0 &&
+    APP_EXTENSION.test(String(command.args[0]));
+  const fromCommandLine = (attribute: string) => {
+    if (attribute === 'app' && firstIsApp) return true;
+    const source = command.getOptionValueSource(attribute);
+    return source === 'cli' || source === 'env';
+  };
+  const overridden = (attribute: string) =>
+    OVERLAPPING_OPTIONS.some(
+      (group) =>
+        group.includes(attribute) &&
+        group.some((other) => other !== attribute && fromCommandLine(other)),
+    );
+
   const applied: string[] = [];
   for (const [key, rawValue] of Object.entries(section)) {
     if (SECRET_KEYS.has(key)) {
@@ -222,13 +256,13 @@ export function applyProjectConfig(
     }
     const source = command.getOptionValueSource(attribute);
     if (source !== undefined && source !== 'default') continue;
+    // An app on the command line replaces the configured one, and an alias
+    // or alternative on the command line replaces the configured option.
+    if ((attribute === 'app' && firstIsApp) || overridden(attribute)) continue;
 
     if (name === 'maestro') {
-      const firstIsApp =
-        positional > 0 && APP_EXTENSION.test(String(command.args[0]));
-      // An app on the command line replaces the configured one.
-      if (attribute === 'app' && firstIsApp) continue;
-      // So do flows: with an app configured every positional is a flow,
+      // Flows on the command line replace the configured ones: with an
+      // app configured every positional is a flow,
       // otherwise the ones after the app are.
       if (attribute === 'flows') {
         const appKnown =

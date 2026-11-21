@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events';
-import { keyHint, startKeyControls } from '../../src/ui/keys';
+import {
+  inForeground,
+  keyControlsAvailable,
+  keyHint,
+  startKeyControls,
+} from '../../src/ui/keys';
 import utils from '../../src/utils';
 
 class FakeStdin extends EventEmitter {
@@ -36,6 +41,7 @@ describe('key controls', () => {
     const stop = startKeyControls(
       actions,
       stdin as unknown as NodeJS.ReadStream,
+      () => true,
     );
     expect(stdin.raw).toBe(true);
     expect(stdin.paused).toBe(false);
@@ -69,6 +75,32 @@ describe('key controls', () => {
     const tty = new FakeStdin();
     startKeyControls({ open: jest.fn() }, tty as unknown as NodeJS.ReadStream);
     expect(tty.raw).toBe(false);
+  });
+
+  it('stays off for a backgrounded run, so the shell does not stop it', () => {
+    const stdin = new FakeStdin();
+    const open = jest.fn();
+    startKeyControls(
+      { open },
+      stdin as unknown as NodeJS.ReadStream,
+      () => false,
+    );
+    expect(stdin.raw).toBe(false);
+    expect(stdin.paused).toBe(true);
+    stdin.emit('data', Buffer.from('o'));
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('can be turned off with TESTINGBOT_KEYS=0', () => {
+    const stdin = new FakeStdin() as unknown as NodeJS.ReadStream;
+    expect(keyControlsAvailable(stdin, () => true, {})).toBe(true);
+    expect(
+      keyControlsAvailable(stdin, () => true, { TESTINGBOT_KEYS: '0' }),
+    ).toBe(false);
+  });
+
+  it('tells whether it runs in the foreground without throwing', () => {
+    expect(typeof inForeground()).toBe('boolean');
   });
 
   it('only advertises the keys that work', () => {
