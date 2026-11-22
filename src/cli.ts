@@ -58,6 +58,8 @@ import {
 } from './config/project_config';
 import { applyHelpLayout } from './ui/help';
 import { installUpdateNotifier } from './utils/update_check';
+import { runUpgrade } from './commands/upgrade';
+import { normalizeLocale } from './utils/locale';
 import {
   EXIT_ERROR,
   JsonOutput,
@@ -540,7 +542,8 @@ program
     if (
       !opts.quiet &&
       !COMPLETION_COMMANDS.has(action.name()) &&
-      action.name() !== 'doctor'
+      action.name() !== 'doctor' &&
+      action.name() !== 'upgrade'
     ) {
       installUpdateNotifier();
     }
@@ -586,7 +589,10 @@ program
   .option('--real-device', 'Use a real device instead of an emulator.')
   .option('--tablet-only', 'Only allocate tablet devices.')
   .option('--phone-only', 'Only allocate phone devices.')
-  .option('--locale <locale>', 'Device locale (e.g., "en_US", "de_DE").')
+  .option(
+    '--locale <locale>',
+    'Device locale, e.g. "de_DE"; "de", "de-DE" or "deu" work too.',
+  )
   .option(
     '--timezone <timezone>',
     'Device timezone (e.g., "America/New_York", "Europe/London").',
@@ -791,7 +797,7 @@ program
         notAnnotation: args.notAnnotation,
         size: args.size,
         language: args.language,
-        locale: args.locale,
+        locale: args.locale && normalizeLocale(args.locale, 'espresso').locale,
         timeZone: args.timezone,
         geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
@@ -903,7 +909,10 @@ program
     'Screen orientation: PORTRAIT or LANDSCAPE.',
     (val) => val.toUpperCase() as Orientation,
   )
-  .option('--device-locale <locale>', 'Device locale (e.g., "en_US", "de_DE").')
+  .option(
+    '--device-locale <locale>',
+    'Device locale, e.g. "de_DE"; "de", "de-DE" or "deu" work too.',
+  )
   .option(
     '--timezone <timezone>',
     'Device timezone (e.g., "America/New_York", "Europe/London").',
@@ -1215,7 +1224,9 @@ program
         deviceMatrix: parseDeviceMatrix(args.deviceMatrix),
         name: args.name,
         orientation: args.orientation,
-        locale: args.deviceLocale,
+        locale:
+          args.deviceLocale &&
+          normalizeLocale(args.deviceLocale, 'maestro').locale,
         timeZone: args.timezone,
         throttleNetwork: args.throttleNetwork,
         geoCountryCode: args.geoCountryCode,
@@ -1293,7 +1304,10 @@ program
     'Screen orientation: PORTRAIT or LANDSCAPE.',
     (val) => val.toUpperCase() as XCUITestOrientation,
   )
-  .option('--locale <locale>', 'Device locale (e.g., "DE", "US").')
+  .option(
+    '--locale <locale>',
+    'Device region, e.g. "DE"; "de_DE" also sets --language de.',
+  )
   .option(
     '--timezone <timezone>',
     'Device timezone (e.g., "New_York", "Europe/London").',
@@ -1482,8 +1496,10 @@ program
         name: args.name,
         build: args.build,
         orientation: args.orientation,
-        language: args.language,
-        locale: args.locale,
+        language:
+          args.language ??
+          (args.locale && normalizeLocale(args.locale, 'xcuitest').language),
+        locale: args.locale && normalizeLocale(args.locale, 'xcuitest').locale,
         timeZone: args.timezone,
         geoCountryCode: args.geoCountryCode,
         throttleNetwork: args.throttleNetwork,
@@ -2266,6 +2282,16 @@ program
       logger.error(err instanceof Error ? err.message : String(err));
       process.exitCode = EXIT_ERROR;
     }
+  });
+
+program
+  .command('upgrade')
+  .description(
+    'Update the CLI to the latest version, the way it was installed (npm, pnpm, yarn or bun).',
+  )
+  .option('--dry-run', 'Show the update command without running it.')
+  .action(async (args) => {
+    process.exitCode = await runUpgrade({ dryRun: args.dryRun });
   });
 
 program

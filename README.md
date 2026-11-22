@@ -60,6 +60,8 @@ npm install -g @testingbot/cli
 
 **Requirements:** NodeJS 20 or higher
 
+Update later with `testingbot upgrade`: it runs the update for however the CLI was installed (npm, pnpm, yarn or bun). For a project dependency it prints the command instead of changing your `package.json`; `--dry-run` only shows the command.
+
 ## Authentication
 
 The CLI requires TestingBot API credentials. You can authenticate in several ways:
@@ -182,7 +184,7 @@ testingbot maestro <app> <flows...> [options]
 | `--device-matrix <cells>`     | Run every flow on each listed device in one go. Cells are `<device>[:<version>][:real]`, comma-separated or repeatable. Cannot be combined with `--device` or `--deviceVersion`; `--real-device` (or an `.ipa` app) applies to every cell |
 | `--orientation <orientation>` | Screen orientation: PORTRAIT or LANDSCAPE                                                                                                                                                                                                 |
 | `--disable-animations`        | Turn off device animations (Android animation scales, iOS Reduce Motion). `--no-disable-animations` keeps them on. Overrides `platform.*.disableAnimations` in config.yaml                                                                |
-| `--device-locale <locale>`    | Device locale (e.g., "en_US", "de_DE")                                                                                                                                                                                                    |
+| `--device-locale <locale>`    | Device locale, e.g. "de_DE"; "de", "de-DE" or "deu" work too                                                                                                                                                                              |
 | `--timezone <timezone>`       | Timezone (e.g., "America/New_York", "Europe/London")                                                                                                                                                                                      |
 
 **Test Configuration:**
@@ -555,7 +557,7 @@ testingbot espresso [appFile] [testAppFile] [options]
 | `--real-device`                | Use a real device instead of an emulator             |
 | `--tablet-only`                | Only allocate tablet devices                         |
 | `--phone-only`                 | Only allocate phone devices                          |
-| `--locale <locale>`            | Device locale (e.g., "en_US", "de_DE")               |
+| `--locale <locale>`            | Device locale, e.g. "de_DE"; "de", "de-DE" or "deu" work too |
 | `--timezone <timezone>`        | Timezone (e.g., "America/New_York", "Europe/London") |
 
 **Test Configuration:**
@@ -678,7 +680,7 @@ testingbot xcuitest [appFile] [testAppFile] [options]
 | `--tablet-only`                | Only allocate tablet devices                         |
 | `--phone-only`                 | Only allocate phone devices                          |
 | `--orientation <orientation>`  | Screen orientation: PORTRAIT or LANDSCAPE            |
-| `--locale <locale>`            | Device locale (e.g., "DE", "US")                     |
+| `--locale <locale>`            | Device region, e.g. "DE"; "de_DE" also sets `--language de` |
 | `--timezone <timezone>`        | Timezone (e.g., "America/New_York", "Europe/London") |
 
 **Test Configuration:**

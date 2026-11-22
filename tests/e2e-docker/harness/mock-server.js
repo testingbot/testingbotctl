@@ -17,6 +17,9 @@ const SCENARIO = process.env.MOCK_SCENARIO || 'pass';
 const LATEST_CLI = process.env.MOCK_LATEST_CLI || '';
 // Stretches every run over N times as many polls (to test long-run behaviour).
 const SLOW = Math.max(1, Number(process.env.MOCK_SLOW) || 1);
+// MOCK_DROP_RUN=before|after: the first POST /run gets no answer (the socket
+// is destroyed), with the runs not started (before) or started (after).
+let dropRun = process.env.MOCK_DROP_RUN || '';
 const log = (...a) => {
   if (process.env.MOCK_LOG)
     fs.appendFileSync(process.env.MOCK_LOG, a.join(' ') + '\n');
@@ -300,20 +303,40 @@ async function handle(req, res) {
 
   if (req.method === 'POST' && rest === '/app/checksum')
     return send(res, 200, { app_exists: false });
-  if (req.method === 'POST' && rest === '/app')
-    return send(res, 200, { id: newProject(provider).id });
+  if (req.method === 'POST' && rest === '/app') {
+    const project = newProject(provider);
+    project.started = false;
+    return send(res, 200, { id: project.id });
+  }
 
   let mm;
   if ((mm = rest.match(/^\/(\d+)\/tests$/)) && req.method === 'POST') {
     return send(res, 200, { id: Number(mm[1]) });
   }
   if ((mm = rest.match(/^\/(\d+)\/run$/)) && req.method === 'POST') {
+    const project = projects.get(Number(mm[1]));
     log('run body', body.toString());
+    log('run idempotency-key', req.headers['idempotency-key'] || '-');
+    if (dropRun === 'before') {
+      dropRun = '';
+      log('run dropped before start');
+      return req.socket.destroy();
+    }
+    if (project) project.started = true;
+    if (dropRun === 'after') {
+      dropRun = '';
+      log('run dropped after start');
+      return req.socket.destroy();
+    }
     return send(res, 200, { success: true });
   }
   if ((mm = rest.match(/^\/(\d+)$/)) && req.method === 'GET') {
     const project = projects.get(Number(mm[1]));
     if (!project) return send(res, 404, { error: 'Project not found' });
+    // Uploaded but not started: no runs yet.
+    if (project.started === false) {
+      return send(res, 200, { runs: [], success: false, completed: false });
+    }
     project.polls++;
     return send(
       res,

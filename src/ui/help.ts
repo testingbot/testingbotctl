@@ -232,6 +232,7 @@ const COMMAND_GROUPS: Record<string, string> = {
   whoami: 'Setup:',
   doctor: 'Setup:',
   completion: 'Setup:',
+  upgrade: 'Setup:',
   devices: 'Utilities:',
   'failed-tests': 'Utilities:',
 };

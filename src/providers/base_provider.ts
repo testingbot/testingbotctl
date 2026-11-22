@@ -1,5 +1,6 @@
 import Credentials from '../models/credentials';
 import axios from 'axios';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import TestingBotError from '../models/testingbot_error';
 import utils from '../utils';
@@ -640,6 +641,65 @@ export default abstract class BaseProvider<
     throw lastError;
   }
 
+  /** Runs this process has started on the current project. */
+  protected runsStarted = 0;
+
+  /**
+   * Starts runs without ever starting them twice. When the start request gets
+   * no usable answer (connection dropped, timed out, or a 502/503/504 from a
+   * proxy) the runs may or may not exist. Before sending it again, ask the API
+   * how many runs the project has: more than this process started means the
+   * request went through and the run carries on with them. Every attempt
+   * sends the same Idempotency-Key, so a server that knows it returns the
+   * original answer instead of starting more runs.
+   *
+   * Returns the start response, or undefined when the runs were found on the
+   * project instead (the response itself is lost).
+   */
+  protected async startRunsOnce<T>(
+    operation: string,
+    newRuns: number,
+    start: (headers: Record<string, string>) => Promise<T>,
+    countRuns: () => Promise<number>,
+  ): Promise<T | undefined> {
+    const headers = { 'Idempotency-Key': randomUUID() };
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const response = await start(headers);
+        this.runsStarted += newRuns;
+        return response;
+      } catch (error) {
+        if (!isLostResponse(error) || attempt === this.MAX_RETRIES) throw error;
+        const delay = this.BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+        if (!this.options.quiet) {
+          logger.warn(
+            `${operation}: no answer from TestingBot (${describeLostResponse(error)}). Checking in ${delay / 1000}s whether the runs started...`,
+          );
+        }
+        await this.sleep(delay);
+        let count: number | undefined;
+        try {
+          count = await countRuns();
+        } catch {
+          // Unknown: sending again is still safe for a server that honours
+          // the Idempotency-Key.
+        }
+        if (count !== undefined && count >= this.runsStarted + newRuns) {
+          this.runsStarted = count;
+          if (!this.options.quiet) {
+            logger.info('The runs did start; following them.');
+          }
+          return undefined;
+        }
+        if (!this.options.quiet) {
+          logger.info(
+            `The runs did not start; trying again (attempt ${attempt + 2}/${this.MAX_RETRIES + 1}).`,
+          );
+        }
+      }
+    }
+  }
+
   /**
    * Extracts an error message from various error types.
    * For Axios errors, uses enhanced error handling with diagnostics.
@@ -806,4 +866,20 @@ export default abstract class BaseProvider<
     logger.info('');
     logger.info('No HTTP requests were made.');
   }
+}
+
+/**
+ * The request may or may not have reached the API: no response at all, or a
+ * gateway error from a proxy in between. A 500 is an answer (the API failed
+ * and created nothing), as are 4xx errors.
+ */
+function isLostResponse(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) return false;
+  if (!error.response) return Boolean(error.code);
+  return [408, 502, 503, 504].includes(error.response.status);
+}
+
+function describeLostResponse(error: unknown): string {
+  if (!axios.isAxiosError(error)) return 'unknown error';
+  return error.response ? `HTTP ${error.response.status}` : String(error.code);
 }

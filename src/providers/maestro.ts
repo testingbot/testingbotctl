@@ -2513,36 +2513,45 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       const maestroOptions = this.options.getMaestroOptions();
       const metadata = this.options.metadata;
       this.logDeviceMatrixSummary(capabilities);
-      const response = await axios.post(
-        `${this.URL}/${this.appId}/run`,
-        {
-          capabilities,
-          ...(maestroOptions && { maestroOptions }),
-          ...(this.options.shardSplit && {
-            shardSplit: this.options.shardSplit,
-          }),
-          ...(this.options.maxFailures && {
-            failFast: this.options.maxFailures,
-          }),
-          ...(metadata && { metadata }),
-          ...(this.options.priority && { priority: this.options.priority }),
-          ...(this.options.cancelPrevious && { cancelPrevious: true }),
-          ...(this.otherAppUrls.length > 0 && {
-            otherApps: this.otherAppUrls,
-          }),
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': utils.getUserAgent(),
-          },
-          auth: {
-            username: this.credentials.userName,
-            password: this.credentials.accessKey,
-          },
-          timeout: HTTP.TIMEOUT_MS,
-        },
+      const response = await this.startRunsOnce(
+        'Starting the Maestro run',
+        capabilities.length,
+        (idempotency) =>
+          axios.post(
+            `${this.URL}/${this.appId}/run`,
+            {
+              capabilities,
+              ...(maestroOptions && { maestroOptions }),
+              ...(this.options.shardSplit && {
+                shardSplit: this.options.shardSplit,
+              }),
+              ...(this.options.maxFailures && {
+                failFast: this.options.maxFailures,
+              }),
+              ...(metadata && { metadata }),
+              ...(this.options.priority && { priority: this.options.priority }),
+              ...(this.options.cancelPrevious && { cancelPrevious: true }),
+              ...(this.otherAppUrls.length > 0 && {
+                otherApps: this.otherAppUrls,
+              }),
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': utils.getUserAgent(),
+                ...idempotency,
+              },
+              auth: {
+                username: this.credentials.userName,
+                password: this.credentials.accessKey,
+              },
+              timeout: HTTP.TIMEOUT_MS,
+            },
+          ),
+        async () => (await this.getStatus()).runs?.length ?? 0,
       );
+      // The answer was lost, but the runs exist: follow them.
+      if (!response) return true;
 
       // Check for version update notification
       const latestVersion = response.headers?.['x-testingbotctl-version'];

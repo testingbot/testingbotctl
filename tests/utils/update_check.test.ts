@@ -51,7 +51,7 @@ describe('update notice', () => {
     recordLatestVersion('1.6.0');
     const notice = updateNotice('1.5.0', 1_000_000);
     expect(notice).toContain('1.6.0');
-    expect(notice).toContain('npm install -g @testingbot/cli');
+    expect(notice).toContain('testingbot upgrade');
     expect(updateNotice('1.5.0', 1_000_000 + 60_000)).toBeUndefined();
     expect(
       updateNotice('1.5.0', 1_000_000 + 25 * 60 * 60 * 1000),

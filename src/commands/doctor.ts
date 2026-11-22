@@ -132,7 +132,7 @@ export async function runChecks(
       name: 'CLI',
       status: 'warn',
       detail: `${deps.cliVersion}, ${latest} is available`,
-      hint: 'npm install -g @testingbot/cli',
+      hint: 'testingbot upgrade',
     });
   } else {
     results.push({

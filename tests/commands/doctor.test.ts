@@ -80,7 +80,7 @@ describe('doctor', () => {
     );
     expect(results.CLI).toMatchObject({
       status: 'warn',
-      hint: 'npm install -g @testingbot/cli',
+      hint: 'testingbot upgrade',
     });
     results = byName(
       await runChecks(
