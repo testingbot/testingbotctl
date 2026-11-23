@@ -1591,11 +1591,16 @@ describe('TestingBotCTL CLI', () => {
         'login.yaml',
         '--flow',
         'checkout',
+        '--maestro-output',
       ]);
       expect(mockArtifacts).toHaveBeenCalledWith(1234, {
         runIds: [11, 12],
         flows: ['login.yaml', 'checkout'],
       });
+      expect(
+        lastConstructorOptions<{ maestroOutput?: boolean }>(Maestro)
+          .maestroOutput,
+      ).toBe(true);
       expect(process.exitCode).toBe(0);
     });
 

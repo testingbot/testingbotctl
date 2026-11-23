@@ -1051,6 +1051,10 @@ program
     'Directory to save artifacts zip (defaults to current directory).',
   )
   .option(
+    '--maestro-output',
+    "With --download-artifacts: also unpack each flow's Maestro output (commands.json, screen-hierarchy JSON, step screenshots) into maestro-output/.",
+  )
+  .option(
     '--ignore-checksum-check',
     'Skip checksum verification and always upload the app.',
   )
@@ -1259,6 +1263,7 @@ program
             ? 'all'
             : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
         artifactsOutputDir: args.artifactsOutputDir,
+        maestroOutput: args.maestroOutput,
         ignoreChecksumCheck: args.ignoreChecksumCheck,
         shardSplit: args.shardSplit,
         maxFailures: args.maxFailures,
@@ -1753,6 +1758,10 @@ withFlags(
         'Directory to save artifacts zip (defaults to current directory).',
       )
       .option(
+        '--maestro-output',
+        "With --download-artifacts: also unpack each flow's Maestro output (commands.json, screen-hierarchy JSON, step screenshots) into maestro-output/.",
+      )
+      .option(
         '-q, --quiet',
         'Quieter console output without progress updates.',
       ),
@@ -1784,6 +1793,7 @@ withFlags(
               ? 'all'
               : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
           artifactsOutputDir: args.artifactsOutputDir,
+          maestroOutput: args.maestroOutput,
           debug: args.debug,
         }),
       );
@@ -1834,6 +1844,10 @@ withFlags(
         'Directory to save artifacts zip (defaults to current directory).',
       )
       .option(
+        '--maestro-output',
+        "With --download-artifacts: also unpack each flow's Maestro output (commands.json, screen-hierarchy JSON, step screenshots) into maestro-output/.",
+      )
+      .option(
         '--run <runIds>',
         'Only these runs (devices), comma-separated or repeatable. Run IDs are shown by "testingbot status".',
         collectCommaSeparated,
@@ -1869,6 +1883,7 @@ withFlags(
               ? 'all'
               : (args.downloadArtifacts as ArtifactDownloadMode | undefined),
           artifactsOutputDir: args.artifactsOutputDir,
+          maestroOutput: args.maestroOutput,
           debug: args.debug,
         }),
       );

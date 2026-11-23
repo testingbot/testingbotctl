@@ -12,6 +12,47 @@
 
 const https = require('node:https');
 const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const zlib = require('node:zlib');
+const { execFileSync } = require('node:child_process');
+
+// The Maestro output bundle the node uploads (vm packMaestroOutput): a tar of
+// <flow>/commands.json, screen-hierarchy/ and screenshots/, served gzip-encoded
+// like R2 serves it.
+function maestroOutputTar(flowName) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mo-'));
+  const flow = path.join(dir, flowName.replace(/\.ya?ml$/, ''));
+  fs.mkdirSync(path.join(flow, 'screen-hierarchy'), { recursive: true });
+  fs.mkdirSync(path.join(flow, 'screenshots'), { recursive: true });
+  fs.writeFileSync(
+    path.join(flow, 'commands.json'),
+    JSON.stringify([
+      {
+        artifacts: [
+          {
+            type: 'SCREEN_HIERARCHY',
+            path: 'screen-hierarchy/step-002-tapOnElement.json',
+          },
+          { type: 'SCREENSHOT', path: 'screenshots/step-002-tapOnElement.png' },
+        ],
+      },
+    ]),
+  );
+  fs.writeFileSync(
+    path.join(flow, 'screen-hierarchy', 'step-002-tapOnElement.json'),
+    '{"text":"Pay now"}',
+  );
+  fs.writeFileSync(
+    path.join(flow, 'screenshots', 'step-002-tapOnElement.png'),
+    'png',
+  );
+  const tar = path.join(dir, 'out.tar');
+  execFileSync('tar', ['-cf', tar, '-C', dir, path.basename(flow)]);
+  const data = fs.readFileSync(tar);
+  fs.rmSync(dir, { recursive: true, force: true });
+  return data;
+}
 
 const SCENARIO = process.env.MOCK_SCENARIO || 'pass';
 const LATEST_CLI = process.env.MOCK_LATEST_CLI || '';
@@ -293,6 +334,16 @@ async function handle(req, res) {
     ]);
   }
 
+  let mo;
+  if (
+    (mo = url.pathname.match(/^\/assets\/\d+\/\d+\/maestro_output-(.+)\.tar$/))
+  ) {
+    res.writeHead(200, {
+      'content-type': 'application/x-tar',
+      'content-encoding': 'gzip',
+    });
+    return res.end(zlib.gzipSync(maestroOutputTar(decodeURIComponent(mo[1]))));
+  }
   if (url.pathname.startsWith('/assets/')) {
     return send(res, 200, `asset ${url.pathname}\n`, {
       'Content-Type': 'application/octet-stream',
@@ -393,6 +444,9 @@ async function handle(req, res) {
           logs: { maestro: asset(`${f.id}/maestro.txt`) },
           video: asset(`${f.id}/video.mp4`),
           screenshots: [asset(`${f.id}/s0.png`)],
+          maestro_output: asset(
+            `${f.id}/maestro_output-${encodeURIComponent(f.name)}.tar`,
+          ),
         },
       })),
     });
