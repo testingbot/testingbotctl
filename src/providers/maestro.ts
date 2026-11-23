@@ -74,6 +74,8 @@ export interface MaestroFlowInfo {
   success?: number;
   test_case_id?: number;
   shard_index?: number;
+  /** The flow files a sharded attempt runs (relative paths), in order. */
+  flows?: string[];
   error_messages?: string[];
   assets?: MaestroRunAssets;
 }
@@ -3508,15 +3510,25 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
 
   /**
    * The latest attempt of every flow/shard a --flow selection names, matched
-   * by name (with or without the .yaml/.yml extension) or by the id of any of
-   * its attempts. A name that matches nothing is an error.
+   * by the id of any of its attempts, or by name: the API's display name
+   * ("Android Advanced Flow", titled from the file) or, for a shard, any of its
+   * flow files. Names compare without case, .yaml/.yml extension, directory,
+   * and with -, _ and spaces alike, so `android-advanced-flow`,
+   * `android-advanced-flow.yaml` and "Android Advanced Flow" all match. A name
+   * that matches nothing is an error.
    */
   private matchNamedFlows(
     runs: MaestroRunInfo[],
     wanted: string[],
     runsNarrowed: boolean,
   ): Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> {
-    const stripExt = (name: string) => name.replace(/\.ya?ml$/i, '');
+    const normalize = (name: string) =>
+      name
+        .trim()
+        .replace(/^.*[\\/]/, '')
+        .replace(/\.ya?ml$/i, '')
+        .replace(/[-_\s]+/g, ' ')
+        .toLowerCase();
     const matched = new Set<string>();
     const targets: Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> = [];
 
@@ -3531,7 +3543,8 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         const hits = wanted.filter(
           (w) =>
             w === flow.name ||
-            stripExt(w) === stripExt(flow.name) ||
+            normalize(w) === normalize(flow.name) ||
+            (flow.flows ?? []).some((f) => normalize(f) === normalize(w)) ||
             groupIds.has(w),
         );
         if (hits.length === 0) continue;

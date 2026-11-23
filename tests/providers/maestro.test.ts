@@ -7888,6 +7888,46 @@ onFlowStart:
         ]);
       });
 
+      it('matches a flow file name against the display name the API returns', () => {
+        // Unsharded attempts carry only the titled name; shards also list their files.
+        const runs = [
+          run({
+            id: 7,
+            flows: [
+              {
+                id: 1,
+                name: 'Android Advanced Flow',
+                status: 'DONE',
+                success: 1,
+              },
+              {
+                id: 2,
+                name: 'Checkout, Search',
+                status: 'FAILED',
+                success: 0,
+                shard_index: 1,
+                flows: ['flows/checkout.yaml', 'flows/search_results.yaml'],
+              },
+            ],
+          }),
+        ];
+        const m = new Maestro(
+          mockCredentials,
+          MaestroOptions.forExistingProject({}),
+        );
+        const match = (wanted: string[]) =>
+          m['matchNamedFlows'](runs as never, wanted, false).map(
+            (t: { flow: { id: number } }) => t.flow.id,
+          );
+        expect(match(['android-advanced-flow'])).toEqual([1]);
+        expect(match(['android-advanced-flow.yaml'])).toEqual([1]);
+        expect(match(['flows/android_advanced_flow.yml'])).toEqual([1]);
+        expect(match(['Android Advanced Flow'])).toEqual([1]);
+        expect(match(['search-results'])).toEqual([2]);
+        expect(match(['flows/checkout.yaml'])).toEqual([2]);
+        expect(() => match(['android'])).toThrow('No flow named "android"');
+      });
+
       it('rejects an unknown flow or run before downloading anything', async () => {
         const a = setup('all');
         const r1 = await a.m.artifacts(1234, { flows: ['nope'] });
