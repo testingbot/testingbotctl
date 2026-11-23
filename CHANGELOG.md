@@ -2,7 +2,7 @@
 
 All notable changes to `@testingbot/cli` are documented here. Releases are published to npm from GitHub releases.
 
-## Unreleased
+## 1.6.0 - 2026-11-23
 
 ### Added
 
@@ -13,20 +13,18 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - `--device` / `--device-matrix` names and versions are checked against the device catalog before uploading, with "did you mean" suggestions. Wildcards and regexes are not checked; `TESTINGBOT_SKIP_DEVICE_CHECK=1` skips it.
 - End-of-run summary for every framework: verdict, a row per device, flaky flows (passed on retry), slowest flows, and the next commands (`testingbot rerun`, `testingbot artifacts`, dashboard links). Espresso and XCUITest now link to their dashboard pages, also in `--json` (`url`).
 - Clickable links (OSC 8) where the terminal supports them, and a desktop notification or bell when a run of over a minute ends (`TESTINGBOT_NOTIFY=0` turns it off).
-- Keys during a live run: `o` opens the dashboard, `d` detaches and leaves the runs going.
+- Keys during a live run: `o` opens the dashboard, `d` detaches and leaves the runs going. They are off when the CLI runs in the background (`… &`), so the shell no longer suspends it, and `TESTINGBOT_KEYS=0` turns them off.
 - Tab/taskbar progress (OSC 9;4) in Windows Terminal, Ghostty and iTerm2.
 - `testingbot whoami` shows concurrency meters; `testingbot list` shows relative times and colours running projects; `testingbot devices --real` colours availability.
 - Grouped `--help` (App & tests, Device, Choosing tests, Running, Reports & artifacts, CI, Output, Authentication) with examples; root commands grouped by purpose.
 - Hidden flag aliases so a flag learned on one command works on the others: `--device-version`, `--platform-version` and `--locale` for `maestro`; `--device-version` and `--device-locale` for `espresso` and `xcuitest`.
-
 - `testingbot maestro --max-failures <n>`: TestingBot stops each run once n flows (shards, when sharded) have failed and does not run the rest (the run's `failFast` API parameter). Enforced server-side, so it works with `--async`.
 - `testingbot xcuitest`: `--only-testing` and `--skip-testing` choose which tests run (`TestClass` or `TestClass/testMethod`, comma-separated, repeatable). `--test-env KEY=VALUE` / `--test-arg` pass environment variables and launch arguments to the test runner process, `--app-env KEY=VALUE` / `--app-arg` to the app under test. Invalid identifiers or variable names fail before anything is uploaded.
-
 - `testingbot failed-tests <build>`: prints the names of the failed tests of a Selenium/Appium build, one per line (`--json` for id, session ID, browser and OS), so CI can run only those again. Builds are addressed by name or numeric ID.
-
 - `testingbot upgrade`: updates the CLI the way it was installed (npm, pnpm, yarn or bun). For a project dependency, npx or a source checkout it prints the command to run instead; `--dry-run` only shows it. The update notice and `doctor` now point to it.
 - Short locale codes: `--locale` / `--device-locale` accept `de`, `de-DE`, `de_de` or the three-letter `deu` and send `de_DE` (Maestro, Espresso). For XCUITest, `de_AT` becomes region `AT` with language `de`, unless `--language` is given.
 - Starting a run survives a lost answer: when the start request gets no response (dropped connection, timeout, or a 502/503/504), the CLI checks whether the runs started before sending it again, so a network blip neither fails the job nor starts the runs twice. Every attempt carries the same `Idempotency-Key` header.
+- `testingbot artifacts --flow <names>` and `--run <runIds>` download the files of some flows or runs only: every attempt of the named flows, without the run-wide video, logs and combined report.
 
 ### Changed
 
@@ -34,6 +32,7 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - Reusing an unchanged app is shown as "✔ App unchanged since its last upload: reusing it (skipped 48 MB)".
 - The update notice is one line at the end of the command, at most once a day, and the CLI also checks npm in the background once a day (`TESTINGBOT_NO_UPDATE_CHECK=1` turns it off). It no longer interrupts a running test.
 - Errors and warnings are printed without a timestamp and start with `✘` / `⚠`; multi-line messages are indented. Our own errors no longer repeat the command name (`Maestro error: …`).
+- `--download-artifacts failed` keeps only the failed flows of a failed Maestro run, instead of every flow in it.
 
 ### Fixed
 
@@ -41,6 +40,7 @@ All notable changes to `@testingbot/cli` are documented here. Releases are publi
 - Maestro: flows reported as `FAILED` (not only `DONE` without success) show their fail reason in the table.
 - Maestro: in CI and other non-interactive output the flow table is an append-only log (one line per finished flow, every flow listed) instead of cursor movements and spinner frames.
 - Espresso / XCUITest: a finished run that failed was shown as "✔ Test has finished running"; it now shows ✘ / ✔ by its result.
+- `.testingbot.yml` no longer clashes with or overrides the command line: a flag such as `--app-binary-id`, `--device-matrix`, `--device-model` or an app file argument now replaces the config keys that mean the same thing, instead of failing or silently losing.
 
 ## 1.5.0 - 2026-11-05
 
