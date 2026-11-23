@@ -481,6 +481,7 @@ testingbot rerun --id 1234 --run 5678 --flow login.yaml
 # Fetch reports and artifacts once it finished
 testingbot artifacts --id 1234 --report junit --report-output-dir ./reports
 testingbot artifacts --id 1234 --download-artifacts failed --artifacts-output-dir ./artifacts
+testingbot artifacts --id 1234 --download-artifacts --flow login.yaml
 
 # Browse recent projects
 testingbot list
@@ -515,14 +516,16 @@ Without `--flow`, every failed flow is re-run. The live table, exit code (`0` pa
 
 **`artifacts --id <projectId>`**
 
-| Option                          | Description                                                             |
-| ------------------------------- | ----------------------------------------------------------------------- |
-| `--report <format>`             | Download report: `html`, `html-detailed`, `junit` or `allure`           |
-| `--report-output-dir <path>`    | Directory to save reports (required with `--report`)                    |
-| `--download-artifacts [mode]`   | Download logs, screenshots and video. Mode: `all` (default) or `failed` |
-| `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory)     |
+| Option                          | Description                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `--report <format>`             | Download report: `html`, `html-detailed`, `junit` or `allure`                                                  |
+| `--report-output-dir <path>`    | Directory to save reports (required with `--report`)                                                           |
+| `--download-artifacts [mode]`   | Download logs, screenshots and video. Mode: `all` (default) or `failed` (only the flows that failed)           |
+| `--artifacts-output-dir <path>` | Directory to save the artifacts zip (defaults to current directory)                                            |
+| `--run <runIds>`                | Only these runs (devices), comma-separated or repeatable. See `status` for run IDs                             |
+| `--flow <names>`                | Only the artifacts of these flows, by name (`login` or `login.yaml`) or flow ID, comma-separated or repeatable |
 
-Fails with exit code `1` if the project is still running; use `status --wait` first.
+`--flow` downloads every attempt of the named flows (a retried flow keeps its failing attempt) and leaves out the run-wide video, logs and combined report, so you get only those flows' files instead of the whole project. Fails with exit code `1` if the project is still running; use `status --wait` first.
 
 **`list`**
 
