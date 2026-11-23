@@ -5,6 +5,8 @@ import axios from 'axios';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { glob } from 'glob';
 import * as yaml from 'js-yaml';
 import archiver from 'archiver';
@@ -30,6 +32,8 @@ import { linkUrl } from '../ui/terminal';
 import { HTTP, SOCKET } from '../config/constants';
 import { maskSecretEnv } from '../utils/secret_env';
 
+const execFileAsync = promisify(execFile);
+
 const FLOW_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const FLOW_ANIMATION_MS = 120;
 // Single-column glyph so it does not disturb the row-width math used by the
@@ -45,6 +49,12 @@ export interface MaestroRunAssets {
   logs?: Record<string, string>;
   video?: string | false;
   screenshots?: string[];
+  /**
+   * Maestro's own output for the session as a tar: per flow commands.json,
+   * manifest.json, screen-hierarchy/*.json and step screenshots, with the
+   * relative paths commands.json references. Absent on older sessions.
+   */
+  maestro_output?: string;
 }
 
 export type MaestroFlowStatus =
@@ -4556,6 +4566,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       }
     }
 
+    if (this.options.maestroOutput && assets.maestro_output) {
+      await this.downloadMaestroOutput(assets.maestro_output, targetDir);
+    }
+
     if (assets.screenshots && assets.screenshots.length > 0) {
       const screenshotsDir = path.join(targetDir, 'screenshots');
       await fs.promises.mkdir(screenshotsDir, { recursive: true });
@@ -4576,6 +4590,36 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
           );
         }
       }
+    }
+  }
+
+  /**
+   * --maestro-output: unpacks the session's Maestro output into
+   * <targetDir>/maestro-output, keeping its paths so the artifacts commands.json
+   * lists resolve. tar ships with macOS, Linux and Windows 10+, and refuses
+   * absolute and ".." member names by default.
+   */
+  private async downloadMaestroOutput(
+    url: string,
+    targetDir: string,
+  ): Promise<void> {
+    const outputDir = path.join(targetDir, 'maestro-output');
+    const archive = path.join(targetDir, 'maestro-output.tar');
+    try {
+      await this.downloadFile(url, archive);
+      await fs.promises.mkdir(outputDir, { recursive: true });
+      await execFileAsync('tar', ['-xf', archive, '-C', outputDir], {
+        timeout: 120000,
+      });
+      if (!this.options.quiet) {
+        logger.info(`    Extracted Maestro output: maestro-output/`);
+      }
+    } catch (error) {
+      logger.error(
+        `    Failed to download Maestro output: ${error instanceof Error ? error.message : error}`,
+      );
+    } finally {
+      await fs.promises.rm(archive, { force: true }).catch(() => undefined);
     }
   }
 

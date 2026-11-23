@@ -130,6 +130,7 @@ export default class MaestroOptions {
     reportOutputDir?: string;
     downloadArtifacts?: ArtifactDownloadMode;
     artifactsOutputDir?: string;
+    maestroOutput?: boolean;
     debug?: boolean;
     async?: boolean;
   }): MaestroOptions {
@@ -167,6 +168,7 @@ export default class MaestroOptions {
   private _reportOutputDir?: string;
   private _realDevice: boolean;
   private _downloadArtifacts?: ArtifactDownloadMode;
+  private _maestroOutput: boolean;
   private _artifactsOutputDir?: string;
   private _ignoreChecksumCheck: boolean;
   private _shardSplit?: number;
@@ -214,6 +216,7 @@ export default class MaestroOptions {
       realDevice?: boolean;
       downloadArtifacts?: ArtifactDownloadMode;
       artifactsOutputDir?: string;
+      maestroOutput?: boolean;
       ignoreChecksumCheck?: boolean;
       shardSplit?: number;
       maxFailures?: number;
@@ -286,6 +289,7 @@ export default class MaestroOptions {
     this._realDevice =
       MaestroOptions.isIpaFile(app) || (options?.realDevice ?? false);
     this._downloadArtifacts = options?.downloadArtifacts;
+    this._maestroOutput = options?.maestroOutput ?? false;
     this._artifactsOutputDir = options?.artifactsOutputDir;
     this._ignoreChecksumCheck = options?.ignoreChecksumCheck ?? false;
     this._shardSplit = options?.shardSplit;
@@ -453,6 +457,11 @@ export default class MaestroOptions {
 
   public get downloadArtifacts(): ArtifactDownloadMode | undefined {
     return this._downloadArtifacts;
+  }
+
+  /** --maestro-output: also fetch each flow's raw Maestro output bundle. */
+  public get maestroOutput(): boolean {
+    return this._maestroOutput;
   }
 
   public get artifactsOutputDir(): string | undefined {
