@@ -144,6 +144,19 @@ function collectCommaSeparated(
   return [...(acc ?? []), ...parts];
 }
 
+/** `--run` values (from collectCommaSeparated) as run IDs. */
+function parseRunIds(values: string[] | undefined): number[] {
+  return (values ?? []).map((v) => {
+    const id = Number(v);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new InvalidArgumentError(
+        `--run expects run IDs (positive integers), got "${v}".`,
+      );
+    }
+    return id;
+  });
+}
+
 /** Parses `KEY=VALUE` entries; empty keys or a missing `=` are rejected. */
 function parseKeyValues(
   entries: string[] | undefined,
@@ -1756,15 +1769,7 @@ withFlags(
           '--report-output-dir is required when --report is specified',
         );
       }
-      const runIds = ((args.run as string[] | undefined) ?? []).map((v) => {
-        const id = Number(v);
-        if (!Number.isInteger(id) || id <= 0) {
-          throw new InvalidArgumentError(
-            `--run expects run IDs (positive integers), got "${v}".`,
-          );
-        }
-        return id;
-      });
+      const runIds = parseRunIds(args.run);
       const credentials = await requireCredentials(args);
       if (args.debug) enableDebugLogging();
       const maestro = new Maestro(
@@ -1821,12 +1826,22 @@ withFlags(
       )
       .option(
         '--download-artifacts [mode]',
-        'Download test artifacts. Mode: all (default) or failed.',
+        'Download test artifacts. Mode: all (default) or failed (only the flows that failed).',
         (val) => (val === 'failed' ? 'failed' : 'all') as ArtifactDownloadMode,
       )
       .option(
         '--artifacts-output-dir <path>',
         'Directory to save artifacts zip (defaults to current directory).',
+      )
+      .option(
+        '--run <runIds>',
+        'Only these runs (devices), comma-separated or repeatable. Run IDs are shown by "testingbot status".',
+        collectCommaSeparated,
+      )
+      .option(
+        '--flow <names>',
+        'Only the artifacts of these flows, by name or flow ID (comma-separated or repeatable). Leaves out the run-wide video and logs.',
+        collectCommaSeparated,
       )
       .option(
         '-q, --quiet',
@@ -1840,6 +1855,7 @@ withFlags(
     let jsonOptions: JsonOutputOptions | undefined;
     try {
       jsonOptions = jsonOptionsFrom(args);
+      const runIds = parseRunIds(args.run);
       const credentials = await requireCredentials(args);
       if (args.debug) enableDebugLogging();
       const maestro = new Maestro(
@@ -1856,7 +1872,10 @@ withFlags(
           debug: args.debug,
         }),
       );
-      const result = await maestro.artifacts(args.id);
+      const result = await maestro.artifacts(args.id, {
+        runIds,
+        flows: args.flow,
+      });
       // The run's own command already published its summary.
       await finishCommand(maestro.toJsonOutput(result), jsonOptions, {
         ciSummary: false,

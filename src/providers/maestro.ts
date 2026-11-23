@@ -173,6 +173,9 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
   private watchOnly = false;
   /** `rerun`: the runs being re-run; status polls are narrowed to these. */
   private runScope: Set<number> | undefined;
+  // `testingbot maestro artifacts --flow`: the flow attempts whose assets to
+  // download. Undefined downloads every flow of the runs being downloaded.
+  private artifactFlowIds: Set<number> | undefined;
   private latestFlows: MaestroFlowInfo[] = [];
   private latestDisplayedLineCount = 0;
   private flowsTableDisplayed = false;
@@ -3435,10 +3438,53 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
     status: MaestroStatusResponse,
     selection: { runIds?: number[]; flows?: string[] },
   ): Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> {
-    const runs = this.scopeRuns(status, selection.runIds).runs;
-    if (selection.runIds?.length) {
+    const runs = this.selectedRuns(status, selection.runIds);
+    const targets: Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> = [];
+    if (!selection.flows?.length) {
+      for (const run of runs) {
+        for (const flow of this.groupLatest(run.flows ?? [])) {
+          if (this.isFlowFailed(flow)) targets.push({ run, flow });
+        }
+      }
+    } else {
+      for (const target of this.matchNamedFlows(
+        runs,
+        selection.flows,
+        Boolean(selection.runIds?.length),
+      )) {
+        const { run, flow } = target;
+        if (flow.status === 'WAITING' || flow.status === 'READY') {
+          throw new TestingBotError(
+            `Flow "${flow.name}" on ${this.getRunDisplayName(run)} (run ${run.id}) is still running`,
+          );
+        }
+        targets.push(target);
+      }
+    }
+
+    // A cancelled run cannot be retried flow by flow; say so up front instead
+    // of surfacing one 409 per flow.
+    const cancelled = targets.filter((t) => t.run.status === 'CANCELLED');
+    for (const runId of new Set(cancelled.map((t) => t.run.id))) {
+      logger.warn(
+        `Run ${runId} was cancelled and cannot be re-run flow by flow; retry the whole run from the dashboard instead.`,
+      );
+    }
+    return targets.filter((t) => t.run.status !== 'CANCELLED');
+  }
+
+  /**
+   * The runs a --run selection names (all runs when it names none). A run id
+   * that is not part of the project is an error rather than silently skipped.
+   */
+  private selectedRuns(
+    status: MaestroStatusResponse,
+    runIds?: number[],
+  ): MaestroRunInfo[] {
+    const runs = this.scopeRuns(status, runIds).runs;
+    if (runIds?.length) {
       const known = new Set(runs.map((r) => r.id));
-      const missing = selection.runIds.filter((id) => !known.has(id));
+      const missing = runIds.filter((id) => !known.has(id));
       if (missing.length > 0) {
         throw new TestingBotError(
           `Run ${missing.join(', ')} is not part of project ${this.appId}. Its runs are: ${
@@ -3447,20 +3493,26 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         );
       }
     }
+    return runs;
+  }
 
+  /**
+   * The latest attempt of every flow/shard a --flow selection names, matched
+   * by name (with or without the .yaml/.yml extension) or by the id of any of
+   * its attempts. A name that matches nothing is an error.
+   */
+  private matchNamedFlows(
+    runs: MaestroRunInfo[],
+    wanted: string[],
+    runsNarrowed: boolean,
+  ): Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> {
     const stripExt = (name: string) => name.replace(/\.ya?ml$/i, '');
-    const wanted = selection.flows ?? [];
     const matched = new Set<string>();
     const targets: Array<{ run: MaestroRunInfo; flow: MaestroFlowInfo }> = [];
 
     for (const run of runs) {
       const flows = run.flows ?? [];
-      const latest = this.groupLatest(flows);
-      for (const flow of latest) {
-        if (wanted.length === 0) {
-          if (this.isFlowFailed(flow)) targets.push({ run, flow });
-          continue;
-        }
+      for (const flow of this.groupLatest(flows)) {
         const groupIds = new Set(
           flows
             .filter((f) => this.flowGroupKey(f) === this.flowGroupKey(flow))
@@ -3474,11 +3526,6 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         );
         if (hits.length === 0) continue;
         hits.forEach((h) => matched.add(h));
-        if (flow.status === 'WAITING' || flow.status === 'READY') {
-          throw new TestingBotError(
-            `Flow "${flow.name}" on ${this.getRunDisplayName(run)} (run ${run.id}) is still running`,
-          );
-        }
         targets.push({ run, flow });
       }
     }
@@ -3490,22 +3537,11 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
       ];
       throw new TestingBotError(
         `No flow named ${unknown.map((u) => `"${u}"`).join(', ')} in ${
-          selection.runIds?.length
-            ? 'the selected runs'
-            : `project ${this.appId}`
+          runsNarrowed ? 'the selected runs' : `project ${this.appId}`
         }. Flows: ${names.join(', ') || 'none'}`,
       );
     }
-
-    // A cancelled run cannot be retried flow by flow; say so up front instead
-    // of surfacing one 409 per flow.
-    const cancelled = targets.filter((t) => t.run.status === 'CANCELLED');
-    for (const runId of new Set(cancelled.map((t) => t.run.id))) {
-      logger.warn(
-        `Run ${runId} was cancelled and cannot be re-run flow by flow; retry the whole run from the dashboard instead.`,
-      );
-    }
-    return targets.filter((t) => t.run.status !== 'CANCELLED');
+    return targets;
   }
 
   /** The status narrowed to the given runs (all runs when none are given). */
@@ -3565,7 +3601,10 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
    * finished project, reusing the same code path as `--report` and
    * `--download-artifacts` on a foreground run.
    */
-  public async artifacts(appId: number): Promise<MaestroResult> {
+  public async artifacts(
+    appId: number,
+    selection: { runIds?: number[]; flows?: string[] } = {},
+  ): Promise<MaestroResult> {
     this.appId = appId;
     try {
       if (!this.options.report && !this.options.downloadArtifacts) {
@@ -3592,10 +3631,32 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         );
       }
 
-      await this.fetchReports(status.runs);
-      await this.downloadArtifacts(status.runs);
+      const runs = this.selectedRuns(status, selection.runIds);
+      let artifactRuns = runs;
+      if (selection.flows?.length) {
+        const targets = this.matchNamedFlows(
+          runs,
+          selection.flows,
+          Boolean(selection.runIds?.length),
+        );
+        // Every attempt of a named flow, so a retried flow keeps the failing
+        // attempt next to the one that passed.
+        const ids = new Set<number>();
+        for (const { run, flow } of targets) {
+          const key = this.flowGroupKey(flow);
+          for (const f of run.flows ?? []) {
+            if (this.flowGroupKey(f) === key) ids.add(f.id);
+          }
+        }
+        this.artifactFlowIds = ids;
+        const targetRuns = new Set(targets.map((t) => t.run.id));
+        artifactRuns = runs.filter((r) => targetRuns.has(r.id));
+      }
 
-      const allSucceeded = this.computeOverallSuccess(status.runs);
+      await this.fetchReports(runs);
+      await this.downloadArtifacts(artifactRuns);
+
+      const allSucceeded = this.computeOverallSuccess(runs);
       return {
         success: allSucceeded,
         outcome: allSucceeded ? 'passed' : 'failed',
@@ -4561,6 +4622,24 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         details: MaestroRunDetails;
       }> = [];
 
+      // With --download-artifacts failed, only the failed attempts of a run
+      // that failed: its passing flows are the bulk of the download and not
+      // what anyone is after. A run without flows (legacy) has only its own
+      // run-level bundle.
+      const failedAttemptIds = new Set(
+        runsToDownload.flatMap((run) =>
+          (run.flows ?? [])
+            .filter((flow) => this.isFlowFailed(flow))
+            .map((flow) => flow.id),
+        ),
+      );
+      const wantFlow = (flow: MaestroFlowInfo): boolean =>
+        (downloadMode !== 'failed' || failedAttemptIds.has(flow.id)) &&
+        (!this.artifactFlowIds || this.artifactFlowIds.has(flow.id));
+      // A --flow selection is about those flows only: the run's own bundle
+      // (whole-session video, logs) and its combined report are left out.
+      const wantRunLevel = !this.artifactFlowIds;
+
       for (const run of runsToDownload) {
         if (!this.options.quiet) {
           logger.info(`  Waiting for artifacts sync for run ${run.id}...`);
@@ -4580,6 +4659,14 @@ export default class Maestro extends BaseProvider<MaestroOptions> {
         multiRun ? `report_${runId}.xml` : 'report.xml';
       const runAssetsDirName = (runId: number): string =>
         multiRun ? `run_${runId}` : '';
+
+      for (const entry of runDetailsList) {
+        entry.details = {
+          ...entry.details,
+          flows: (entry.details.flows || []).filter(wantFlow),
+          ...(wantRunLevel ? {} : { assets: undefined, report: undefined }),
+        };
+      }
 
       const reservedNames = new Set<string>();
       for (const { run, details } of runDetailsList) {

@@ -7771,6 +7771,135 @@ onFlowStart:
       expect(result.runs).toBe(runs);
     });
 
+    describe('artifacts() run/flow selection', () => {
+      const tempDir = path.join(path.sep, 'tmp', 'tb-sel');
+      const asset = (n: string) => ({ logs: { vm: `https://x/${n}.txt` } });
+      // Run 1: login failed then passed on retry, checkout failed. Run 2: all green.
+      const statusRuns = [
+        run({
+          id: 1,
+          success: 0,
+          flows: [
+            { id: 10, name: 'login.yaml', status: 'FAILED', success: 0 },
+            { id: 11, name: 'checkout.yaml', status: 'DONE', success: 0 },
+            { id: 12, name: 'login.yaml', status: 'DONE', success: 1 },
+          ],
+        }),
+        run({
+          id: 2,
+          flows: [{ id: 20, name: 'login.yaml', status: 'DONE', success: 1 }],
+        }),
+      ];
+      const details: Record<number, unknown> = {
+        1: {
+          ...statusRuns[0],
+          completed: true,
+          assets_synced: true,
+          report: '<run1/>',
+          assets: asset('run1'),
+          flows: statusRuns[0].flows.map((f) => ({
+            ...f,
+            assets: asset(`flow${f.id}`),
+          })),
+        },
+        2: {
+          ...statusRuns[1],
+          completed: true,
+          assets_synced: true,
+          report: '<run2/>',
+          flows: statusRuns[1].flows.map((f) => ({
+            ...f,
+            assets: asset(`flow${f.id}`),
+          })),
+        },
+      };
+
+      const setup = (mode: 'all' | 'failed') => {
+        const m = new Maestro(
+          mockCredentials,
+          MaestroOptions.forExistingProject({
+            downloadArtifacts: mode,
+            quiet: true,
+          }),
+        );
+        m['getStatus'] = jest.fn().mockResolvedValue({
+          runs: statusRuns,
+          success: false,
+          completed: true,
+        });
+        const synced: number[] = [];
+        m['waitForArtifactsSync'] = jest.fn((id: number) => {
+          synced.push(id);
+          return Promise.resolve(details[id]);
+        }) as never;
+        const bundles: string[] = [];
+        m['downloadAssetBundle'] = jest.fn((a: { logs: object }) => {
+          bundles.push(Object.values(a.logs)[0] as string);
+          return Promise.resolve();
+        }) as never;
+        m['createZipFromDirectory'] = jest.fn().mockResolvedValue(undefined);
+        fs.promises.mkdtemp = jest.fn().mockResolvedValue(tempDir);
+        fs.promises.mkdir = jest.fn().mockResolvedValue(undefined);
+        fs.promises.writeFile = jest.fn().mockResolvedValue(undefined);
+        fs.promises.access = jest.fn().mockRejectedValue(new Error('ENOENT'));
+        fs.promises.rm = jest.fn().mockResolvedValue(undefined);
+        const written = () =>
+          (fs.promises.writeFile as jest.Mock).mock.calls.map((c) => c[1]);
+        return { m, synced, bundles, written };
+      };
+
+      it('--flow downloads every attempt of that flow and skips run-level files', async () => {
+        const { m, synced, bundles, written } = setup('all');
+        const result = await m.artifacts(1234, { flows: ['login'] });
+        expect(result.outcome).toBe('failed');
+        expect(synced).toEqual([1, 2]);
+        expect(bundles.sort()).toEqual([
+          'https://x/flow10.txt',
+          'https://x/flow12.txt',
+          'https://x/flow20.txt',
+        ]);
+        expect(written()).not.toContain('<run1/>');
+        expect(written()).not.toContain('<run2/>');
+      });
+
+      it('--run narrows to that run and keeps its run-level files', async () => {
+        const { m, synced, bundles, written } = setup('all');
+        await m.artifacts(1234, { runIds: [2] });
+        expect(synced).toEqual([2]);
+        expect(bundles).toEqual(['https://x/flow20.txt']);
+        expect(written()).toContain('<run2/>');
+      });
+
+      it('--flow by attempt id with --run only touches that run', async () => {
+        const { m, synced, bundles } = setup('all');
+        await m.artifacts(1234, { runIds: [1], flows: ['11'] });
+        expect(synced).toEqual([1]);
+        expect(bundles).toEqual(['https://x/flow11.txt']);
+      });
+
+      it('failed mode keeps only the failed attempts of failed runs', async () => {
+        const { m, synced, bundles } = setup('failed');
+        await m.artifacts(1234);
+        expect(synced).toEqual([1]);
+        expect(bundles.sort()).toEqual([
+          'https://x/flow10.txt',
+          'https://x/flow11.txt',
+          'https://x/run1.txt',
+        ]);
+      });
+
+      it('rejects an unknown flow or run before downloading anything', async () => {
+        const a = setup('all');
+        const r1 = await a.m.artifacts(1234, { flows: ['nope'] });
+        expect(r1.outcome).toBe('error');
+        expect(r1.error).toContain('No flow named "nope" in project 1234');
+        const r2 = await a.m.artifacts(1234, { runIds: [99] });
+        expect(r2.outcome).toBe('error');
+        expect(r2.error).toContain('Run 99 is not part of project 1234');
+        expect(a.synced).toEqual([]);
+      });
+    });
+
     it('listProjects() calls the project list endpoint with pagination', async () => {
       const page = {
         data: [

@@ -293,6 +293,12 @@ async function handle(req, res) {
     ]);
   }
 
+  if (url.pathname.startsWith('/assets/')) {
+    return send(res, 200, `asset ${url.pathname}\n`, {
+      'Content-Type': 'application/octet-stream',
+    });
+  }
+
   const m = url.pathname.match(
     /^\/v1\/app-automate\/(maestro|espresso|xcuitest)(\/.*)?$/,
   );
@@ -366,6 +372,31 @@ async function handle(req, res) {
   }
   if (rest.match(/^\/(\d+)\/(\d+)\/(cancel|stop)$/))
     return send(res, 200, { success: true });
+  // One run with its flows' assets, as `--download-artifacts` reads it.
+  if ((mm = rest.match(/^\/(\d+)\/(\d+)$/)) && req.method === 'GET') {
+    const project = projects.get(Number(mm[1]));
+    if (!project) return send(res, 404, { error: 'Project not found' });
+    const status = maestroStatus(project);
+    const run = status.runs.find((r) => r.id === Number(mm[2]));
+    if (!run) return send(res, 404, { error: 'Run not found' });
+    const asset = (path) =>
+      `https://api.testingbot.com/assets/${run.id}/${path}`;
+    return send(res, 200, {
+      ...run,
+      completed: run.status === 'DONE',
+      assets_synced: true,
+      report: `<testsuites name="run ${run.id}"/>`,
+      flows: run.flows.map((f) => ({
+        ...f,
+        report: `<testsuite name="${f.name}"/>`,
+        assets: {
+          logs: { maestro: asset(`${f.id}/maestro.txt`) },
+          video: asset(`${f.id}/video.mp4`),
+          screenshots: [asset(`${f.id}/s0.png`)],
+        },
+      })),
+    });
+  }
   if (rest === '' && req.method === 'GET') {
     return send(res, 200, {
       data: [...projects.values()].map((p, i) => ({

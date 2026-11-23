@@ -1555,7 +1555,10 @@ describe('TestingBotCTL CLI', () => {
         '--artifacts-output-dir',
         './out',
       ]);
-      expect(mockArtifacts).toHaveBeenCalledWith(1234);
+      expect(mockArtifacts).toHaveBeenCalledWith(1234, {
+        runIds: [],
+        flows: undefined,
+      });
       const opts = lastConstructorOptions<{
         report?: string;
         reportOutputDir?: string;
@@ -1567,6 +1570,48 @@ describe('TestingBotCTL CLI', () => {
       expect(opts.downloadArtifacts).toBe('failed');
       expect(opts.artifactsOutputDir).toBe('./out');
       expect(process.exitCode).toBe(0);
+    });
+
+    test('artifacts forwards --run and --flow selection', async () => {
+      mockArtifacts.mockResolvedValue({
+        success: true,
+        outcome: 'passed',
+        runs: [],
+      });
+      await program.parseAsync([
+        'node',
+        'cli',
+        'artifacts',
+        '--id',
+        '1234',
+        '--download-artifacts',
+        '--run',
+        '11,12',
+        '--flow',
+        'login.yaml',
+        '--flow',
+        'checkout',
+      ]);
+      expect(mockArtifacts).toHaveBeenCalledWith(1234, {
+        runIds: [11, 12],
+        flows: ['login.yaml', 'checkout'],
+      });
+      expect(process.exitCode).toBe(0);
+    });
+
+    test('artifacts rejects a --run that is not a run ID', async () => {
+      await program.parseAsync([
+        'node',
+        'cli',
+        'artifacts',
+        '--id',
+        '1234',
+        '--download-artifacts',
+        '--run',
+        'abc',
+      ]);
+      expect(process.exitCode).toBe(1);
+      expect(mockArtifacts).not.toHaveBeenCalled();
     });
 
     test('artifacts defaults --download-artifacts to all and exits 1 on error', async () => {
