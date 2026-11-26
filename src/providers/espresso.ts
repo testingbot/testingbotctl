@@ -35,6 +35,11 @@ export interface EspressoRunInfo {
   success: number | boolean;
   /** This run's own JUnit XML. */
   report?: string;
+  /**
+   * Why the run failed when it never reported results (no device became
+   * free, the session could not start, ...). Same field as Maestro's.
+   */
+  error_messages?: string[];
   test?: {
     sessionId?: string;
   };
@@ -498,7 +503,7 @@ export default class Espresso extends BaseProvider<EspressoOptions> {
           logger.error(`${failedRuns.length} test run(s) failed:`);
           for (const run of failedRuns) {
             logger.error(
-              `  - Run ${run.id} (${this.getRunDisplayName(run)}): ${run.report || 'No report available'}`,
+              `  - Run ${run.id} (${this.getRunDisplayName(run)}): ${run.error_messages?.[0] || run.report || 'No report available'}`,
             );
           }
         }

@@ -827,6 +827,36 @@ describe('Espresso', () => {
       expect(result.runs[0].success).toBe(0);
     });
 
+    it('prints the reason of a run that failed before it reported results', async () => {
+      const errorSpy = jest.spyOn(logger, 'error').mockImplementation();
+      axios.get = jest.fn().mockResolvedValue({
+        data: {
+          runs: [
+            {
+              id: 3522,
+              status: 'FAILED',
+              capabilities: { deviceName: 'Pixel 8', platformName: 'Android' },
+              success: false,
+              report: '<testsuite tests="0" failures="0"/>',
+              error_messages: [
+                'No Pixel 8 (Android 17) real device became available to run the tests.',
+              ],
+            },
+          ],
+          success: false,
+          completed: true,
+        },
+      });
+
+      const result = await espresso['waitForCompletion']();
+
+      expect(result.success).toBe(false);
+      expect(errorSpy).toHaveBeenCalledWith(
+        '  - Run 3522 (Pixel 8): No Pixel 8 (Android 17) real device became available to run the tests.',
+      );
+      errorSpy.mockRestore();
+    });
+
     it('should poll until completion', async () => {
       const waitingResponse = {
         data: {
